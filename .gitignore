@@ -1,0 +1,17 @@
+# secrets
+.env
+
+# python
+.venv/
+__pycache__/
+backend/terminal.db
+backend/watchlist.json
+backend/screener_stocks.json
+backend/options_stocks.json
+backend/score_alerts.json
+trades.json
+
+# node / next
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
