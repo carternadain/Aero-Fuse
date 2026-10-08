@@ -9,6 +9,7 @@
   --ink-soft: #56626a;
   --rule: #d8dcd5;
   --magenta: #b0207a;   /* chart magenta: lights and notes */
+  --open: #2e7a4f;      /* "open now" indicator */
 
   --font-display: "Archivo", "Arial Narrow", Arial, sans-serif;
   --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
@@ -34,6 +35,17 @@ img { display: block; max-width: 100%; }
 a { color: inherit; }
 a:focus-visible { outline: 2px solid var(--magenta); outline-offset: 3px; }
 h1, h2, h3, p { margin: 0; }
+
+.skip {
+  position: absolute;
+  left: 12px; top: -60px;
+  z-index: 20;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 16px;
+  text-decoration: none;
+}
+.skip:focus { top: 12px; }
 
 /* Condensed uppercase display, like chart titles */
 h1, h2 {
@@ -83,6 +95,29 @@ h2 { font-size: clamp(3rem, 7vw, 6rem); }
   transition: color 0.15s ease;
 }
 .rail-nav a:hover { color: var(--magenta); }
+.rail-nav a[aria-current] { color: var(--ink); }
+.rail-nav a[aria-current]::before { content: "→ "; color: var(--magenta); }
+
+/* Open / closed badge (shown once hours are set in config.js) */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  margin-top: -28px;
+}
+.status::before {
+  content: "";
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  flex: none;
+}
+.status.is-open { color: var(--ink); }
+.status.is-open::before { background: var(--open); box-shadow: 0 0 0 3px color-mix(in srgb, var(--open) 22%, transparent); }
 .rail-foot {
   margin-top: auto;
   display: flex;
@@ -253,11 +288,14 @@ main { margin-left: var(--rail); }
 }
 .details dd { margin: 0; font-weight: 500; }
 .details a { text-decoration-color: var(--magenta); text-underline-offset: 4px; }
+.hours-row { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.hours-row span:first-child { color: var(--ink-soft); font-weight: 400; }
 .map { aspect-ratio: 21 / 9; max-width: 100%; background: var(--shallow); border: 1px solid var(--ink); overflow: hidden; margin-bottom: 20px; }
 .map iframe { width: 100%; height: 100%; border: 0; display: block; filter: grayscale(0.5); }
 .visit-links { display: flex; flex-wrap: wrap; gap: 12px 32px; }
 
 /* ---------- Footer ---------- */
+.footer a { color: inherit; }
 .footer {
   display: flex;
   flex-wrap: wrap;
@@ -292,7 +330,10 @@ main { margin-left: var(--rail); }
   .rail-logo { align-items: center; font-size: 1.05rem; }
   .rail-nav { flex-direction: row; gap: 18px; font-size: 0.95rem; }
   .rail-foot { display: none; }
+  .status { margin: 0; order: 2; }
+  .rail-nav { order: 3; }
   main { margin-left: 0; }
+  section[id] { scroll-margin-top: 96px; }
   .hero { height: clamp(440px, 70vh, 600px); }
   .section-head { grid-template-columns: minmax(0, 1fr); }
   .photos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -301,10 +342,28 @@ main { margin-left: var(--rail); }
 }
 @media (max-width: 520px) {
   .rail-nav a[href="#bakery"] { display: none; }
+  .rail { flex-wrap: wrap; row-gap: 6px; }
+  .status { order: 4; width: 100%; }
   .menu-grid, .details { grid-template-columns: minmax(0, 1fr); }
   .map { aspect-ratio: 4 / 3; }
 }
 
+/* ---------- Opening sequence: chart surfaces, then the title ---------- */
+#chart { animation: surface 1.4s ease both; }
+.chart-note, .hero h1, .hero-sub { animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.chart-note { animation-delay: 0.25s; }
+.hero h1 { animation-delay: 0.4s; }
+.hero-sub { animation-delay: 0.6s; }
+@keyframes surface { from { opacity: 0; filter: blur(6px); } }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+
+@media (hover: hover) {
+  .menu-group li { transition: padding-left 0.2s ease; }
+  .menu-group li:hover { padding-left: 6px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  #chart, .chart-note, .hero h1, .hero-sub { animation: none; }
+  .menu-group li { transition: none; }
 }

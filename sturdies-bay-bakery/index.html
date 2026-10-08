@@ -9,9 +9,45 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23fbfbf7'/><path d='M16 4 C21 12 21 18 16 28 C11 18 11 12 16 4Z' fill='%23b0207a'/></svg>">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#fbfbf7">
+
+  <!-- Link previews (texts, Instagram, Facebook). Once the site has its
+       domain, change these to full URLs, e.g. https://example.ca/og-image.png -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Sturdies Bay Bakery">
+  <meta property="og:description" content="Bread, buns & coffee up the hill from the Galiano ferry.">
+  <meta property="og:image" content="/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- Business details for Google search and Maps -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Bakery",
+    "name": "Sturdies Bay Bakery",
+    "description": "Family-run bakery and coffee shop up from the Sturdies Bay ferry terminal on Galiano Island.",
+    "telephone": "+1-250-539-0094",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "44 Madrona Drive",
+      "addressLocality": "Galiano Island",
+      "addressRegion": "BC",
+      "postalCode": "V0N 1P0",
+      "addressCountry": "CA"
+    },
+    "geo": { "@type": "GeoCoordinates", "latitude": 48.876, "longitude": -123.316 },
+    "servesCuisine": ["Bakery", "Coffee"],
+    "image": "/og-image.png"
+  }
+  </script>
+  <script src="config.js"></script>
 </head>
 <body>
+  <a class="skip" href="#menu">Skip to menu</a>
 
   <!-- Side rail (desktop) / top bar (mobile) -->
   <aside class="rail">
@@ -19,6 +55,7 @@
       <svg class="flare" viewBox="0 0 20 32" aria-hidden="true"><path d="M10 1 C16 11 16 19 10 31 C4 19 4 11 10 1Z"/></svg>
       <span>Sturdies Bay <br>Bakery</span>
     </a>
+    <p class="status" id="status" hidden></p>
     <nav class="rail-nav" aria-label="Main">
       <a href="#menu">Menu</a>
       <a href="#bakery">Bakery</a>
@@ -27,6 +64,7 @@
     <div class="rail-foot">
       <a href="tel:+12505390094">250 539 0094</a>
       <span>44 Madrona Dr<br>Galiano Island</span>
+      <a class="ig-link" href="#" target="_blank" rel="noopener" hidden>Instagram</a>
     </div>
   </aside>
 
@@ -134,8 +172,8 @@
       <dl class="details">
         <div><dt>Address</dt><dd>44 Madrona Drive<br>Galiano Island, BC V0N 1P0</dd></div>
         <div><dt>Phone</dt><dd><a href="tel:+12505390094">(250) 539-0094</a></dd></div>
-        <!-- TODO: replace with real hours from the owners -->
-        <div><dt>Hours</dt><dd>Mornings to early afternoon.<br>Seasonal, so call ahead.</dd></div>
+        <!-- Real hours go in config.js -->
+        <div><dt>Hours</dt><dd id="hours">Mornings to early afternoon.<br>Seasonal, so call ahead.</dd></div>
         <div><dt>Orders</dt><dd>Whole pies and cakes by phone, 1–2 days ahead.</dd></div>
       </dl>
 
@@ -150,12 +188,94 @@
 
     <footer class="footer wrap">
       <span>Sturdies Bay Bakery · Galiano Island, British Columbia</span>
+      <a class="ig-link" href="#" target="_blank" rel="noopener" hidden>Instagram</a>
       <span>© <span id="year">2026</span></span>
     </footer>
   </main>
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    /* Hours, "Open now" badge and Instagram links, driven by config.js */
+    (function () {
+      const site = window.SITE || {};
+      const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      const NAMES = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+
+      if (site.instagram) {
+        document.querySelectorAll('.ig-link').forEach(a => {
+          a.href = 'https://www.instagram.com/' + site.instagram.replace(/^@/, '') + '/';
+          a.hidden = false;
+        });
+      }
+
+      const hours = site.hours;
+      if (!hours) return;
+
+      const fmt = h => {
+        const hr = Math.floor(h), min = Math.round((h - hr) * 60);
+        const h12 = ((hr + 11) % 12) + 1;
+        return h12 + (min ? ':' + String(min).padStart(2, '0') : '') + (hr < 12 ? 'am' : 'pm');
+      };
+
+      // Hours list in the Visit section, grouping days with the same times
+      const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const label = d => hours[d] ? fmt(hours[d][0]) + '–' + fmt(hours[d][1]) : 'Closed';
+      const groups = [];
+      order.forEach(d => {
+        const last = groups[groups.length - 1];
+        if (last && last.text === label(d)) last.end = d;
+        else groups.push({ start: d, end: d, text: label(d) });
+      });
+      document.getElementById('hours').innerHTML = groups.map(g =>
+        '<span class="hours-row"><span>' + NAMES[g.start] + (g.end !== g.start ? '–' + NAMES[g.end] : '') +
+        '</span><span>' + g.text + '</span></span>').join('');
+
+      // Current time on the island
+      function islandNow() {
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Vancouver', weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23'
+        }).formatToParts(new Date());
+        const get = t => parts.find(p => p.type === t).value;
+        return { day: DAYS.indexOf(get('weekday').toLowerCase().slice(0, 3)), time: +get('hour') + get('minute') / 60 };
+      }
+
+      const status = document.getElementById('status');
+      function update() {
+        const now = islandNow();
+        const today = hours[DAYS[now.day]];
+        let text, open = false;
+        if (today && now.time >= today[0] && now.time < today[1]) {
+          open = true;
+          text = 'Open now · until ' + fmt(today[1]);
+        } else if (today && now.time < today[0]) {
+          text = 'Closed · opens ' + fmt(today[0]);
+        } else {
+          text = 'Closed';
+          for (let i = 1; i <= 7; i++) {
+            const d = DAYS[(now.day + i) % 7];
+            if (hours[d]) { text += ' · opens ' + (i === 1 ? 'tomorrow ' : NAMES[d] + ' ') + fmt(hours[d][0]); break; }
+          }
+        }
+        status.textContent = text;
+        status.classList.toggle('is-open', open);
+        status.hidden = false;
+      }
+      update();
+      setInterval(update, 60000);
+    })();
+
+    /* Highlight the current section in the side menu */
+    (function () {
+      const links = [...document.querySelectorAll('.rail-nav a')];
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (!e.isIntersecting) return;
+          links.forEach(a => a.toggleAttribute('aria-current', a.getAttribute('href') === '#' + e.target.id));
+        });
+      }, { rootMargin: '-45% 0px -50% 0px' });
+      ['menu', 'bakery', 'visit'].forEach(id => io.observe(document.getElementById(id)));
+    })();
 
     /* Generated nautical chart of the bay: land (buff), shallow water (blue),
        deep water (white), depth contours, soundings and a magenta light
