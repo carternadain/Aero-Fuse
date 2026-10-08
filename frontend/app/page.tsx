@@ -26,6 +26,7 @@ import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
 import TopBuys from "@/components/TopBuys";
+import SwingIdeas from "@/components/SwingIdeas";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
 import EconCalendar from "@/components/EconCalendar";
@@ -147,6 +148,8 @@ export default function Dashboard() {
           <>
             <SectionDivider title="Top" accent="Buys" hint="best long-term scores · click for history" />
             <TopBuys />
+            <SectionDivider title="Swing" accent="Ideas" hint="energy, nuclear, space, defense, AI & more · + adds to Options Watch" />
+            <SwingIdeas />
           </>
         )}
 

@@ -257,3 +257,20 @@ export interface Stats {
   worst_trade: { id: number; asset: string; pnl_pct: number; direction: string } | null;
   by_source: Record<string, { wins: number; losses: number; pnl: number }>;
 }
+
+export interface SwingIdea {
+  kind: "stock";
+  id: string;
+  symbol: string;
+  name: string;
+  sector: string;
+  price: number | null;
+  score: number | null;
+  label: string | null;
+  watched: boolean;
+  chg_1d: number | null;
+  chg_1w: number | null;
+  chg_1m: number | null;
+  chg_3m: number | null;
+  off_high: number | null;
+}

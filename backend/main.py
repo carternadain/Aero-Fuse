@@ -4,7 +4,7 @@ Run:  uvicorn main:app --reload --port 8000   (from the backend/ directory)
 
 Brings together:
   - Trade tracker, signal log, key levels, portfolio (SQLite)
-  - News + Claude sentiment (claude-sonnet-4-6)
+  - News + Claude sentiment (claude-sonnet-5-5)
   - TradingView webhook (POST /webhook) for direct alerts
   - Telegram poller (background thread) for TFlab-forwarded alerts + close commands
   - POST /api/evaluate — Claude confluence check (the future Toobit bot calls this)
@@ -33,6 +33,7 @@ import econ_calendar
 import market_data
 import news
 import scoring
+import universe
 
 WATCHLIST_FILE = Path(__file__).parent / "watchlist.json"
 DEFAULT_WATCHLIST = ["BTC", "SOL", "SOFI", "MSFT", "RDW"]
@@ -715,6 +716,27 @@ def markets_top_buys(min_score: float = 0):
     scored = [a for a in gather_scored_assets() if a["score"] is not None and a["score"] >= min_score]
     scored.sort(key=lambda a: a["score"], reverse=True)
     return {"assets": scored}
+
+
+@app.get("/api/markets/discover")
+def markets_discover():
+    """Swing Ideas: the curated sector universe, scored + momentum, best score first."""
+    market_data.prefetch_stock_histories(universe.all_tickers())
+    watched = set(_load_list(OPTIONS_FILE, DEFAULT_OPTIONS))
+    rows = []
+    for sector, names in universe.SECTORS.items():
+        for sym, name in names:
+            s = market_data.stock_score(sym)
+            sc = s.get("score") if s else None
+            rows.append({
+                "kind": "stock", "id": sym, "symbol": sym, "name": name, "sector": sector,
+                "price": s.get("price") if s else None,
+                "score": sc["score"] if sc else None, "label": sc["label"] if sc else None,
+                "watched": sym in watched,
+                **market_data.stock_momentum(sym),
+            })
+    rows.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0)))
+    return {"sectors": list(universe.SECTORS), "stocks": rows}
 
 
 @app.get("/api/markets/history/{kind}/{key_id}")

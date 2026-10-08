@@ -35,7 +35,7 @@ brighter-dark dashboard you can run on your phone.
 - **Frontend:** Next.js 15 + Tailwind v4 + recharts (`frontend/`, port 3000).
 - **Free data, no key:** CoinGecko (crypto prices, history, narratives), Yahoo Finance via
   `yfinance` (stock history, earnings, analyst targets), Google News RSS.
-- **Claude (`claude-sonnet-4-6`):** news sentiment + signal evaluation (optional — set `ANTHROPIC_API_KEY`).
+- **Claude (`claude-sonnet-5-5`):** news sentiment + signal evaluation (optional — set `ANTHROPIC_API_KEY`).
 
 ## Quick start
 

@@ -1,6 +1,6 @@
 """Claude API integration — headline sentiment scoring and trade-signal evaluation.
 
-Uses claude-sonnet-4-6 with structured JSON output so responses are always
+Uses claude-sonnet-5-5 with structured JSON output so responses are always
 machine-parseable (the future Toobit bot consumes evaluate_signal directly).
 """
 
@@ -9,7 +9,7 @@ import os
 
 import anthropic
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-sonnet-5-5"
 
 _client: anthropic.Anthropic | None = None
 

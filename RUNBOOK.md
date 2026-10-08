@@ -122,7 +122,7 @@ applies additive column upgrades (e.g. the signal AI-verdict columns) to existin
 | Crypto narratives | CoinGecko categories | Real categories, filtered to >$500M market cap and sorted by 24h move (drops scam micro-caps). |
 | Stock prices / history / earnings / analyst targets | **Yahoo Finance** via `yfinance` | Real market data. Yahoo occasionally throttles → cached 6–12h, per-ticker try/except; a throttled coin/stock shows "no data" and fills in on the next refresh. |
 | News headlines | Google News RSS (or CryptoPanic) | Free, real. |
-| Sentiment + signal verdict | Claude `claude-sonnet-4-6` | Only when `ANTHROPIC_API_KEY` is set. |
+| Sentiment + signal verdict | Claude `claude-sonnet-5-5` | Only when `ANTHROPIC_API_KEY` is set. |
 
 **The long-term score is honest math**, computed from real OHLC: 35% inverted RSI(14) +
 35% distance from the 200-day MA + 30% 52-week range position. It's a *timing heuristic for

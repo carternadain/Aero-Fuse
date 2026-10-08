@@ -283,7 +283,7 @@ def stock_history(ticker: str) -> list[float]:
     if yf is not None:
         try:
             hist = yf.Ticker(ticker).history(period="1y")
-            closes = [float(x) for x in hist["Close"].tolist()]
+            closes = [float(x) for x in hist["Close"].dropna().tolist()]
         except Exception as e:
             print(f"[market_data] stock_history {ticker} error: {e}")
             closes = _get(f"{key}:stale", 86400) or []
@@ -291,6 +291,47 @@ def stock_history(ticker: str) -> list[float]:
     if closes:
         _set(f"{key}:stale", closes)
     return closes
+
+
+def prefetch_stock_histories(tickers: list[str]) -> None:
+    """Warm the stock_history cache for many tickers with one batched yfinance call."""
+    missing = [t for t in tickers if _get(f"yf_hist:{t}", 6 * 3600) is None]
+    yf = _yf()
+    if not missing or yf is None:
+        return
+    try:
+        df = yf.download(missing, period="1y", group_by="ticker", threads=True,
+                         progress=False, auto_adjust=True)
+    except Exception as e:
+        print(f"[market_data] bulk download error: {e}")
+        return
+    for t in missing:
+        try:
+            closes = [float(x) for x in df[t]["Close"].dropna().tolist()]
+        except Exception:
+            continue  # leave uncached; stock_history() will retry it individually
+        if closes:
+            _set(f"yf_hist:{t}", closes)
+            _set(f"yf_hist:{t}:stale", closes)
+
+
+def _pct(closes: list[float], days: int) -> float | None:
+    if len(closes) <= days or not closes[-days - 1]:
+        return None
+    return round((closes[-1] / closes[-days - 1] - 1) * 100, 2)
+
+
+def stock_momentum(ticker: str) -> dict:
+    """1D / 1W / 1M / 3M % change + distance from the 52-week high."""
+    closes = stock_history(ticker)
+    if not closes:
+        return {"chg_1d": None, "chg_1w": None, "chg_1m": None, "chg_3m": None, "off_high": None}
+    hi = max(closes)
+    return {
+        "chg_1d": _pct(closes, 1), "chg_1w": _pct(closes, 5),
+        "chg_1m": _pct(closes, 21), "chg_3m": _pct(closes, 63),
+        "off_high": round((closes[-1] / hi - 1) * 100, 2) if hi else None,
+    }
 
 
 def stock_score(ticker: str) -> dict | None:
