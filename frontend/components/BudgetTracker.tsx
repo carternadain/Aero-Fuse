@@ -5,6 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronLeft, ChevronRight, PiggyBank, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
+import { askText } from "./DialogHost";
 
 interface Tx {
   id: number;
@@ -58,7 +59,7 @@ export default function BudgetTracker() {
   };
 
   const setLimit = async (category: string, current: number | null) => {
-    const v = prompt(`Monthly budget for ${category}:`, String(current ?? ""));
+    const v = await askText(`Monthly budget for ${category}:`, String(current ?? ""));
     if (v == null) return;
     const limit = parseFloat(v.replace(/[$,]/g, ""));
     if (isNaN(limit)) return;

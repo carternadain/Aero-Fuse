@@ -28,6 +28,7 @@ import SimBot from "@/components/SimBot";
 import TopBuys from "@/components/TopBuys";
 import SwingIdeas from "@/components/SwingIdeas";
 import Overview from "@/components/Overview";
+import DialogHost from "@/components/DialogHost";
 import RiskRating from "@/components/RiskRating";
 import SavingsPlan from "@/components/SavingsPlan";
 import CryptoScreener from "@/components/CryptoScreener";
@@ -123,6 +124,7 @@ export default function Dashboard() {
     <div className="min-h-screen">
       <Header />
       <TabNav active={tab} onChange={setTab} />
+      <DialogHost />
       <main className="p-3 sm:p-4 pb-24 sm:pb-6 space-y-3 max-w-[1800px] mx-auto">
         {backendDown && (
           <div className="panel border-down/50 px-4 py-3 text-xs text-down">

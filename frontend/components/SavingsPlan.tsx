@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Plus, X } from "lucide-react";
+import { CalendarClock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 
@@ -37,12 +37,81 @@ function project(start: number, monthly: number, annualPct: number, years: numbe
   return start * g + monthly * ((g - 1) / r);
 }
 
+type FormState = { account: string; bucket: string; amount: string; employer_match: string; frequency: string };
+
+const EMPTY: FormState = { account: "", bucket: "retirement", amount: "", employer_match: "", frequency: "monthly" };
+
+function ContributionForm({
+  value, onChange, onSave, onCancel, onDelete, saveLabel,
+}: {
+  value: FormState;
+  onChange: (f: FormState) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+  saveLabel: string;
+}) {
+  const f = value;
+  return (
+    <form className="p-3 space-y-2 bg-panel2" onSubmit={(e) => { e.preventDefault(); onSave(); }}>
+      <label className="block">
+        <span className="text-[10px] text-faint">Account</span>
+        <input className="field" placeholder="e.g. Roth IRA" value={f.account} autoFocus
+               onChange={(e) => onChange({ ...f, account: e.target.value })} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[10px] text-faint">You put in ($)</span>
+          <input className="field" inputMode="decimal" placeholder="0" value={f.amount}
+                 onChange={(e) => onChange({ ...f, amount: e.target.value })} />
+        </label>
+        <label className="block">
+          <span className="text-[10px] text-faint">Employer match ($)</span>
+          <input className="field" inputMode="decimal" placeholder="0" value={f.employer_match}
+                 onChange={(e) => onChange({ ...f, employer_match: e.target.value })} />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[10px] text-faint">How often</span>
+          <select className="field" value={f.frequency} onChange={(e) => onChange({ ...f, frequency: e.target.value })}>
+            <option value="weekly">Every week</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="semimonthly">Twice a month</option>
+            <option value="monthly">Every month</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-[10px] text-faint">Type</span>
+          <select className="field" value={f.bucket} onChange={(e) => onChange({ ...f, bucket: e.target.value })}>
+            <option value="retirement">Retirement</option>
+            <option value="brokerage">Brokerage</option>
+            <option value="cash">Cash savings</option>
+            <option value="crypto">Crypto</option>
+          </select>
+        </label>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button type="submit" className="btn btn-primary flex-1">{saveLabel}</button>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+        {onDelete && (
+          <button type="button" className="btn !text-down hover:!border-down" onClick={onDelete} title="Remove">
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
 export default function SavingsPlan() {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [nw, setNw] = useState(0);
   const [ret, setRet] = useState(7);
   const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({ account: "", bucket: "retirement", amount: "", employer_match: "", frequency: "monthly" });
+  const [f, setF] = useState<FormState>(EMPTY);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [ef, setEf] = useState<FormState>(EMPTY);
 
   const refresh = () => {
     api.get<PlanResponse>("/api/contributions").then(setPlan).catch(() => {});
@@ -61,12 +130,30 @@ export default function SavingsPlan() {
     refresh();
   };
 
-  const edit = async (c: Contribution) => {
-    const v = prompt(`How much do you put into ${c.account} ${FREQ_LABEL[c.frequency]}?`, String(c.amount));
-    if (v == null) return;
-    const amount = parseFloat(v.replace(/[$,]/g, ""));
-    if (isNaN(amount)) return;
-    await api.patch(`/api/contributions/${c.id}`, { amount });
+  const startEdit = (c: Contribution) => {
+    setAdding(false);
+    setEditing(c.id);
+    setEf({
+      account: c.account, bucket: c.bucket, frequency: c.frequency,
+      amount: String(c.amount), employer_match: c.employer_match ? String(c.employer_match) : "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (editing == null) return;
+    const amount = parseFloat(ef.amount.replace(/[$,]/g, ""));
+    if (!ef.account.trim() || isNaN(amount)) return;
+    await api.patch(`/api/contributions/${editing}`, {
+      account: ef.account.trim(), bucket: ef.bucket, frequency: ef.frequency, amount,
+      employer_match: parseFloat(ef.employer_match.replace(/[$,]/g, "")) || 0,
+    });
+    setEditing(null);
+    refresh();
+  };
+
+  const remove = async (id: number) => {
+    await api.del(`/api/contributions/${id}`);
+    setEditing(null);
     refresh();
   };
 
@@ -80,7 +167,7 @@ export default function SavingsPlan() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><CalendarClock size={14} />Savings Plan</span>
-        <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)} title="Add a recurring contribution">
+        <button className="btn btn-primary !py-1 !px-2" onClick={() => { setEditing(null); setAdding(!adding); }} title="Add a recurring contribution">
           <Plus size={12} strokeWidth={3} />
         </button>
       </div>
@@ -97,25 +184,9 @@ export default function SavingsPlan() {
       </div>
 
       {adding && (
-        <div className="m-3 p-3 rounded-lg space-y-2 bg-panel2">
-          <input className="field" placeholder="Account (e.g. Roth IRA)" value={f.account}
-                 onChange={(e) => setF({ ...f, account: e.target.value })} />
-          <div className="grid grid-cols-3 gap-2">
-            <input className="field" placeholder="Amount $" inputMode="decimal" value={f.amount}
-                   onChange={(e) => setF({ ...f, amount: e.target.value })} />
-            <input className="field" placeholder="Match $" inputMode="decimal" value={f.employer_match}
-                   onChange={(e) => setF({ ...f, employer_match: e.target.value })} />
-            <select className="field" value={f.frequency} onChange={(e) => setF({ ...f, frequency: e.target.value })}>
-              <option value="weekly">WEEKLY</option>
-              <option value="biweekly">EVERY 2 WEEKS</option>
-              <option value="semimonthly">TWICE A MONTH</option>
-              <option value="monthly">MONTHLY</option>
-            </select>
-          </div>
-          <select className="field" value={f.bucket} onChange={(e) => setF({ ...f, bucket: e.target.value })}>
-            {BUCKETS.map((b) => <option key={b} value={b}>{b.toUpperCase()}</option>)}
-          </select>
-          <button className="btn btn-primary w-full" onClick={add}>Add Contribution</button>
+        <div className="mt-3 border-t border-edge">
+          <ContributionForm value={f} onChange={setF} onSave={add} saveLabel="Add contribution"
+                            onCancel={() => setAdding(false)} />
         </div>
       )}
 
@@ -123,27 +194,31 @@ export default function SavingsPlan() {
         {plan?.contributions.length === 0 && (
           <p className="p-4 text-xs text-dim">Add what you put away each paycheck or month: 401(k), Roth, brokerage, savings.</p>
         )}
-        {plan?.contributions.map((c) => (
-          <div key={c.id} className="flex items-center gap-2 px-3 py-2 border-t border-edge first:border-t-0 text-xs hover:bg-panel2 cursor-pointer"
-               onClick={() => edit(c)} title="Click to change the amount">
-            <div className="min-w-0">
-              <div className="text-txt font-bold">{c.account}</div>
-              <div className="text-[10px] text-faint">
-                {fmtUsd(c.amount)} {FREQ_LABEL[c.frequency]}
-                {c.employer_match > 0 && <span className="text-cyan"> + {fmtUsd(c.employer_match)} match</span>}
-                <span className="uppercase"> · {c.bucket}</span>
+        {plan?.contributions.map((c) =>
+          editing === c.id ? (
+            <div key={c.id} className="border-t border-edge first:border-t-0">
+              <ContributionForm value={ef} onChange={setEf} onSave={saveEdit} saveLabel="Save changes"
+                                onCancel={() => setEditing(null)} onDelete={() => remove(c.id)} />
+            </div>
+          ) : (
+            <button key={c.id} onClick={() => startEdit(c)}
+                    className="w-full text-left flex items-center gap-2 px-3 py-2.5 border-t border-edge first:border-t-0 text-xs hover:bg-panel2 group">
+              <div className="min-w-0">
+                <div className="text-txt font-bold">{c.account}</div>
+                <div className="text-[10px] text-faint">
+                  {fmtUsd(c.amount)} {FREQ_LABEL[c.frequency]}
+                  {c.employer_match > 0 && <span className="text-cyan"> + {fmtUsd(c.employer_match)} match</span>}
+                  <span className="uppercase"> · {c.bucket}</span>
+                </div>
               </div>
-            </div>
-            <div className="ml-auto text-right tabular-nums">
-              <div className="font-bold text-txt">{fmtUsd(c.monthly + c.monthly_match)}</div>
-              <div className="text-[9px] text-faint">per month</div>
-            </div>
-            <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${c.account}?`)) api.del(`/api/contributions/${c.id}`).then(refresh); }}>
-              <X size={12} />
+              <div className="ml-auto text-right tabular-nums">
+                <div className="font-bold text-txt">{fmtUsd(c.monthly + c.monthly_match)}</div>
+                <div className="text-[9px] text-faint">per month</div>
+              </div>
+              <Pencil size={12} className="text-faint group-hover:text-txt shrink-0" />
             </button>
-          </div>
-        ))}
+          ),
+        )}
       </div>
 
       {/* Projection */}

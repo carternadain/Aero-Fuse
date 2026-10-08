@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, CandlestickChart, Droplets, Plus, Trash2, X } from "lucide-react";
 import type { Trade } from "@/lib/types";
 import { api, fmtPnl, fmtPrice, timeAgo } from "@/lib/api";
+import { askConfirm } from "./DialogHost";
 
 const SOURCES = ["both", "neurowave", "kryptonite", "manual"];
 
@@ -44,7 +45,7 @@ function TradeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   const submit = async () => {
     if (isNaN(entry) || isNaN(sl)) { setErr("Entry and SL are required"); return; }
     if (rr !== null && rr < 2) {
-      if (!confirm(`RR is ${rr} — below your 2:1 minimum. Take it anyway?`)) return;
+      if (!(await askConfirm(`RR is ${rr} — below your 2:1 minimum. Take it anyway?`, false))) return;
     }
     try {
       await api.post("/api/trades", {
@@ -183,7 +184,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
   );
 
   const del = async (id: number) => {
-    if (!confirm(`Delete trade #${id}? This can't be undone.`)) return;
+    if (!(await askConfirm(`Delete trade #${id}? This can't be undone.`))) return;
     await api.del(`/api/trades/${id}`);
     onChanged();
   };

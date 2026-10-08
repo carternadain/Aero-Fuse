@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Briefcase, Plus, X } from "lucide-react";
 import type { Position } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
+import { askConfirm, askText } from "./DialogHost";
 
 function pnl(p: Position, livePrice?: number): { pct: number | null; usd: number | null } {
   const mark = p.kind === "crypto" && livePrice ? livePrice : p.current;
@@ -45,7 +46,7 @@ export default function Portfolio({
   };
 
   const updateMark = async (p: Position) => {
-    const v = prompt(`Current mark for ${p.asset}${p.kind === "leap" ? " (per contract)" : ""}:`, String(p.current ?? ""));
+    const v = await askText(`Current mark for ${p.asset}${p.kind === "leap" ? " (per contract)" : ""}:`, String(p.current ?? ""));
     if (v == null) return;
     const current = parseFloat(v);
     if (isNaN(current)) return;
@@ -79,7 +80,7 @@ export default function Portfolio({
             {usd >= 0 ? "+" : "−"}${Math.abs(usd).toLocaleString()}
           </span>
         )}
-        <button className="icon-btn" onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${p.asset}?`)) api.del(`/api/positions/${p.id}`).then(onChanged); }}>
+        <button className="icon-btn" onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${p.asset}?`).then((ok) => { if (ok) api.del(`/api/positions/${p.id}`).then(onChanged); }); }}>
           <X size={12} />
         </button>
       </div>

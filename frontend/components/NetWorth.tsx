@@ -9,6 +9,7 @@ import {
   ChevronDown, ChevronRight, Plus, TrendingUp, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { askConfirm, askText } from "./DialogHost";
 
 interface Account {
   id: number;
@@ -125,7 +126,7 @@ export default function NetWorth() {
   };
 
   const editQty = async (h: Holding) => {
-    const v = prompt(`New ${h.kind === "option" ? "number of contracts" : "quantity"} for ${h.display}:`, String(h.qty));
+    const v = await askText(`New ${h.kind === "option" ? "number of contracts" : "quantity"} for ${h.display}:`, String(h.qty));
     if (v == null) return;
     const qty = parseFloat(v.replace(/,/g, ""));
     if (isNaN(qty)) return;
@@ -143,7 +144,7 @@ export default function NetWorth() {
   };
 
   const editBalance = async (a: Account) => {
-    const v = prompt(`New balance for ${a.name}:`, String(a.balance));
+    const v = await askText(`New balance for ${a.name}:`, String(a.balance));
     if (v == null) return;
     const balance = parseFloat(v.replace(/[$,]/g, ""));
     if (isNaN(balance)) return;
@@ -367,7 +368,7 @@ export default function NetWorth() {
                     </div>
                   </div>
                   <button className="icon-btn"
-                          onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${h.display}?`)) api.del(`/api/holdings/${h.id}`).then(refresh); }}>
+                          onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${h.display}?`).then((ok) => { if (ok) api.del(`/api/holdings/${h.id}`).then(refresh); }); }}>
                     <X size={12} />
                   </button>
                 </div>
@@ -388,7 +389,7 @@ export default function NetWorth() {
             <span className="text-[9px] text-faint uppercase">{a.category.replace("_", " ")}</span>
             <span className="ml-auto font-bold tabular-nums text-txt">{fmtUsd(a.balance)}</span>
             <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${a.name}?`)) api.del(`/api/accounts/${a.id}`).then(refresh); }}>
+                    onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${a.name}?`).then((ok) => { if (ok) api.del(`/api/accounts/${a.id}`).then(refresh); }); }}>
               <X size={12} />
             </button>
           </div>
@@ -406,7 +407,7 @@ export default function NetWorth() {
             <span className="text-[9px] text-faint uppercase">{a.category.replace("_", " ")}</span>
             <span className="ml-auto font-bold tabular-nums text-down">{fmtUsd(a.balance)}</span>
             <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${a.name}?`)) api.del(`/api/accounts/${a.id}`).then(refresh); }}>
+                    onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${a.name}?`).then((ok) => { if (ok) api.del(`/api/accounts/${a.id}`).then(refresh); }); }}>
               <X size={12} />
             </button>
           </div>
