@@ -186,8 +186,8 @@ sudo apt update && sudo apt install -y caddy
 
 **7.4 Get the code + secrets**
 ```bash
-cd ~ && git clone https://github.com/carternadain/Computer-Science-ePortfolio.git
-cd Computer-Science-ePortfolio
+cd ~ && git clone https://github.com/carternadain/Aero-Fuse.git
+cd Aero-Fuse
 nano .env       # paste TELEGRAM_*, ANTHROPIC_API_KEY, (CRYPTOPANIC_API_KEY)
 ```
 > Private repo? Clone with a fine-grained PAT: `https://<TOKEN>@github.com/<user>/<repo>.git`
@@ -207,8 +207,8 @@ Description=Trading Terminal API
 After=network-online.target
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/Computer-Science-ePortfolio/backend
-ExecStart=/home/ubuntu/Computer-Science-ePortfolio/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+WorkingDirectory=/home/ubuntu/Aero-Fuse/backend
+ExecStart=/home/ubuntu/Aero-Fuse/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 [Install]
@@ -221,7 +221,7 @@ Description=Trading Terminal Frontend
 After=terminal-api.service
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/Computer-Science-ePortfolio/frontend
+WorkingDirectory=/home/ubuntu/Aero-Fuse/frontend
 ExecStart=/usr/bin/npm run start
 Environment=PORT=3000
 Restart=always
@@ -254,7 +254,7 @@ webhook → `https://carter-terminal.duckdns.org/webhook`.
 **7.8 Daily DB backups**
 ```bash
 mkdir -p ~/backups && crontab -e
-# add: 0 6 * * * cp /home/ubuntu/Computer-Science-ePortfolio/backend/terminal.db /home/ubuntu/backups/terminal-$(date +\%u).db
+# add: 0 6 * * * cp /home/ubuntu/Aero-Fuse/backend/terminal.db /home/ubuntu/backups/terminal-$(date +\%u).db
 ```
 
 ### Faster but weaker alternatives
@@ -267,7 +267,7 @@ mkdir -p ~/backups && crontab -e
 
 **Deploy an update (VPS):**
 ```bash
-cd ~/Computer-Science-ePortfolio && git pull
+cd ~/Aero-Fuse && git pull
 .venv/bin/pip install -r backend/requirements.txt
 cd frontend && npm install && npm run build && cd ..
 sudo systemctl restart terminal-api terminal-web
