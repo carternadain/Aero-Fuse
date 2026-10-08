@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "frontend-design@anthropic-plugin-directory": true,
+    "audit-suite@anthropic-plugin-directory": true,
+    "design@anthropic-plugin-directory": true
+  }
+}
