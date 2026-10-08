@@ -74,6 +74,7 @@ export default function FireCalc() {
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(inp)); } catch { /* private mode */ }
+    window.dispatchEvent(new Event("fire-inputs")); // Money Lab shares these assumptions
   }, [inp]);
 
   const set = (k: keyof FireInputs) => (v: number) => setInp((p) => ({ ...p, [k]: v }));
@@ -93,12 +94,14 @@ export default function FireCalc() {
     let contributed = inp.currentNW;
     let fireAge: number | null = null;
     let leanAge: number | null = null;
-    for (let y = 0; y <= 45; y++) {
-      data.push({ age: inp.age + y, nw: Math.round(nw), contributions: Math.round(contributed) });
-      if (fireAge === null && nw >= fireNumber) fireAge = inp.age + y;
-      if (leanAge === null && nw >= leanFire) leanAge = inp.age + y;
-      nw = nw * (1 + realReturn) + inp.monthlyInvest * 12;
-      contributed += inp.monthlyInvest * 12;
+    // Monthly compounding with monthly deposits (matches Money Lab and how accounts actually grow).
+    const rm = Math.pow(1 + realReturn, 1 / 12) - 1;
+    for (let m = 0; m <= 45 * 12; m++) {
+      if (m % 12 === 0) data.push({ age: inp.age + m / 12, nw: Math.round(nw), contributions: Math.round(contributed) });
+      if (fireAge === null && nw >= fireNumber) fireAge = Math.round(inp.age + m / 12);
+      if (leanAge === null && nw >= leanFire) leanAge = Math.round(inp.age + m / 12);
+      nw = nw * (1 + rm) + inp.monthlyInvest;
+      contributed += inp.monthlyInvest;
     }
     const coastReached = inp.currentNW >= coastNumber;
     return { realReturn, fireNumber, leanFire, fatFire, coastNumber, coastReached, fireAge, leanAge, data };
