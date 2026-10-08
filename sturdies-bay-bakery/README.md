@@ -20,6 +20,13 @@ python3 -m http.server 8080 --directory sturdies-bay-bakery
 3. Framework preset: **Other**. Leave the build command empty.
 4. Deploy.
 
+## Photos
+
+The photos are free Unsplash images (free for commercial use), linked directly from
+`images.unsplash.com`. Each photo has an ocean or sand gradient behind it, so the
+layout still looks right if one doesn't load. To use the bakery's own photos, add
+them to an `images/` folder and change the `src="..."` values in `index.html`.
+
 ## Things to confirm with the owners
 
 - Real opening hours (search for `TODO` in `index.html`)
