@@ -32,6 +32,9 @@ import DialogHost from "@/components/DialogHost";
 import RiskRating from "@/components/RiskRating";
 import SavingsPlan from "@/components/SavingsPlan";
 import MoneyLab from "@/components/MoneyLab";
+import StressTest from "@/components/StressTest";
+import WealthChecks from "@/components/WealthChecks";
+import NetWorthCalendar from "@/components/NetWorthCalendar";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
 import EconCalendar from "@/components/EconCalendar";
@@ -237,6 +240,11 @@ export default function Dashboard() {
             </div>
             <SectionDivider title="Money" accent="Lab" hint="what your dollars turn into" />
             <MoneyLab />
+            <SectionDivider title="Stress" accent="Test" hint="what a crash would do to you" />
+            <StressTest />
+            <SectionDivider title="Health" accent="Check" hint="free money · limits · cushion · expirations" />
+            <WealthChecks />
+            <NetWorthCalendar />
             <SectionDivider title="Plan" accent="Ahead" hint="FIRE · budget" />
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
               <div className="lg:col-span-7">

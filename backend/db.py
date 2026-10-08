@@ -116,7 +116,14 @@ def init_db():
                 bucket TEXT DEFAULT 'retirement',  -- retirement | brokerage | cash | crypto
                 amount REAL NOT NULL,              -- what you put in, per period
                 employer_match REAL DEFAULT 0,     -- free money added per period
-                frequency TEXT DEFAULT 'monthly'   -- weekly | biweekly | semimonthly | monthly
+                frequency TEXT DEFAULT 'monthly',  -- weekly | biweekly | semimonthly | monthly
+                plan_type TEXT DEFAULT 'other',    -- 401k | ira | other (for IRS limit tracking)
+                match_max REAL                     -- most the employer would match per period, if known
+            );
+
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
             );
 
             CREATE TABLE IF NOT EXISTS networth_snapshots (
@@ -206,6 +213,16 @@ def migrate():
         for name, decl in adds.items():
             if name not in cols:
                 c.execute(f"ALTER TABLE signals ADD COLUMN {name} {decl}")
+
+        # contributions v2: plan type + max available match
+        ccols = {r["name"] for r in c.execute("PRAGMA table_info(contributions)").fetchall()}
+        if ccols and "plan_type" not in ccols:
+            c.execute("ALTER TABLE contributions ADD COLUMN plan_type TEXT DEFAULT 'other'")
+            # best guess for existing rows from the account name
+            c.execute("UPDATE contributions SET plan_type='401k' WHERE lower(account) LIKE '%401%'")
+            c.execute("UPDATE contributions SET plan_type='ira' WHERE lower(account) LIKE '%ira%'")
+        if ccols and "match_max" not in ccols:
+            c.execute("ALTER TABLE contributions ADD COLUMN match_max REAL")
 
 
 def row_to_dict(row: sqlite3.Row) -> dict:
@@ -678,9 +695,11 @@ PERIODS_PER_MONTH = {"weekly": 52 / 12, "biweekly": 26 / 12, "semimonthly": 2, "
 def create_contribution(data: dict) -> dict:
     with conn() as c:
         cur = c.execute(
-            "INSERT INTO contributions (account, bucket, amount, employer_match, frequency) VALUES (?,?,?,?,?)",
+            "INSERT INTO contributions (account, bucket, amount, employer_match, frequency, plan_type, match_max)"
+            " VALUES (?,?,?,?,?,?,?)",
             (data["account"], data.get("bucket", "retirement"), data["amount"],
-             data.get("employer_match", 0) or 0, data.get("frequency", "monthly")),
+             data.get("employer_match", 0) or 0, data.get("frequency", "monthly"),
+             data.get("plan_type", "other"), data.get("match_max")),
         )
         return row_to_dict(c.execute("SELECT * FROM contributions WHERE id=?", (cur.lastrowid,)).fetchone())
 
@@ -692,11 +711,12 @@ def list_contributions() -> list[dict]:
         k = PERIODS_PER_MONTH.get(r["frequency"], 1)
         r["monthly"] = round(r["amount"] * k, 2)
         r["monthly_match"] = round((r["employer_match"] or 0) * k, 2)
+        r["monthly_match_max"] = round(r["match_max"] * k, 2) if r.get("match_max") else None
     return rows
 
 
 def update_contribution(c_id: int, fields: dict) -> dict | None:
-    allowed = {"account", "bucket", "amount", "employer_match", "frequency"}
+    allowed = {"account", "bucket", "amount", "employer_match", "frequency", "plan_type", "match_max"}
     sets, params = [], []
     for k, v in fields.items():
         if k in allowed:
@@ -713,6 +733,21 @@ def update_contribution(c_id: int, fields: dict) -> dict | None:
 def delete_contribution(c_id: int) -> bool:
     with conn() as c:
         return c.execute("DELETE FROM contributions WHERE id=?", (c_id,)).rowcount > 0
+
+
+def get_setting(key: str) -> str | None:
+    with conn() as c:
+        row = c.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else None
+
+
+def set_setting(key: str, value: str | None) -> None:
+    with conn() as c:
+        if value is None:
+            c.execute("DELETE FROM settings WHERE key=?", (key,))
+        else:
+            c.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                      "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
 
 
 def networth_totals(holdings_value: float = 0.0) -> dict:

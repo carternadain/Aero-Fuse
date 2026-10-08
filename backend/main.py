@@ -484,6 +484,8 @@ class ContributionIn(BaseModel):
     amount: float
     employer_match: float = 0
     frequency: str = "monthly"
+    plan_type: str = "other"
+    match_max: float | None = None
 
 
 class ContributionPatch(BaseModel):
@@ -492,6 +494,12 @@ class ContributionPatch(BaseModel):
     amount: float | None = None
     employer_match: float | None = None
     frequency: str | None = None
+    plan_type: str | None = None
+    match_max: float | None = None
+
+
+class SettingsIn(BaseModel):
+    monthly_expenses: float | None = None
 
 
 class HoldingPatch(BaseModel):
@@ -751,7 +759,10 @@ def post_contribution(body: ContributionIn):
 
 @app.patch("/api/contributions/{c_id}")
 def patch_contribution(c_id: int, body: ContributionPatch):
-    row = db.update_contribution(c_id, {k: v for k, v in body.model_dump().items() if v is not None})
+    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if fields.get("match_max") == 0:
+        fields["match_max"] = None
+    row = db.update_contribution(c_id, fields)
     if not row:
         raise HTTPException(404, "Contribution not found")
     return row
@@ -775,7 +786,23 @@ def get_networth_risk():
         e = db.budget_summary(m)["expenses"]
         if e > 0:
             expenses = max(expenses or 0, e)
+    if expenses is None:  # fall back to the user's own estimate
+        est = db.get_setting("monthly_expenses")
+        expenses = float(est) if est else None
     return risk.rate(valued_holdings()["holdings"], db.list_accounts(), expenses)
+
+
+@app.get("/api/settings")
+def get_settings():
+    est = db.get_setting("monthly_expenses")
+    return {"monthly_expenses": float(est) if est else None}
+
+
+@app.put("/api/settings")
+def put_settings(body: SettingsIn):
+    v = body.monthly_expenses
+    db.set_setting("monthly_expenses", str(v) if v and v > 0 else None)
+    return get_settings()
 
 
 @app.post("/api/networth/snapshot")

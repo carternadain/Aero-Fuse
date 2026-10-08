@@ -12,6 +12,8 @@ interface Contribution {
   amount: number;
   employer_match: number;
   frequency: "weekly" | "biweekly" | "semimonthly" | "monthly";
+  plan_type: "401k" | "ira" | "other";
+  match_max: number | null;
   monthly: number;
   monthly_match: number;
 }
@@ -37,9 +39,25 @@ function project(start: number, monthly: number, annualPct: number, years: numbe
   return start * g + monthly * ((g - 1) / r);
 }
 
-type FormState = { account: string; bucket: string; amount: string; employer_match: string; frequency: string };
+type FormState = {
+  account: string; bucket: string; amount: string; employer_match: string; frequency: string;
+  plan_type: string; match_max: string;
+};
 
-const EMPTY: FormState = { account: "", bucket: "retirement", amount: "", employer_match: "", frequency: "monthly" };
+const EMPTY: FormState = {
+  account: "", bucket: "retirement", amount: "", employer_match: "", frequency: "monthly", plan_type: "other", match_max: "",
+};
+
+const num = (v: string) => parseFloat(v.replace(/[$,]/g, ""));
+
+function toPayload(f: FormState) {
+  const max = num(f.match_max);
+  return {
+    account: f.account.trim(), bucket: f.bucket, frequency: f.frequency, plan_type: f.plan_type,
+    amount: num(f.amount), employer_match: num(f.employer_match) || 0,
+    match_max: f.plan_type === "401k" && !isNaN(max) ? max : 0,
+  };
+}
 
 function ContributionForm({
   value, onChange, onSave, onCancel, onDelete, saveLabel,
@@ -91,6 +109,23 @@ function ContributionForm({
           </select>
         </label>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block">
+          <span className="text-[10px] text-faint">Account kind (for IRS limits)</span>
+          <select className="field" value={f.plan_type} onChange={(e) => onChange({ ...f, plan_type: e.target.value })}>
+            <option value="401k">401(k) / 403(b)</option>
+            <option value="ira">IRA (Roth or traditional)</option>
+            <option value="other">Other / taxable</option>
+          </select>
+        </label>
+        {f.plan_type === "401k" && (
+          <label className="block">
+            <span className="text-[10px] text-faint">Max match available ($ per period)</span>
+            <input className="field" inputMode="decimal" placeholder="if you know it" value={f.match_max}
+                   onChange={(e) => onChange({ ...f, match_max: e.target.value })} />
+          </label>
+        )}
+      </div>
       <div className="flex gap-2 pt-1">
         <button type="submit" className="btn btn-primary flex-1">{saveLabel}</button>
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
@@ -120,11 +155,9 @@ export default function SavingsPlan() {
   useEffect(refresh, []);
 
   const add = async () => {
-    const amount = parseFloat(f.amount);
-    if (!f.account.trim() || isNaN(amount)) return;
-    await api.post("/api/contributions", {
-      ...f, amount, employer_match: parseFloat(f.employer_match) || 0,
-    });
+    const body = toPayload(f);
+    if (!body.account || isNaN(body.amount)) return;
+    await api.post("/api/contributions", { ...body, match_max: body.match_max || null });
     setF({ ...f, account: "", amount: "", employer_match: "" });
     setAdding(false);
     refresh();
@@ -136,17 +169,15 @@ export default function SavingsPlan() {
     setEf({
       account: c.account, bucket: c.bucket, frequency: c.frequency,
       amount: String(c.amount), employer_match: c.employer_match ? String(c.employer_match) : "",
+      plan_type: c.plan_type, match_max: c.match_max ? String(c.match_max) : "",
     });
   };
 
   const saveEdit = async () => {
     if (editing == null) return;
-    const amount = parseFloat(ef.amount.replace(/[$,]/g, ""));
-    if (!ef.account.trim() || isNaN(amount)) return;
-    await api.patch(`/api/contributions/${editing}`, {
-      account: ef.account.trim(), bucket: ef.bucket, frequency: ef.frequency, amount,
-      employer_match: parseFloat(ef.employer_match.replace(/[$,]/g, "")) || 0,
-    });
+    const body = toPayload(ef);
+    if (!body.account || isNaN(body.amount)) return;
+    await api.patch(`/api/contributions/${editing}`, body); // match_max 0 clears it
     setEditing(null);
     refresh();
   };
