@@ -14,6 +14,7 @@ import json
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -296,12 +297,31 @@ def sim_mark_loop():
         time.sleep(SIM_INTERVAL)
 
 
+# ── Net worth auto-snapshot ───────────────────────────────
+
+NETWORTH_INTERVAL = 60 * 60  # seconds
+
+
+def networth_snapshot_loop():
+    """Hourly upsert of today's snapshot so live-priced holdings draw the chart on their own."""
+    print("[networth] auto-snapshot started")
+    while True:
+        try:
+            # Anything tracked → keep today's point current (also corrects it after deletions).
+            if db.list_holdings() or db.list_accounts():
+                db.take_snapshot(valued_holdings()["value"])
+        except Exception as e:
+            print(f"[networth] snapshot error: {e}")
+        time.sleep(NETWORTH_INTERVAL)
+
+
 # ── App setup ─────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
     threading.Thread(target=sim_mark_loop, daemon=True).start()
+    threading.Thread(target=networth_snapshot_loop, daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
         threading.Thread(target=telegram_poll_loop, daemon=True).start()
         threading.Thread(target=score_alert_loop, daemon=True).start()
@@ -390,6 +410,22 @@ class AccountIn(BaseModel):
     category: str = "cash"
     kind: str = "asset"
     balance: float = 0
+
+
+class HoldingIn(BaseModel):
+    symbol: str
+    kind: str = "crypto"
+    qty: float
+    cost_basis: float | None = None
+    label: str = ""
+
+
+class HoldingPatch(BaseModel):
+    symbol: str | None = None
+    kind: str | None = None
+    qty: float | None = None
+    cost_basis: float | None = None
+    label: str | None = None
 
 
 class AccountPatch(BaseModel):
@@ -524,7 +560,62 @@ def remove_position(pos_id: int):
 
 @app.get("/api/accounts")
 def get_accounts():
-    return {"accounts": db.list_accounts(), "totals": db.networth_totals()}
+    return {"accounts": db.list_accounts(), "totals": db.networth_totals(valued_holdings()["value"])}
+
+
+def valued_holdings() -> dict:
+    """Every holding marked to live prices, plus portfolio-level totals."""
+    rows = db.list_holdings()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        quotes = list(pool.map(lambda h: market_data.live_quote(h["symbol"], h["kind"]), rows))
+    out, value, prev_value, cost = [], 0.0, 0.0, 0.0
+    for h, q in zip(rows, quotes):
+        price = q["price"]
+        val = h["qty"] * price if price is not None else None
+        pnl = (val - h["qty"] * h["cost_basis"]) if val is not None and h["cost_basis"] else None
+        if val is not None:
+            value += val
+            chg = q["change_1d"]
+            prev_value += val / (1 + chg / 100) if chg is not None else val
+            if h["cost_basis"]:
+                cost += h["qty"] * h["cost_basis"]
+        out.append({**h, "price": price, "change_1d": q["change_1d"],
+                    "value": round(val, 2) if val is not None else None,
+                    "pnl": round(pnl, 2) if pnl is not None else None})
+    out.sort(key=lambda r: r["value"] or 0, reverse=True)
+    return {
+        "holdings": out,
+        "value": round(value, 2),
+        "change_1d": round(value - prev_value, 2),
+        "change_1d_pct": round((value / prev_value - 1) * 100, 2) if prev_value else None,
+    }
+
+
+@app.get("/api/holdings")
+def get_holdings():
+    return valued_holdings()
+
+
+@app.post("/api/holdings")
+def post_holding(h: HoldingIn):
+    if h.kind not in ("crypto", "stock"):
+        raise HTTPException(400, "kind must be 'crypto' or 'stock'")
+    return db.create_holding(h.model_dump())
+
+
+@app.patch("/api/holdings/{h_id}")
+def patch_holding(h_id: int, body: HoldingPatch):
+    h = db.update_holding(h_id, {k: v for k, v in body.model_dump().items() if v is not None})
+    if not h:
+        raise HTTPException(404, "Holding not found")
+    return h
+
+
+@app.delete("/api/holdings/{h_id}")
+def remove_holding(h_id: int):
+    if not db.delete_holding(h_id):
+        raise HTTPException(404, "Holding not found")
+    return {"ok": True}
 
 
 @app.post("/api/accounts")
@@ -549,7 +640,7 @@ def remove_account(acc_id: int):
 
 @app.post("/api/networth/snapshot")
 def post_snapshot():
-    return db.take_snapshot()
+    return db.take_snapshot(valued_holdings()["value"])
 
 
 @app.get("/api/networth/history")

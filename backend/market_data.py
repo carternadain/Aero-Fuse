@@ -436,6 +436,52 @@ def spot_price(symbol: str) -> float | None:
     return price
 
 
+def live_quote(symbol: str, kind: str) -> dict:
+    """Live price + 24h/1D % change for a holding. Cached 60s.
+
+    Crypto: Coinbase Exchange 24h stats (last vs 24h open). Stocks: yfinance
+    fast_info (last vs previous close).
+    """
+    sym = symbol.upper()
+    key = f"live:{kind}:{sym}"
+    cached = _get(key, 60)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    price = prev = None
+    if kind == "crypto":
+        try:
+            r = requests.get(f"https://api.exchange.coinbase.com/products/{sym}-USD/stats",
+                             headers=UA, timeout=8)
+            if r.ok:
+                j = r.json()
+                price, prev = float(j["last"]), float(j["open"])
+        except Exception as e:
+            print(f"[market_data] live_quote {sym} error: {e}")
+        if price is None:  # not on Coinbase — fall back to the generic spot lookup
+            price = spot_price(sym)
+    else:
+        yf = _yf()
+        if yf is not None:
+            try:
+                fi = yf.Ticker(sym).fast_info
+                price, prev = fi["last_price"], fi["previous_close"]
+            except Exception as e:
+                print(f"[market_data] live_quote {sym} error: {e}")
+        if price is None:
+            closes = stock_history(sym)
+            if closes:
+                price, prev = closes[-1], closes[-2] if len(closes) > 1 else None
+
+    out = {
+        "price": round(float(price), 6) if price is not None else None,
+        "change_1d": round((price / prev - 1) * 100, 2) if price and prev else None,
+    }
+    if price is not None:
+        _set(key, out)
+    return out
+
+
 def _project(quote: dict) -> tuple[str, str]:
     """Bullish/bearish lean from analyst target vs price (no AI needed)."""
     price = quote.get("price")

@@ -100,6 +100,16 @@ def init_db():
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,              -- BTC, SOL, RDW ...
+                kind TEXT DEFAULT 'crypto' CHECK (kind IN ('crypto','stock')),
+                qty REAL NOT NULL,
+                cost_basis REAL,                   -- optional avg cost per unit
+                label TEXT DEFAULT '',             -- where it's held (Toobit, Fidelity ...)
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS networth_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL UNIQUE,         -- YYYY-MM-DD (one per day, upserted)
@@ -597,17 +607,55 @@ def delete_account(acc_id: int) -> bool:
         return cur.rowcount > 0
 
 
-def networth_totals() -> dict:
+def create_holding(data: dict) -> dict:
+    with conn() as c:
+        cur = c.execute(
+            "INSERT INTO holdings (symbol, kind, qty, cost_basis, label, updated_at) VALUES (?,?,?,?,?,?)",
+            (data["symbol"].upper().strip(), data.get("kind", "crypto"), data["qty"],
+             data.get("cost_basis"), data.get("label", ""), utcnow()),
+        )
+        return row_to_dict(c.execute("SELECT * FROM holdings WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+def list_holdings() -> list[dict]:
+    with conn() as c:
+        return [row_to_dict(r) for r in
+                c.execute("SELECT * FROM holdings ORDER BY kind, symbol").fetchall()]
+
+
+def update_holding(h_id: int, fields: dict) -> dict | None:
+    allowed = {"symbol", "kind", "qty", "cost_basis", "label"}
+    sets, params = [], []
+    for k, v in fields.items():
+        if k in allowed:
+            sets.append(f"{k}=?"); params.append(v.upper().strip() if k == "symbol" else v)
+    if not sets:
+        return None
+    sets.append("updated_at=?"); params.append(utcnow())
+    params.append(h_id)
+    with conn() as c:
+        c.execute(f"UPDATE holdings SET {', '.join(sets)} WHERE id=?", params)
+        row = c.execute("SELECT * FROM holdings WHERE id=?", (h_id,)).fetchone()
+        return row_to_dict(row) if row else None
+
+
+def delete_holding(h_id: int) -> bool:
+    with conn() as c:
+        return c.execute("DELETE FROM holdings WHERE id=?", (h_id,)).rowcount > 0
+
+
+def networth_totals(holdings_value: float = 0.0) -> dict:
+    """Manual account balances plus the live value of tracked holdings."""
     accounts = list_accounts()
-    assets = sum(a["balance"] for a in accounts if a["kind"] == "asset")
+    assets = holdings_value + sum(a["balance"] for a in accounts if a["kind"] == "asset")
     liabilities = sum(a["balance"] for a in accounts if a["kind"] == "liability")
     return {"assets": round(assets, 2), "liabilities": round(liabilities, 2),
             "net_worth": round(assets - liabilities, 2)}
 
 
-def take_snapshot() -> dict:
+def take_snapshot(holdings_value: float = 0.0) -> dict:
     """Record today's totals (upsert — re-snapshotting the same day overwrites)."""
-    totals = networth_totals()
+    totals = networth_totals(holdings_value)
     today = utcnow()[:10]
     with conn() as c:
         c.execute(

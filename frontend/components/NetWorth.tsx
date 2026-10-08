@@ -19,6 +19,26 @@ interface Account {
   updated_at: string;
 }
 
+interface Holding {
+  id: number;
+  symbol: string;
+  kind: "crypto" | "stock";
+  qty: number;
+  cost_basis: number | null;
+  label: string;
+  price: number | null;
+  change_1d: number | null;
+  value: number | null;
+  pnl: number | null;
+}
+
+interface HoldingsResponse {
+  holdings: Holding[];
+  value: number;
+  change_1d: number;
+  change_1d_pct: number | null;
+}
+
 interface Snapshot {
   date: string;
   assets: number;
@@ -53,22 +73,53 @@ export default function NetWorth() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [totals, setTotals] = useState({ assets: 0, liabilities: 0, net_worth: 0 });
   const [history, setHistory] = useState<Snapshot[]>([]);
+  const [hold, setHold] = useState<HoldingsResponse>({ holdings: [], value: 0, change_1d: 0, change_1d_pct: null });
   const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState<"holding" | "account">("holding");
   const [f, setF] = useState({ name: "", kind: "asset", category: "cash", balance: "" });
+  const [hf, setHf] = useState({ symbol: "", kind: "crypto", qty: "", cost_basis: "", label: "" });
 
   const refresh = async () => {
     try {
-      const [acc, hist] = await Promise.all([
+      const [acc, hist, h] = await Promise.all([
         api.get<{ accounts: Account[]; totals: typeof totals }>("/api/accounts"),
         api.get<Snapshot[]>("/api/networth/history"),
+        api.get<HoldingsResponse>("/api/holdings"),
       ]);
       setAccounts(acc.accounts);
       setTotals(acc.totals);
       setHistory(hist);
+      setHold(h);
     } catch { /* backend banner covers it */ }
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+    const t = setInterval(refresh, 60000); // holdings re-mark to live prices every minute
+    return () => clearInterval(t);
+  }, []);
+
+  const addHolding = async () => {
+    const qty = parseFloat(hf.qty.replace(/,/g, ""));
+    const cost = parseFloat(hf.cost_basis.replace(/[$,]/g, ""));
+    if (!hf.symbol.trim() || isNaN(qty)) return;
+    await api.post("/api/holdings", {
+      symbol: hf.symbol, kind: hf.kind, qty, label: hf.label,
+      cost_basis: isNaN(cost) ? null : cost,
+    });
+    setHf({ symbol: "", kind: hf.kind, qty: "", cost_basis: "", label: "" });
+    setAdding(false);
+    refresh();
+  };
+
+  const editQty = async (h: Holding) => {
+    const v = prompt(`New quantity of ${h.symbol}:`, String(h.qty));
+    if (v == null) return;
+    const qty = parseFloat(v.replace(/,/g, ""));
+    if (isNaN(qty)) return;
+    await api.patch(`/api/holdings/${h.id}`, { qty });
+    refresh();
+  };
 
   const add = async () => {
     const balance = parseFloat(f.balance);
@@ -101,9 +152,6 @@ export default function NetWorth() {
       <div className="panel-head">
         <span className="panel-title"><Wallet size={14} />Net Worth</span>
         <div className="flex items-center gap-2">
-          <span className={`text-sm font-bold tabular-nums ${totals.net_worth >= 0 ? "text-up" : "text-down"}`}>
-            {fmtUsd(totals.net_worth)}
-          </span>
           <button className="btn !py-1" onClick={snapshot} title="Record today's net worth on the chart">
             <Camera size={12} />Snap
           </button>
@@ -113,7 +161,66 @@ export default function NetWorth() {
         </div>
       </div>
 
+      {/* Headline number */}
+      <div className="px-4 pt-3 flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <div className={`font-display text-[40px] leading-none ${totals.net_worth >= 0 ? "text-txt" : "text-down"}`}>
+            {fmtUsd(totals.net_worth)}
+          </div>
+          <div className="text-[10px] text-faint mt-1">
+            {fmtUsd(totals.assets)} assets · {fmtUsd(totals.liabilities)} owed
+          </div>
+        </div>
+        {hold.holdings.length > 0 && (
+          <div className="text-right text-[11px] tabular-nums">
+            <div className={hold.change_1d >= 0 ? "text-up" : "text-down"}>
+              {hold.change_1d >= 0 ? "+" : "−"}{fmtUsd(Math.abs(hold.change_1d))}
+              {hold.change_1d_pct != null && ` (${hold.change_1d_pct > 0 ? "+" : ""}${hold.change_1d_pct.toFixed(2)}%)`}
+            </div>
+            <div className="text-[9px] text-faint">holdings today · live</div>
+          </div>
+        )}
+      </div>
+
       {adding && (
+        <div className="mt-3 flex border-y border-edge text-[10px] font-bold">
+          {(["holding", "account"] as const).map((m) => (
+            <button key={m} onClick={() => setMode(m)}
+                    className={`flex-1 py-1.5 uppercase tracking-widest transition-colors ${
+                      mode === m ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>
+              {m === "holding" ? "Live holding" : "Manual account"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {adding && mode === "holding" && (
+        <div className="p-3 border-b border-edge space-y-2 bg-panel2">
+          <div className="grid grid-cols-3 gap-2">
+            <input className="field uppercase" placeholder="BTC / RDW" value={hf.symbol}
+                   onChange={(e) => setHf({ ...hf, symbol: e.target.value })} />
+            <select className="field" value={hf.kind} onChange={(e) => setHf({ ...hf, kind: e.target.value })}>
+              <option value="crypto">CRYPTO</option>
+              <option value="stock">STOCK</option>
+            </select>
+            <input className="field" placeholder="Quantity" inputMode="decimal" value={hf.qty}
+                   onChange={(e) => setHf({ ...hf, qty: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input className="field" placeholder="Avg cost $ (optional)" inputMode="decimal" value={hf.cost_basis}
+                   onChange={(e) => setHf({ ...hf, cost_basis: e.target.value })} />
+            <input className="field" placeholder="Held at (Toobit, Fidelity…)" value={hf.label}
+                   onChange={(e) => setHf({ ...hf, label: e.target.value })} />
+          </div>
+          <button className="btn btn-primary w-full" onClick={addHolding}>Add Holding</button>
+          <p className="text-[10px] text-faint">
+            Valued at live prices and added to net worth automatically. Don&apos;t also enter that
+            account&apos;s balance manually, or it counts twice.
+          </p>
+        </div>
+      )}
+
+      {adding && mode === "account" && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
           <div className="grid grid-cols-2 gap-2">
             <input className="field" placeholder="Account name (e.g. Toobit, Fidelity)" value={f.name}
@@ -163,16 +270,60 @@ export default function NetWorth() {
           </ResponsiveContainer>
         ) : (
           <div className="h-full flex items-center justify-center text-[11px] text-dim text-center px-6">
-            Hit Snap after updating balances — do it weekly and watch the line go up and to the right.
+            {hold.holdings.length > 0
+              ? "Holdings auto-snapshot every hour, so the line starts drawing itself from tomorrow."
+              : "Add live holdings and this charts itself, or hit Snap after updating balances."}
           </div>
         )}
       </div>
 
-      {/* Accounts */}
-      <div className="overflow-y-auto max-h-56 border-t border-edge">
-        {accounts.length === 0 && (
-          <p className="p-4 text-xs text-dim">Add your accounts: exchange, brokerage, 401k, cards…</p>
+      {/* Holdings + accounts */}
+      <div className="overflow-y-auto max-h-80 border-t border-edge">
+        {accounts.length === 0 && hold.holdings.length === 0 && (
+          <p className="p-4 text-xs text-dim">
+            Tap + to add live holdings (BTC, SOL, RDW…) or manual accounts (bank, 401k, cards).
+          </p>
         )}
+        {hold.holdings.length > 0 && (
+          <div className="px-3 py-1.5 bg-panel2 text-[9px] font-bold tracking-widest text-cyan flex justify-between">
+            <span>HOLDINGS · LIVE</span><span>{fmtUsd(hold.value)}</span>
+          </div>
+        )}
+        {hold.holdings.map((h) => (
+          <div key={h.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
+               onClick={() => editQty(h)} title="Click to update quantity">
+            <CatIcon category={h.kind === "crypto" ? "crypto" : "brokerage"} />
+            <div className="min-w-0">
+              <div className="text-txt font-bold">{h.symbol}</div>
+              <div className="text-[9px] text-faint tabular-nums truncate">
+                {h.qty.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                {h.price != null
+                  ? ` × $${h.price.toLocaleString(undefined, { maximumFractionDigits: h.price < 10 ? 4 : 2 })}`
+                  : " · no price found"}
+                {h.label && ` · ${h.label}`}
+              </div>
+            </div>
+            <div className="ml-auto text-right tabular-nums">
+              <div className="font-bold text-up">{h.value != null ? fmtUsd(h.value) : "—"}</div>
+              <div className="text-[9px]">
+                {h.change_1d != null && (
+                  <span className={h.change_1d >= 0 ? "text-up" : "text-down"}>
+                    {h.change_1d > 0 ? "+" : ""}{h.change_1d.toFixed(1)}%
+                  </span>
+                )}
+                {h.pnl != null && (
+                  <span className={`ml-1.5 ${h.pnl >= 0 ? "text-up" : "text-down"}`}>
+                    P/L {h.pnl >= 0 ? "+" : "−"}{fmtUsd(Math.abs(h.pnl))}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button className="icon-btn"
+                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${h.symbol}?`)) api.del(`/api/holdings/${h.id}`).then(refresh); }}>
+              <X size={12} />
+            </button>
+          </div>
+        ))}
         {assets.length > 0 && (
           <div className="px-3 py-1.5 bg-panel2 text-[9px] font-bold tracking-widest text-up flex justify-between">
             <span>ASSETS</span><span>{fmtUsd(totals.assets)}</span>
