@@ -49,4 +49,6 @@ cd frontend ; npm install ; npm run dev
 
 Open **http://localhost:3000**. See [RUNBOOK.md](RUNBOOK.md) for API keys, the database, and hosting it online.
 
+> **Hosting it?** Set `APP_PASSWORD_HASH` + `WEBHOOK_SECRET` first (`python backend/auth.py hash-password`) — see RUNBOOK §3 and §7.
+
 > `server.py` in the repo root is the original v0 paper-trade journal (superseded by `backend/`); kept for reference only.

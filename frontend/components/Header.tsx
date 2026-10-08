@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LogOut } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
 
 export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [prev, setPrev] = useState<Record<string, number>>({});
   const [clock, setClock] = useState("");
+  const [authOn, setAuthOn] = useState(false);
+
+  useEffect(() => {
+    api.get<{ auth: boolean }>("/api/auth/check").then((r) => setAuthOn(r.auth)).catch(() => {});
+  }, []);
+
+  const logout = async () => {
+    await api.post("/api/auth/logout").catch(() => {});
+    window.location.href = "/login";
+  };
 
   useEffect(() => {
     const tick = () =>
@@ -66,7 +77,14 @@ export default function Header() {
         })}
       </div>
 
-      <div className="ml-auto text-[11px] text-dim tabular-nums">{clock}</div>
+      <div className="ml-auto flex items-center gap-3">
+        <span className="text-[11px] text-dim tabular-nums">{clock}</span>
+        {authOn && (
+          <button className="icon-btn" onClick={logout} title="Sign out">
+            <LogOut size={14} />
+          </button>
+        )}
+      </div>
     </header>
   );
 }

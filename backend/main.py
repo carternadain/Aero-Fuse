@@ -20,7 +20,8 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ from pydantic import BaseModel
 load_dotenv(Path(__file__).parent.parent / ".env")
 load_dotenv()  # also pick up a local backend/.env if present
 
+import auth
 import claude_ai
 import db
 import econ_calendar
@@ -320,6 +322,13 @@ def networth_snapshot_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    if not auth.enabled():
+        print("[auth] " + "!" * 60)
+        print("[auth] APP_PASSWORD_HASH not set — LOGIN DISABLED. Fine on localhost,")
+        print("[auth] never expose this server. Generate one: python auth.py hash-password")
+        print("[auth] " + "!" * 60)
+    elif not auth.webhook_secret():
+        print("[auth] WEBHOOK_SECRET not set — /webhook will reject all alerts")
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
@@ -337,6 +346,54 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Routes reachable without a session: the login flow itself. /webhook has its own secret.
+AUTH_OPEN = {"/api/auth/login", "/api/auth/logout", "/api/auth/check"}
+
+
+@app.middleware("http")
+async def require_session(request: Request, call_next):
+    path = request.url.path
+    if auth.enabled() and path.startswith("/api/") and path not in AUTH_OPEN:
+        if not auth.valid_token(request.cookies.get(auth.COOKIE_NAME)):
+            return JSONResponse({"detail": "Not signed in"}, status_code=401)
+    return await call_next(request)
+
+
+class LoginIn(BaseModel):
+    password: str
+
+
+@app.post("/api/auth/login")
+def auth_login(body: LoginIn, request: Request, response: Response):
+    if not auth.enabled():
+        return {"ok": True, "auth": False}
+    ip = auth.client_ip(request.headers, request.client.host if request.client else "?")
+    if auth.locked_out(ip):
+        raise HTTPException(429, "Too many attempts — wait 15 minutes")
+    if not auth.verify_password(body.password, auth.password_hash()):
+        auth.record_failure(ip)
+        raise HTTPException(401, "Wrong password")
+    auth.clear_failures(ip)
+    response.set_cookie(
+        auth.COOKIE_NAME, auth.issue_token(), max_age=auth.SESSION_TTL,
+        httponly=True, secure=auth.cookie_secure(), samesite="lax", path="/",
+    )
+    return {"ok": True, "auth": True}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(response: Response):
+    response.delete_cookie(auth.COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@app.get("/api/auth/check")
+def auth_check(request: Request):
+    """200 when signed in (or auth is off); 401 otherwise. Used by the Next middleware."""
+    if auth.enabled() and not auth.valid_token(request.cookies.get(auth.COOKIE_NAME)):
+        raise HTTPException(401, "Not signed in")
+    return {"ok": True, "auth": auth.enabled()}
 
 
 # ── Models ────────────────────────────────────────────────
@@ -908,8 +965,12 @@ def get_prices():
 # ── TradingView webhook ───────────────────────────────────
 
 @app.post("/webhook")
-async def tradingview_webhook(request: Request):
-    """TradingView alert webhook. Message body should be the JSON template from SETUP.md."""
+async def tradingview_webhook(request: Request, token: str | None = Query(None)):
+    """TradingView alert webhook. Message body should be the JSON template from SETUP.md.
+
+    With WEBHOOK_SECRET set, the alert must carry it — either as ?token=... on the
+    webhook URL or as a "secret" field in the JSON message.
+    """
     try:
         data = await request.json()
     except Exception:
@@ -918,6 +979,15 @@ async def tradingview_webhook(request: Request):
             data = json.loads(body)
         except json.JSONDecodeError:
             raise HTTPException(400, "Body must be JSON — check your TradingView alert message")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Body must be a JSON object")
+    provided = token or data.pop("secret", None)
+    if auth.webhook_secret():
+        if not auth.webhook_ok(provided if isinstance(provided, str) else None):
+            raise HTTPException(401, "Bad or missing webhook secret")
+    elif auth.enabled():
+        # Hosted (login on) but no secret configured: refuse rather than accept anyone's alerts.
+        raise HTTPException(503, "Set WEBHOOK_SECRET in .env to accept webhooks")
     sig = handle_incoming_signal(data, source="tradingview")
     return {"ok": True, "signal_id": sig["id"]}
 

@@ -67,6 +67,13 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # ── Optional: richer crypto news (Google News RSS is the free fallback) ──
 CRYPTOPANIC_API_KEY=
+
+# ── Login + webhook lock — REQUIRED before the app is reachable from the internet ──
+# Generate both with:  cd backend ; ..\.venv\Scripts\python auth.py hash-password
+APP_PASSWORD_HASH=scrypt$32768$8$1$...
+WEBHOOK_SECRET=...
+# SESSION_SECRET=        # optional; defaults to one derived from the password hash
+# COOKIE_SECURE=0        # only for testing over plain http on your LAN (phone → http://<pc-ip>:3000)
 ```
 
 | Key | Required? | Powers |
@@ -74,6 +81,16 @@ CRYPTOPANIC_API_KEY=
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | already set | Signal pings + `close`/`status` commands |
 | `ANTHROPIC_API_KEY` | **for AI features** | News sentiment **and** the per-signal Claude verdict / edge report. Without it, signals still log — they just show "awaiting" instead of a take/skip verdict. |
 | `CRYPTOPANIC_API_KEY` | no | Crypto-native news feed; falls back to free Google News RSS |
+| `APP_PASSWORD_HASH` | **when hosted** | Turns on the login page. Unset = no login (fine on localhost only — the backend logs a loud warning). Changing it signs out every device. |
+| `WEBHOOK_SECRET` | **when hosted** | TradingView alerts must carry it (see §6). With login on but no secret, `/webhook` rejects everything. |
+
+### How the login works
+- One password, stored only as an **scrypt hash** — the plain password is never on disk.
+- Signing in sets a 30-day **HttpOnly, Secure, SameSite=Lax** cookie (JavaScript can't read it;
+  other sites can't use it to make requests). Sign out with the arrow icon at the top right.
+- **Every `/api/*` call is checked by the backend**, so the data is locked even if someone
+  skips the login page. The page redirect itself is in `frontend/middleware.ts`.
+- 5 wrong passwords from one IP (or 30 total) → locked for 15 minutes.
 
 ---
 
@@ -92,7 +109,7 @@ applies additive column upgrades (e.g. the signal AI-verdict columns) to existin
 | `signals` | Every TradingView signal + taken/skip + outcome + **AI verdict** (`ai_take`, `ai_score`, `ai_confidence`, `ai_reasons`, `ai_warnings`) |
 | `levels` | Pinned liquidity zones & key levels |
 | `positions` | Portfolio (crypto swings + LEAP calls) |
-| `accounts`, `networth_snapshots` | Net worth + history chart |
+| `accounts`, `holdings`, `networth_snapshots` | Net worth: manual balances, live-priced holdings, history chart (auto-snapshotted hourly) |
 | `transactions`, `budgets` | Budget tracker + category limits |
 
 > Editable screener watchlists live in JSON, not the DB: `backend/watchlist.json`,
@@ -136,11 +153,13 @@ caveat is occasional CoinGecko/Yahoo rate-limit gaps, which self-heal on refresh
 Two ways to get signals in (no app change needed for either):
 
 **A — Direct webhook** (needs TradingView Pro+): point an alert's webhook at
-`https://<your-host>/webhook` with a JSON message like:
+`https://<your-host>/webhook?token=<WEBHOOK_SECRET>` with a JSON message like:
 
 ```json
 {"symbol":"{{ticker}}","direction":"buy","price":"{{close}}","indicator":"neurowave","conviction":"high","timeframe":"{{interval}}"}
 ```
+
+(Instead of `?token=`, you can put `"secret":"<WEBHOOK_SECRET>"` inside the JSON message.)
 
 Set one alert per signal type (~4–6 total) for NeuroWave & Kryptonite, buy & sell. When both
 indicators fire the same direction within ~90 min, the signal log flags 🔥 confluence.
@@ -189,6 +208,11 @@ sudo apt update && sudo apt install -y caddy
 cd ~ && git clone https://github.com/carternadain/Aero-Fuse.git
 cd Aero-Fuse
 nano .env       # paste TELEGRAM_*, ANTHROPIC_API_KEY, (CRYPTOPANIC_API_KEY)
+chmod 600 .env  # only your user can read the secrets
+```
+Generate the login lines **after 7.5** (needs the venv) and append them to `.env`:
+```bash
+cd backend && ../.venv/bin/python auth.py hash-password && cd ..   # paste both printed lines into .env
 ```
 > Private repo? Clone with a fine-grained PAT: `https://<TOKEN>@github.com/<user>/<repo>.git`
 
@@ -235,27 +259,41 @@ sudo systemctl daemon-reload && sudo systemctl enable --now terminal-api termina
 
 **7.7 Free domain + automatic HTTPS** (DuckDNS + Caddy)
 1. https://www.duckdns.org → create a subdomain (e.g. `carter-terminal`) → point it at the server IP.
-2. `caddy hash-password` (copy the `$2a$...` hash), then:
+2. Caddy just terminates HTTPS — the app's own login (§3) does the locking, so the home-screen
+   app works (browser basic-auth pop-ups break installed iOS web apps):
 ```bash
 sudo tee /etc/caddy/Caddyfile >/dev/null <<'CADDY'
 carter-terminal.duckdns.org {
-    handle /webhook { reverse_proxy 127.0.0.1:3000 }   # TradingView can't send a password
-    handle {
-        basic_auth { carter PASTE_YOUR_HASH_HERE }
-        reverse_proxy 127.0.0.1:3000
-    }
+    header Strict-Transport-Security "max-age=31536000"
+    reverse_proxy 127.0.0.1:3000
 }
 CADDY
 sudo systemctl reload caddy
 ```
-Open **https://carter-terminal.duckdns.org** (login `carter` + your password). TradingView
-webhook → `https://carter-terminal.duckdns.org/webhook`.
+3. **Check before you trust it:** open the site in a private window → you must land on the
+   login page, and `https://carter-terminal.duckdns.org/api/accounts` must return 401.
+
+TradingView webhook → `https://carter-terminal.duckdns.org/webhook?token=<WEBHOOK_SECRET>`.
 
 **7.8 Daily DB backups**
 ```bash
-mkdir -p ~/backups && crontab -e
+mkdir -p ~/backups && chmod 700 ~/backups && crontab -e   # backups hold your net worth — keep them private
 # add: 0 6 * * * cp /home/ubuntu/Aero-Fuse/backend/terminal.db /home/ubuntu/backups/terminal-$(date +\%u).db
 ```
+
+**7.9 Stronger: Cloudflare Tunnel + Access (free, recommended once real money data is in here)**
+
+Adds a second lock *in front of* the app — Google sign-in + 2FA, enforced by Cloudflare before a
+request ever reaches your server — and the server needs **no open ports at all**.
+1. Move your domain's DNS to Cloudflare (needs a real domain, ~$10/yr; DuckDNS can't do this).
+2. On the server: install `cloudflared`, run `cloudflared tunnel login`, create a tunnel, and route
+   `terminal.<yourdomain>` → `http://127.0.0.1:3000`. Then close ports 80/443 (7.2) and drop Caddy.
+3. Cloudflare dashboard → Zero Trust → Access → Applications → add `terminal.<yourdomain>`,
+   policy: *Allow — emails — your Google address*.
+4. Add a second application for `terminal.<yourdomain>/webhook` with policy **Bypass** (TradingView
+   can't sign in; the `WEBHOOK_SECRET` still protects it).
+
+Keep `APP_PASSWORD_HASH` set too — two independent locks.
 
 ### Faster but weaker alternatives
 - **Vercel (frontend) + ngrok (backend on your PC):** quickest to a URL, but your PC must stay on and the tunnel can drop. Set Vercel env `API_BASE` to the ngrok URL.
