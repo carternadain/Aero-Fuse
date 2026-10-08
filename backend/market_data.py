@@ -460,6 +460,15 @@ def live_quote(symbol: str, kind: str) -> dict:
             print(f"[market_data] live_quote {sym} error: {e}")
         if price is None:  # not on Coinbase — fall back to the generic spot lookup
             price = spot_price(sym)
+    elif kind == "option":
+        # OCC symbol (e.g. AMZN271217C00260000) — per-share premium; caller applies the x100.
+        yf = _yf()
+        if yf is not None:
+            try:
+                fi = yf.Ticker(sym).fast_info
+                price, prev = fi["last_price"], fi["previous_close"]
+            except Exception as e:
+                print(f"[market_data] live_quote option {sym} error: {e}")
     else:
         yf = _yf()
         if yf is not None:

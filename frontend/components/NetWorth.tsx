@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   Banknote, Bitcoin, Camera, Car, CreditCard, Home, Landmark, Package, PiggyBank,
-  Plus, TrendingUp, Wallet, X, type LucideIcon,
+  ChevronDown, ChevronRight, Plus, TrendingUp, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -22,7 +22,9 @@ interface Account {
 interface Holding {
   id: number;
   symbol: string;
-  kind: "crypto" | "stock";
+  kind: "crypto" | "stock" | "option";
+  display: string;
+  multiplier: number;
   qty: number;
   cost_basis: number | null;
   label: string;
@@ -77,7 +79,9 @@ export default function NetWorth() {
   const [adding, setAdding] = useState(false);
   const [mode, setMode] = useState<"holding" | "account">("holding");
   const [f, setF] = useState({ name: "", kind: "asset", category: "cash", balance: "" });
-  const [hf, setHf] = useState({ symbol: "", kind: "crypto", qty: "", cost_basis: "", label: "" });
+  const [hf, setHf] = useState({ symbol: "", kind: "crypto", qty: "", cost_basis: "", label: "",
+                                 expiry: "", strike: "", right: "C" });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const refresh = async () => {
     try {
@@ -103,17 +107,25 @@ export default function NetWorth() {
     const qty = parseFloat(hf.qty.replace(/,/g, ""));
     const cost = parseFloat(hf.cost_basis.replace(/[$,]/g, ""));
     if (!hf.symbol.trim() || isNaN(qty)) return;
+    let symbol = hf.symbol.trim().toUpperCase();
+    if (hf.kind === "option") {
+      // Build the standard OCC contract symbol: ROOT + YYMMDD + C/P + strike x1000 (8 digits)
+      const strike = parseFloat(hf.strike);
+      if (!hf.expiry || isNaN(strike)) return;
+      const [y, m, d] = hf.expiry.split("-");
+      symbol = `${symbol}${y.slice(2)}${m}${d}${hf.right}${String(Math.round(strike * 1000)).padStart(8, "0")}`;
+    }
     await api.post("/api/holdings", {
-      symbol: hf.symbol, kind: hf.kind, qty, label: hf.label,
+      symbol, kind: hf.kind, qty, label: hf.label,
       cost_basis: isNaN(cost) ? null : cost,
     });
-    setHf({ symbol: "", kind: hf.kind, qty: "", cost_basis: "", label: "" });
+    setHf({ ...hf, symbol: "", qty: "", cost_basis: "", expiry: "", strike: "" });
     setAdding(false);
     refresh();
   };
 
   const editQty = async (h: Holding) => {
-    const v = prompt(`New quantity of ${h.symbol}:`, String(h.qty));
+    const v = prompt(`New ${h.kind === "option" ? "number of contracts" : "quantity"} for ${h.display}:`, String(h.qty));
     if (v == null) return;
     const qty = parseFloat(v.replace(/,/g, ""));
     if (isNaN(qty)) return;
@@ -145,6 +157,18 @@ export default function NetWorth() {
   };
 
   const assets = accounts.filter((a) => a.kind === "asset");
+  const manualAssets = assets.reduce((t, a) => t + a.balance, 0);
+
+  // Live holdings grouped by where they're held, biggest account first.
+  const groups = useMemo(() => {
+    const m = new Map<string, Holding[]>();
+    for (const h of hold.holdings) {
+      const k = h.label || "Other holdings";
+      m.set(k, [...(m.get(k) ?? []), h]);
+    }
+    const sum = (rows: Holding[]) => rows.reduce((t, h) => t + (h.value ?? 0), 0);
+    return [...m.entries()].sort((a, b) => sum(b[1]) - sum(a[1]));
+  }, [hold.holdings]);
   const liabs = accounts.filter((a) => a.kind === "liability");
 
   return (
@@ -201,13 +225,26 @@ export default function NetWorth() {
                    onChange={(e) => setHf({ ...hf, symbol: e.target.value })} />
             <select className="field" value={hf.kind} onChange={(e) => setHf({ ...hf, kind: e.target.value })}>
               <option value="crypto">CRYPTO</option>
-              <option value="stock">STOCK</option>
+              <option value="stock">STOCK / ETF</option>
+              <option value="option">OPTION</option>
             </select>
-            <input className="field" placeholder="Quantity" inputMode="decimal" value={hf.qty}
+            <input className="field" placeholder={hf.kind === "option" ? "Contracts" : "Quantity"} inputMode="decimal" value={hf.qty}
                    onChange={(e) => setHf({ ...hf, qty: e.target.value })} />
           </div>
+          {hf.kind === "option" && (
+            <div className="grid grid-cols-3 gap-2">
+              <input className="field" type="date" title="Expiration" value={hf.expiry}
+                     onChange={(e) => setHf({ ...hf, expiry: e.target.value })} />
+              <input className="field" placeholder="Strike $" inputMode="decimal" value={hf.strike}
+                     onChange={(e) => setHf({ ...hf, strike: e.target.value })} />
+              <select className="field" value={hf.right} onChange={(e) => setHf({ ...hf, right: e.target.value })}>
+                <option value="C">CALL</option>
+                <option value="P">PUT</option>
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder="Avg cost $ (optional)" inputMode="decimal" value={hf.cost_basis}
+            <input className="field" placeholder={hf.kind === "option" ? "Avg premium $ (optional)" : "Avg cost $ (optional)"} inputMode="decimal" value={hf.cost_basis}
                    onChange={(e) => setHf({ ...hf, cost_basis: e.target.value })} />
             <input className="field" placeholder="Held at (Toobit, Fidelity…)" value={hf.label}
                    onChange={(e) => setHf({ ...hf, label: e.target.value })} />
@@ -245,14 +282,14 @@ export default function NetWorth() {
       )}
 
       {/* History chart */}
-      <div className="h-44 px-1 pt-2">
+      <div className={`${history.length >= 2 ? "h-44" : "h-16"} px-1 pt-2`}>
         {history.length >= 2 ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={history} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="nwFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00c87a" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#00c87a" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-up)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--color-up)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="#2b2723" strokeDasharray="3 3" vertical={false} />
@@ -265,7 +302,7 @@ export default function NetWorth() {
                 labelStyle={{ color: "#9b9285" }}
                 formatter={(v) => [fmtUsd(Number(v)), "Net worth"]}
               />
-              <Area type="monotone" dataKey="net_worth" stroke="#00c87a" strokeWidth={2} fill="url(#nwFill)" />
+              <Area type="monotone" dataKey="net_worth" stroke="var(--color-up)" strokeWidth={2} fill="url(#nwFill)" />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -278,55 +315,69 @@ export default function NetWorth() {
       </div>
 
       {/* Holdings + accounts */}
-      <div className="overflow-y-auto max-h-80 border-t border-edge">
+      <div className="border-t border-edge">
         {accounts.length === 0 && hold.holdings.length === 0 && (
           <p className="p-4 text-xs text-dim">
             Tap + to add live holdings (BTC, SOL, RDW…) or manual accounts (bank, 401k, cards).
           </p>
         )}
-        {hold.holdings.length > 0 && (
-          <div className="px-3 py-1.5 bg-panel2 text-[9px] font-bold tracking-widest text-cyan flex justify-between">
-            <span>HOLDINGS · LIVE</span><span>{fmtUsd(hold.value)}</span>
-          </div>
-        )}
-        {hold.holdings.map((h) => (
-          <div key={h.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
-               onClick={() => editQty(h)} title="Click to update quantity">
-            <CatIcon category={h.kind === "crypto" ? "crypto" : "brokerage"} />
-            <div className="min-w-0">
-              <div className="text-txt font-bold">{h.symbol}</div>
-              <div className="text-[9px] text-faint tabular-nums truncate">
-                {h.qty.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                {h.price != null
-                  ? ` × $${h.price.toLocaleString(undefined, { maximumFractionDigits: h.price < 10 ? 4 : 2 })}`
-                  : " · no price found"}
-                {h.label && ` · ${h.label}`}
-              </div>
+        {groups.map(([label, rows]) => {
+          const total = rows.reduce((t, h) => t + (h.value ?? 0), 0);
+          const open = openGroups[label] ?? false;
+          return (
+            <div key={label}>
+              <button
+                onClick={() => setOpenGroups({ ...openGroups, [label]: !open })}
+                className="w-full flex items-center gap-2 px-3 py-2 border-t border-edge bg-panel2/50 hover:bg-panel2 text-left"
+              >
+                {open ? <ChevronDown size={13} className="text-dim" /> : <ChevronRight size={13} className="text-dim" />}
+                <span className="text-xs font-bold text-txt">{label}</span>
+                <span className="text-[10px] text-faint">{rows.length} live</span>
+                <span className="ml-auto text-xs font-bold tabular-nums text-txt">{fmtUsd(total)}</span>
+                <span className="text-[10px] text-faint tabular-nums w-10 text-right">
+                  {totals.assets ? `${((total / totals.assets) * 100).toFixed(0)}%` : ""}
+                </span>
+              </button>
+              {open && rows.map((h) => (
+                <div key={h.id} className="flex items-center gap-2 pl-8 pr-3 py-1.5 border-t border-edge/60 text-xs hover:bg-panel2 cursor-pointer"
+                     onClick={() => editQty(h)} title="Click to update quantity">
+                  <div className="min-w-0">
+                    <div className="text-txt font-bold">{h.display}</div>
+                    <div className="text-[9px] text-faint tabular-nums truncate">
+                      {h.qty.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                      {h.kind === "option" ? (h.qty === 1 ? " contract" : " contracts") : ""}
+                      {h.price != null
+                        ? ` × $${h.price.toLocaleString(undefined, { maximumFractionDigits: h.price < 10 ? 4 : 2 })}${h.multiplier > 1 ? " ×100" : ""}`
+                        : " · no price found"}
+                    </div>
+                  </div>
+                  <div className="ml-auto text-right tabular-nums">
+                    <div className="font-bold text-txt">{h.value != null ? fmtUsd(h.value) : "—"}</div>
+                    <div className="text-[9px]">
+                      {h.change_1d != null && (
+                        <span className={h.change_1d >= 0 ? "text-up" : "text-down"}>
+                          {h.change_1d >= 0 ? "▲" : "▼"} {Math.abs(h.change_1d).toFixed(1)}%
+                        </span>
+                      )}
+                      {h.pnl != null && (
+                        <span className={`ml-1.5 ${h.pnl >= 0 ? "text-up" : "text-down"}`}>
+                          P/L {h.pnl >= 0 ? "+" : "−"}{fmtUsd(Math.abs(h.pnl))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button className="icon-btn"
+                          onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${h.display}?`)) api.del(`/api/holdings/${h.id}`).then(refresh); }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
-            <div className="ml-auto text-right tabular-nums">
-              <div className="font-bold text-up">{h.value != null ? fmtUsd(h.value) : "—"}</div>
-              <div className="text-[9px]">
-                {h.change_1d != null && (
-                  <span className={h.change_1d >= 0 ? "text-up" : "text-down"}>
-                    {h.change_1d > 0 ? "+" : ""}{h.change_1d.toFixed(1)}%
-                  </span>
-                )}
-                {h.pnl != null && (
-                  <span className={`ml-1.5 ${h.pnl >= 0 ? "text-up" : "text-down"}`}>
-                    P/L {h.pnl >= 0 ? "+" : "−"}{fmtUsd(Math.abs(h.pnl))}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${h.symbol}?`)) api.del(`/api/holdings/${h.id}`).then(refresh); }}>
-              <X size={12} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {assets.length > 0 && (
-          <div className="px-3 py-1.5 bg-panel2 text-[9px] font-bold tracking-widest text-up flex justify-between">
-            <span>ASSETS</span><span>{fmtUsd(totals.assets)}</span>
+          <div className="px-3 py-1.5 border-t border-edge bg-panel2 text-[9px] font-bold tracking-widest text-dim flex justify-between">
+            <span>OTHER ACCOUNTS · ENTERED BY HAND</span><span>{fmtUsd(manualAssets)}</span>
           </div>
         )}
         {assets.map((a) => (
@@ -335,7 +386,7 @@ export default function NetWorth() {
             <CatIcon category={a.category} />
             <span className="text-txt">{a.name}</span>
             <span className="text-[9px] text-faint uppercase">{a.category.replace("_", " ")}</span>
-            <span className="ml-auto font-bold tabular-nums text-up">{fmtUsd(a.balance)}</span>
+            <span className="ml-auto font-bold tabular-nums text-txt">{fmtUsd(a.balance)}</span>
             <button className="icon-btn"
                     onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${a.name}?`)) api.del(`/api/accounts/${a.id}`).then(refresh); }}>
               <X size={12} />

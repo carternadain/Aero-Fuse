@@ -4,7 +4,10 @@
 # python
 .venv/
 __pycache__/
-backend/terminal.db
+backend/terminal.db*
+*.db-journal
+*.db-wal
+*.db-shm
 backend/watchlist.json
 backend/screener_stocks.json
 backend/options_stocks.json

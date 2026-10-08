@@ -26,7 +26,7 @@ interface BudgetSummary {
 }
 
 const EXPENSE_CATS = ["rent", "food", "transport", "subscriptions", "fun", "trading_fees", "health", "shopping", "other"];
-const PIE_COLORS = ["#e3a83c", "#56b8a4", "#00c87a", "#ff6257", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
+const PIE_COLORS = ["#e3a83c", "#56b8a4", "#6cb4ff", "#e98cb4", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
 
 function monthShift(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
@@ -185,7 +185,7 @@ export default function BudgetTracker() {
                     className="h-full rounded transition-all"
                     style={{
                       width: c.limit ? `${pct}%` : "100%",
-                      background: over ? "#ff6257" : c.limit ? (pct > 80 ? "#e3a83c" : "#00c87a") : PIE_COLORS[i % PIE_COLORS.length] + "55",
+                      background: over ? "var(--color-down)" : c.limit ? (pct > 80 ? "var(--color-amber)" : "var(--color-up)") : PIE_COLORS[i % PIE_COLORS.length] + "55",
                     }}
                   />
                 </div>

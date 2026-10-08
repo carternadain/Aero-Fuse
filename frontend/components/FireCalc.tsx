@@ -40,7 +40,7 @@ function Slider({
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1 accent-[#00c87a] cursor-pointer"
+        className="w-full h-1 accent-up cursor-pointer"
       />
     </div>
   );
@@ -62,6 +62,12 @@ export default function FireCalc() {
           setInp((p) => ({ ...p, currentNW: Math.round(r.totals.net_worth) }));
           setLoadedNW(true);
         }
+      })
+      .catch(() => {});
+    api.get<{ monthly_you: number; monthly_match: number }>("/api/contributions")
+      .then((r) => {
+        const m = Math.round(r.monthly_you + r.monthly_match);
+        if (m > 0) setInp((p) => ({ ...p, monthlyInvest: m }));
       })
       .catch(() => {});
   }, []);
@@ -170,11 +176,11 @@ export default function FireCalc() {
               labelFormatter={(a) => `Age ${a}`}
               formatter={(v, name) => [fmtUsd(Number(v)), name === "nw" ? "Net worth (real $)" : "Contributions"]}
             />
-            <ReferenceLine y={calc.fireNumber} stroke="#00c87a" strokeDasharray="6 4"
-                           label={{ value: "FIRE", fill: "#00c87a", fontSize: 10, position: "insideTopRight" }} />
+            <ReferenceLine y={calc.fireNumber} stroke="var(--color-up)" strokeDasharray="6 4"
+                           label={{ value: "FIRE", fill: "var(--color-up)", fontSize: 10, position: "insideTopRight" }} />
             {calc.fireAge !== null && (
-              <ReferenceLine x={calc.fireAge} stroke="#00c87a" strokeDasharray="2 4"
-                             label={{ value: `${calc.fireAge}`, fill: "#00c87a", fontSize: 10, position: "top" }} />
+              <ReferenceLine x={calc.fireAge} stroke="var(--color-up)" strokeDasharray="2 4"
+                             label={{ value: `${calc.fireAge}`, fill: "var(--color-up)", fontSize: 10, position: "top" }} />
             )}
             <Area type="monotone" dataKey="contributions" stroke="#56b8a4" strokeWidth={1} fill="url(#contribFill)" />
             <Area type="monotone" dataKey="nw" stroke="#e3a83c" strokeWidth={2} fill="url(#fireFill)" />

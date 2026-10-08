@@ -102,12 +102,21 @@ def init_db():
 
             CREATE TABLE IF NOT EXISTS holdings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                symbol TEXT NOT NULL,              -- BTC, SOL, RDW ...
-                kind TEXT DEFAULT 'crypto' CHECK (kind IN ('crypto','stock')),
-                qty REAL NOT NULL,
+                symbol TEXT NOT NULL,              -- BTC, RDW, or OCC option symbol AMZN271217C00260000
+                kind TEXT DEFAULT 'crypto' CHECK (kind IN ('crypto','stock','option')),
+                qty REAL NOT NULL,                 -- units, shares, or contracts (x100 for options)
                 cost_basis REAL,                   -- optional avg cost per unit
                 label TEXT DEFAULT '',             -- where it's held (Toobit, Fidelity ...)
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS contributions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account TEXT NOT NULL,             -- e.g. "Work 401(k)"
+                bucket TEXT DEFAULT 'retirement',  -- retirement | brokerage | cash | crypto
+                amount REAL NOT NULL,              -- what you put in, per period
+                employer_match REAL DEFAULT 0,     -- free money added per period
+                frequency TEXT DEFAULT 'monthly'   -- weekly | biweekly | semimonthly | monthly
             );
 
             CREATE TABLE IF NOT EXISTS networth_snapshots (
@@ -168,6 +177,23 @@ def init_db():
 def migrate():
     """Additive, idempotent schema upgrades for existing terminal.db files."""
     with conn() as c:
+        # holdings v1 only allowed crypto|stock — rebuild to allow options (SQLite can't ALTER a CHECK).
+        row = c.execute("SELECT sql FROM sqlite_master WHERE name='holdings'").fetchone()
+        if row and "'option'" not in row["sql"]:
+            c.executescript("""
+                ALTER TABLE holdings RENAME TO holdings_v1;
+                CREATE TABLE holdings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    kind TEXT DEFAULT 'crypto' CHECK (kind IN ('crypto','stock','option')),
+                    qty REAL NOT NULL,
+                    cost_basis REAL,
+                    label TEXT DEFAULT '',
+                    updated_at TEXT NOT NULL
+                );
+                INSERT INTO holdings SELECT * FROM holdings_v1;
+                DROP TABLE holdings_v1;
+            """)
         cols = {r["name"] for r in c.execute("PRAGMA table_info(signals)").fetchall()}
         # Claude verdict stored alongside each signal (the edge test).
         adds = {
@@ -642,6 +668,51 @@ def update_holding(h_id: int, fields: dict) -> dict | None:
 def delete_holding(h_id: int) -> bool:
     with conn() as c:
         return c.execute("DELETE FROM holdings WHERE id=?", (h_id,)).rowcount > 0
+
+
+# ── Recurring contributions (the savings plan) ───────────
+
+PERIODS_PER_MONTH = {"weekly": 52 / 12, "biweekly": 26 / 12, "semimonthly": 2, "monthly": 1}
+
+
+def create_contribution(data: dict) -> dict:
+    with conn() as c:
+        cur = c.execute(
+            "INSERT INTO contributions (account, bucket, amount, employer_match, frequency) VALUES (?,?,?,?,?)",
+            (data["account"], data.get("bucket", "retirement"), data["amount"],
+             data.get("employer_match", 0) or 0, data.get("frequency", "monthly")),
+        )
+        return row_to_dict(c.execute("SELECT * FROM contributions WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+def list_contributions() -> list[dict]:
+    with conn() as c:
+        rows = [row_to_dict(r) for r in c.execute("SELECT * FROM contributions ORDER BY bucket, account")]
+    for r in rows:
+        k = PERIODS_PER_MONTH.get(r["frequency"], 1)
+        r["monthly"] = round(r["amount"] * k, 2)
+        r["monthly_match"] = round((r["employer_match"] or 0) * k, 2)
+    return rows
+
+
+def update_contribution(c_id: int, fields: dict) -> dict | None:
+    allowed = {"account", "bucket", "amount", "employer_match", "frequency"}
+    sets, params = [], []
+    for k, v in fields.items():
+        if k in allowed:
+            sets.append(f"{k}=?"); params.append(v)
+    if not sets:
+        return None
+    params.append(c_id)
+    with conn() as c:
+        c.execute(f"UPDATE contributions SET {', '.join(sets)} WHERE id=?", params)
+        row = c.execute("SELECT * FROM contributions WHERE id=?", (c_id,)).fetchone()
+        return row_to_dict(row) if row else None
+
+
+def delete_contribution(c_id: int) -> bool:
+    with conn() as c:
+        return c.execute("DELETE FROM contributions WHERE id=?", (c_id,)).rowcount > 0
 
 
 def networth_totals(holdings_value: float = 0.0) -> dict:

@@ -26,7 +26,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply the saved gain/loss palette before first paint (no flash). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var p=localStorage.getItem("palette");if(p)document.documentElement.dataset.palette=p}catch(e){}`,
+          }}
+        />
+      </head>
       <body className={`${manrope.variable} ${jetbrains.variable} ${serif.variable}`}>{children}</body>
     </html>
   );

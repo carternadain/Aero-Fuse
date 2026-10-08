@@ -35,6 +35,7 @@ import db
 import econ_calendar
 import market_data
 import news
+import risk
 import scoring
 import universe
 
@@ -477,6 +478,22 @@ class HoldingIn(BaseModel):
     label: str = ""
 
 
+class ContributionIn(BaseModel):
+    account: str
+    bucket: str = "retirement"
+    amount: float
+    employer_match: float = 0
+    frequency: str = "monthly"
+
+
+class ContributionPatch(BaseModel):
+    account: str | None = None
+    bucket: str | None = None
+    amount: float | None = None
+    employer_match: float | None = None
+    frequency: str | None = None
+
+
 class HoldingPatch(BaseModel):
     symbol: str | None = None
     kind: str | None = None
@@ -620,6 +637,20 @@ def get_accounts():
     return {"accounts": db.list_accounts(), "totals": db.networth_totals(valued_holdings()["value"])}
 
 
+OPTION_MULTIPLIER = 100
+
+
+def option_display(occ: str) -> str:
+    """AMZN271217C00260000 -> 'AMZN $260C 12/17/27' (falls back to the raw symbol)."""
+    import re
+    m = re.fullmatch(r"([A-Z.]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})", occ.upper())
+    if not m:
+        return occ
+    root, yy, mm, dd, cp, strike = m.groups()
+    k = int(strike) / 1000
+    return f"{root} ${k:g}{cp} {int(mm)}/{int(dd)}/{yy}"
+
+
 def valued_holdings() -> dict:
     """Every holding marked to live prices, plus portfolio-level totals."""
     rows = db.list_holdings()
@@ -628,15 +659,17 @@ def valued_holdings() -> dict:
     out, value, prev_value, cost = [], 0.0, 0.0, 0.0
     for h, q in zip(rows, quotes):
         price = q["price"]
-        val = h["qty"] * price if price is not None else None
-        pnl = (val - h["qty"] * h["cost_basis"]) if val is not None and h["cost_basis"] else None
+        mult = OPTION_MULTIPLIER if h["kind"] == "option" else 1
+        val = h["qty"] * price * mult if price is not None else None
+        pnl = (val - h["qty"] * h["cost_basis"] * mult) if val is not None and h["cost_basis"] else None
         if val is not None:
             value += val
             chg = q["change_1d"]
             prev_value += val / (1 + chg / 100) if chg is not None else val
             if h["cost_basis"]:
-                cost += h["qty"] * h["cost_basis"]
-        out.append({**h, "price": price, "change_1d": q["change_1d"],
+                cost += h["qty"] * h["cost_basis"] * mult
+        out.append({**h, "price": price, "change_1d": q["change_1d"], "multiplier": mult,
+                    "display": option_display(h["symbol"]) if h["kind"] == "option" else h["symbol"],
                     "value": round(val, 2) if val is not None else None,
                     "pnl": round(pnl, 2) if pnl is not None else None})
     out.sort(key=lambda r: r["value"] or 0, reverse=True)
@@ -655,8 +688,8 @@ def get_holdings():
 
 @app.post("/api/holdings")
 def post_holding(h: HoldingIn):
-    if h.kind not in ("crypto", "stock"):
-        raise HTTPException(400, "kind must be 'crypto' or 'stock'")
+    if h.kind not in ("crypto", "stock", "option"):
+        raise HTTPException(400, "kind must be 'crypto', 'stock' or 'option'")
     return db.create_holding(h.model_dump())
 
 
@@ -693,6 +726,56 @@ def remove_account(acc_id: int):
     if not db.delete_account(acc_id):
         raise HTTPException(404, "Account not found")
     return {"ok": True}
+
+
+@app.get("/api/contributions")
+def get_contributions():
+    rows = db.list_contributions()
+    by_bucket: dict[str, float] = {}
+    for r in rows:
+        by_bucket[r["bucket"]] = round(by_bucket.get(r["bucket"], 0) + r["monthly"] + r["monthly_match"], 2)
+    return {
+        "contributions": rows,
+        "monthly_you": round(sum(r["monthly"] for r in rows), 2),
+        "monthly_match": round(sum(r["monthly_match"] for r in rows), 2),
+        "by_bucket": by_bucket,
+    }
+
+
+@app.post("/api/contributions")
+def post_contribution(body: ContributionIn):
+    if body.frequency not in db.PERIODS_PER_MONTH:
+        raise HTTPException(400, f"frequency must be one of {list(db.PERIODS_PER_MONTH)}")
+    return db.create_contribution(body.model_dump())
+
+
+@app.patch("/api/contributions/{c_id}")
+def patch_contribution(c_id: int, body: ContributionPatch):
+    row = db.update_contribution(c_id, {k: v for k, v in body.model_dump().items() if v is not None})
+    if not row:
+        raise HTTPException(404, "Contribution not found")
+    return row
+
+
+@app.delete("/api/contributions/{c_id}")
+def remove_contribution(c_id: int):
+    if not db.delete_contribution(c_id):
+        raise HTTPException(404, "Contribution not found")
+    return {"ok": True}
+
+
+@app.get("/api/networth/risk")
+def get_networth_risk():
+    """Risk rating over everything tracked. Uses logged spending (this or last month) for the cash cushion."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    last = (now.replace(day=1) - timedelta(days=1))
+    expenses = None
+    for m in (now.strftime("%Y-%m"), last.strftime("%Y-%m")):
+        e = db.budget_summary(m)["expenses"]
+        if e > 0:
+            expenses = max(expenses or 0, e)
+    return risk.rate(valued_holdings()["holdings"], db.list_accounts(), expenses)
 
 
 @app.post("/api/networth/snapshot")

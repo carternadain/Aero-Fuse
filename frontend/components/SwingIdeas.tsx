@@ -19,7 +19,7 @@ function bandColor(score: number): string {
   if (score >= 75) return "var(--color-up)";
   if (score >= 60) return "var(--color-cyan)";
   if (score >= 40) return "var(--color-amber)";
-  if (score >= 25) return "#ff9d5c";
+  if (score >= 25) return "var(--color-warn)";
   return "var(--color-down)";
 }
 

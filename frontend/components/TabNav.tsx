@@ -1,12 +1,13 @@
 "use client";
 
 import {
-  Bitcoin, CandlestickChart, LineChart, Newspaper, Trophy, Wallet, type LucideIcon,
+  Bitcoin, CandlestickChart, House, LineChart, Newspaper, Trophy, Wallet, type LucideIcon,
 } from "lucide-react";
 
-export type TabKey = "trading" | "buys" | "stocks" | "crypto" | "news" | "wealth";
+export type TabKey = "home" | "trading" | "buys" | "stocks" | "crypto" | "news" | "wealth";
 
 export const TABS: { key: TabKey; label: string; short: string; icon: LucideIcon }[] = [
+  { key: "home", label: "Home", short: "Home", icon: House },
   { key: "trading", label: "Trading", short: "Trade", icon: LineChart },
   { key: "buys", label: "Top Buys", short: "Buys", icon: Trophy },
   { key: "stocks", label: "Stocks", short: "Stocks", icon: CandlestickChart },
@@ -47,14 +48,14 @@ export default function TabNav({
 
       {/* Phone: thumb-reachable bottom bar, clear of the home indicator */}
       <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-panel/95 backdrop-blur border-t border-edge pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-7">
           {TABS.map(({ key, short, icon: Icon }) => {
             const on = active === key;
             return (
               <button
                 key={key}
                 onClick={() => onChange(key)}
-                className={`relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[9.5px] font-bold transition-colors ${
+                className={`relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[9px] font-bold transition-colors ${
                   on ? "text-up" : "text-faint"
                 }`}
               >

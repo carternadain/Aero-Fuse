@@ -8,7 +8,7 @@ function fngColor(v: number): string {
   if (v >= 75) return "var(--color-up)";      // extreme greed
   if (v >= 55) return "var(--color-cyan)";
   if (v >= 45) return "var(--color-amber)";
-  if (v >= 25) return "#ff9d5c";
+  if (v >= 25) return "var(--color-warn)";
   return "var(--color-down)";                  // extreme fear
 }
 

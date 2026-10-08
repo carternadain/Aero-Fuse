@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
+import PalettePicker from "./PalettePicker";
 
 export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -78,7 +79,8 @@ export default function Header() {
       </div>
 
       <div className="ml-auto flex items-center gap-3">
-        <span className="text-[11px] text-dim tabular-nums">{clock}</span>
+        <span className="hidden sm:inline text-[11px] text-dim tabular-nums">{clock}</span>
+        <PalettePicker />
         {authOn && (
           <button className="icon-btn" onClick={logout} title="Sign out">
             <LogOut size={14} />

@@ -27,6 +27,9 @@ import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
 import TopBuys from "@/components/TopBuys";
 import SwingIdeas from "@/components/SwingIdeas";
+import Overview from "@/components/Overview";
+import RiskRating from "@/components/RiskRating";
+import SavingsPlan from "@/components/SavingsPlan";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
 import EconCalendar from "@/components/EconCalendar";
@@ -48,7 +51,7 @@ function SectionDivider({ title, accent, hint }: { title: string; accent: string
 }
 
 export default function Dashboard() {
-  const [tab, setTabState] = useState<TabKey>("trading");
+  const [tab, setTabState] = useState<TabKey>("home");
 
   // Tab lives in the URL hash so refreshes / home-screen relaunches land where you left off.
   useEffect(() => {
@@ -129,6 +132,8 @@ export default function Dashboard() {
         )}
 
         {/* ── Trading ── */}
+        {tab === "home" && <Overview onNavigate={setTab} />}
+
         {tab === "trading" && (
           <>
             <SectionDivider title="Trading" accent="Desk" hint="signals · trades · levels" />
@@ -217,16 +222,25 @@ export default function Dashboard() {
         {/* ── Wealth ── */}
         {tab === "wealth" && (
           <>
-            <SectionDivider title="Wealth" accent="Desk" hint="Net worth · FIRE · Budget" />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-              <div className="lg:col-span-5">
+            <SectionDivider title="Wealth" accent="Desk" hint="tap an account to expand it · tap a row to edit" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+              <div className="lg:col-span-7">
                 <NetWorth />
               </div>
+              <div className="lg:col-span-5 space-y-3">
+                <RiskRating />
+                <SavingsPlan />
+              </div>
+            </div>
+            <SectionDivider title="Plan" accent="Ahead" hint="FIRE · budget" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
               <div className="lg:col-span-7">
                 <FireCalc />
               </div>
+              <div className="lg:col-span-5">
+                <BudgetTracker />
+              </div>
             </div>
-            <BudgetTracker />
           </>
         )}
 

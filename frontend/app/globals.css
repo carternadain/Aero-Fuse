@@ -10,10 +10,13 @@
   --color-txt: #fbf7f0;
   --color-dim: #c4baab;
   --color-faint: #8d8475;
-  --color-up: #2ae79c;
-  --color-down: #ff7a6f;
+  /* Gains / losses. Default palette is "Calm" (blue / soft orange) — see palettes below */
+  --color-up: #6cb4ff;
+  --color-down: #f4a261;
+  --color-warn: #e9b872;
+  --color-on-up: #0b1626;
   --color-amber: #ffc24d;
-  --color-cyan: #6bd8c0;
+  --color-cyan: #9ccfe6;
 
   --font-display: var(--font-serif-face), Georgia, serif;
 }
@@ -128,12 +131,12 @@ input, select, textarea {
 .btn-primary {
   background: var(--color-up);
   border-color: var(--color-up);
-  color: #0c1410;
+  color: var(--color-on-up);
 }
 .btn-primary:hover {
-  background: #2bdd96;
-  border-color: #2bdd96;
-  color: #0c1410;
+  background: color-mix(in srgb, var(--color-up) 85%, white);
+  border-color: color-mix(in srgb, var(--color-up) 85%, white);
+  color: var(--color-on-up);
 }
 
 .icon-btn {
@@ -178,4 +181,21 @@ main {
 /* Installed on iOS: keep the header clear of the notch / status bar */
 .safe-top {
   padding-top: max(12px, env(safe-area-inset-top));
+}
+
+/* ── Palettes (header ● button). Calm is the default, defined in @theme above. ── */
+:root[data-palette="classic"] {
+  --color-up: #2ae79c;
+  --color-down: #ff7a6f;
+  --color-warn: #ff9d5c;
+  --color-on-up: #0c1410;
+  --color-cyan: #6bd8c0;
+}
+/* Mono: no hue for gains/losses at all — direction comes from ▲▼ and +/− signs */
+:root[data-palette="mono"] {
+  --color-up: #f2ede4;
+  --color-down: #a59c8e;
+  --color-warn: #c4baab;
+  --color-on-up: #1a1814;
+  --color-cyan: #d9d2c6;
 }
