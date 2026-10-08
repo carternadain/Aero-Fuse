@@ -12,7 +12,7 @@ import type {
   Position,
 } from "@/lib/types";
 import Header from "@/components/Header";
-import TabNav, { type TabKey } from "@/components/TabNav";
+import TabNav, { TABS, type TabKey } from "@/components/TabNav";
 import StatsBar from "@/components/StatsBar";
 import NewsFeed from "@/components/NewsFeed";
 import TradeTracker from "@/components/TradeTracker";
@@ -37,18 +37,35 @@ import EarningsCalendar from "@/components/EarningsCalendar";
 
 function SectionDivider({ title, accent, hint }: { title: string; accent: string; hint?: string }) {
   return (
-    <div className="flex items-center gap-3 pt-2">
-      <span className="text-xs font-extrabold tracking-tight text-txt">
-        {title} <span className="text-amber">{accent}</span>
-      </span>
-      <div className="flex-1 h-px bg-edge" />
-      {hint && <span className="text-[10px] text-faint font-medium">{hint}</span>}
+    <div className="section-divider flex items-baseline gap-3 pt-3">
+      <h2 className="font-display text-[26px] leading-none text-txt">
+        {title} <em className="text-amber">{accent}</em>
+      </h2>
+      <div className="flex-1 h-px bg-edge self-center" />
+      {hint && <span className="hidden sm:inline text-[10px] text-faint font-medium">{hint}</span>}
     </div>
   );
 }
 
 export default function Dashboard() {
-  const [tab, setTab] = useState<TabKey>("trading");
+  const [tab, setTabState] = useState<TabKey>("trading");
+
+  // Tab lives in the URL hash so refreshes / home-screen relaunches land where you left off.
+  useEffect(() => {
+    const fromHash = () => {
+      const h = window.location.hash.slice(1) as TabKey;
+      if (TABS.some((t) => t.key === h)) setTabState(h);
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
+
+  const setTab = (t: TabKey) => {
+    setTabState(t);
+    history.replaceState(null, "", `#${t}`);
+    window.scrollTo({ top: 0 });
+  };
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [edge, setEdge] = useState<EdgeReport | null>(null);
@@ -103,7 +120,7 @@ export default function Dashboard() {
     <div className="min-h-screen">
       <Header />
       <TabNav active={tab} onChange={setTab} />
-      <main className="p-3 sm:p-4 space-y-3 max-w-[1800px] mx-auto">
+      <main className="p-3 sm:p-4 pb-24 sm:pb-6 space-y-3 max-w-[1800px] mx-auto">
         {backendDown && (
           <div className="panel border-down/50 px-4 py-3 text-xs text-down">
             ⚠ Backend offline — start it with:{" "}

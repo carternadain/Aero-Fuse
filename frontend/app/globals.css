@@ -14,6 +14,8 @@
   --color-down: #ff7a6f;
   --color-amber: #ffc24d;
   --color-cyan: #6bd8c0;
+
+  --font-display: var(--font-serif-face), Georgia, serif;
 }
 
 html {
@@ -22,6 +24,7 @@ html {
 
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  overscroll-behavior-y: none;
   background: var(--color-bg);
   color: var(--color-txt);
   font-size: 13.5px;
@@ -62,9 +65,9 @@ input, select, textarea {
 .panel {
   background: var(--color-panel);
   border: 1px solid var(--color-edge);
-  border-radius: 16px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 28px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .panel-head {
@@ -141,4 +144,38 @@ input, select, textarea {
 }
 .icon-btn:hover {
   color: var(--color-down);
+}
+
+/* Film grain over everything — breaks up the flat "generated dashboard" look */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Editorial section numbers: 01, 02, 03… per tab */
+main {
+  counter-reset: sec;
+}
+.section-divider::before {
+  counter-increment: sec;
+  content: counter(sec, decimal-leading-zero);
+  font-family: var(--font-num), ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-faint);
+  letter-spacing: 0.08em;
+  transform: translateY(-11px);
+}
+.font-display em {
+  font-style: italic;
+}
+
+/* Installed on iOS: keep the header clear of the notch / status bar */
+.safe-top {
+  padding-top: max(12px, env(safe-area-inset-top));
 }

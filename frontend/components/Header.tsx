@@ -37,11 +37,11 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 border-b border-edge bg-panel sticky top-0 z-40">
+    <header className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 safe-top border-b border-edge bg-panel sticky top-0 z-40">
       <div className="flex items-center gap-2.5">
         <span className="live-dot inline-block w-2 h-2 rounded-full bg-up" />
-        <h1 className="text-sm font-extrabold tracking-tight text-txt">
-          Swing<span className="text-up">Terminal</span>
+        <h1 className="font-display text-[22px] leading-none text-txt">
+          Swing <em className="text-up">Terminal</em>
         </h1>
         <span className="hidden sm:inline text-[10px] text-faint font-medium">
           NeuroWave × Kryptonite
