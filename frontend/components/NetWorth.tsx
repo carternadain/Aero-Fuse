@@ -296,7 +296,7 @@ export default function NetWorth() {
               <CartesianGrid stroke="#2b2723" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" stroke="#645e53" fontSize={9} tickLine={false}
                      tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis stroke="#645e53" fontSize={9} tickLine={false} width={52}
+              <YAxis stroke="#645e53" fontSize={9} tickLine={false} width={52} domain={["auto", "auto"]}
                      tickFormatter={(v: number) => fmtUsd(v)} />
               <Tooltip
                 contentStyle={{ background: "#221f1c", border: "1px solid #3b3631", borderRadius: 10, fontSize: 11 }}
