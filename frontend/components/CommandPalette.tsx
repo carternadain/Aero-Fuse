@@ -51,6 +51,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Stress test", "wealth", undefined, "sec-stress", "crash black swan"],
   ["Health check", "wealth", undefined, "sec-health", "free money irs limits emergency fund"],
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
+  ["Monthly budget", "wealth", undefined, "sec-budget", "monthly budget targets limits category spending left per day pace over"],
   ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules subscriptions bills recurring"],
   ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
   ["Backup & export", "wealth", undefined, "sec-backup", "download csv json database restore"],

@@ -33,6 +33,7 @@ load_dotenv()  # also pick up a local backend/.env if present
 
 import auth
 import backup
+import budget
 import charts
 import claude_ai
 import db
@@ -632,6 +633,15 @@ class BudgetIn(BaseModel):
     monthly_limit: float
 
 
+class BudgetTargetIn(BaseModel):
+    category: str
+    monthly_limit: float | None = None
+
+
+class BudgetBulkIn(BaseModel):
+    targets: list[BudgetTargetIn]
+
+
 class ImportPreviewIn(BaseModel):
     filename: str = ""
     content: str
@@ -1051,6 +1061,18 @@ def get_budget_summary(month: str | None = None):
     return db.budget_summary(month)
 
 
+@app.get("/api/budget/plan")
+def get_budget_plan(month: str | None = None):
+    from datetime import date, datetime
+    # Local date, matching budget.plan's idea of "today".
+    month = month or date.today().strftime("%Y-%m")
+    try:
+        datetime.strptime(month, "%Y-%m")
+    except ValueError:
+        raise HTTPException(400, "month must be YYYY-MM")
+    return budget.plan(month)
+
+
 @app.post("/api/transactions")
 def post_transaction(tx: TransactionIn):
     return db.create_transaction(tx.model_dump())
@@ -1175,8 +1197,26 @@ def remove_transaction(tx_id: int):
 
 @app.put("/api/budgets")
 def put_budget(body: BudgetIn):
+    if body.monthly_limit < 0:
+        raise HTTPException(400, "monthly_limit can't be negative")
     db.set_budget(body.category, body.monthly_limit)
     return {"ok": True}
+
+
+@app.put("/api/budgets/bulk")
+def put_budgets_bulk(body: BudgetBulkIn):
+    # Validate everything first so a bad row doesn't leave a half-saved batch.
+    for t in body.targets:
+        if not t.category.strip() or t.category == "income":
+            raise HTTPException(400, f"Can't set a target for '{t.category}'")
+    saved = removed = 0
+    for t in body.targets:
+        if t.monthly_limit is None or t.monthly_limit < 0:
+            removed += db.delete_budget(t.category)
+        else:
+            db.set_budget(t.category, t.monthly_limit)
+            saved += 1
+    return {"saved": saved, "removed": removed}
 
 
 @app.delete("/api/budgets/{category}")

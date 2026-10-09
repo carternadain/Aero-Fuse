@@ -38,6 +38,7 @@ import Portfolio from "@/components/Portfolio";
 import NetWorth from "@/components/NetWorth";
 import FireCalc from "@/components/FireCalc";
 import BudgetTracker from "@/components/BudgetTracker";
+import MonthlyBudget from "@/components/MonthlyBudget";
 import RecurringBills from "@/components/RecurringBills";
 import BackupPanel from "@/components/BackupPanel";
 import RiskDesk from "@/components/RiskDesk";
@@ -321,6 +322,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
               </div>
             </Section>
+            <Section id="sec-budget" title="Monthly" accent="Budget" hint="targets vs spending"><MonthlyBudget /></Section>
             <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
             <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
             <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>

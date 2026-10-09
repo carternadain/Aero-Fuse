@@ -963,6 +963,34 @@ def delete_budget(category: str) -> bool:
         return cur.rowcount > 0
 
 
+def spending_by_month(months: list[str]) -> dict[str, dict[str, float]]:
+    """Expense totals as {month: {category: total}} for the given YYYY-MM months."""
+    if not months:
+        return {}
+    marks = ",".join("?" * len(months))
+    out: dict[str, dict[str, float]] = {}
+    with conn() as c:
+        rows = c.execute(
+            f"""SELECT substr(date,1,7) AS m, category, SUM(amount) AS total
+                FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
+                GROUP BY m, category""", months).fetchall()
+    for r in rows:
+        out.setdefault(r["m"], {})[r["category"]] = r["total"]
+    return out
+
+
+def active_months(months: list[str]) -> set[str]:
+    """Which of these months have any transaction at all (income or expense)."""
+    if not months:
+        return set()
+    marks = ",".join("?" * len(months))
+    with conn() as c:
+        rows = c.execute(
+            f"SELECT DISTINCT substr(date,1,7) AS m FROM transactions "
+            f"WHERE substr(date,1,7) IN ({marks})", months).fetchall()
+    return {r["m"] for r in rows}
+
+
 # ── Paper-trade simulator ─────────────────────────────────
 
 def create_sim_trade(signal_id: int | None, asset: str, direction: str,
