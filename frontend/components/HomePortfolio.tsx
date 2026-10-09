@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bitcoin, Briefcase, ChevronDown, Landmark, PiggyBank, Wallet, type LucideIcon } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
 import { fmtCents, fmtQty, isHidden } from "@/lib/privacy";
 import Sparkline from "./Sparkline";
+import Skeleton from "./Skeleton";
 import AssetDetail, { type LiveHolding } from "./AssetDetail";
 
 interface Account { id: number; name: string; category: string; kind: "asset" | "liability"; balance: number; updated_at: string }
@@ -44,6 +45,10 @@ interface Card {
 
 export default function HomePortfolio() {
   const [holdings, setHoldings] = useState<LiveHolding[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  // last price we showed per holding, so a changed price can flash up/down
+  const lastPx = useRef<Record<number, number>>({});
+  const [ticks, setTicks] = useState<Record<number, "up" | "down">>({});
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -53,7 +58,17 @@ export default function HomePortfolio() {
   useEffect(() => {
     try { const p = localStorage.getItem(PILL_KEY) as PillMode | null; if (p) setPill(p); } catch { /* */ }
     const load = () => {
-      api.get<{ holdings: LiveHolding[] }>("/api/holdings").then((r) => setHoldings(r.holdings)).catch(() => {});
+      api.get<{ holdings: LiveHolding[] }>("/api/holdings").then((r) => {
+        const t: Record<number, "up" | "down"> = {};
+        for (const h of r.holdings) {
+          const prev = lastPx.current[h.id];
+          if (prev != null && h.price != null && h.price !== prev) t[h.id] = h.price > prev ? "up" : "down";
+          if (h.price != null) lastPx.current[h.id] = h.price;
+        }
+        setTicks(t);
+        setHoldings(r.holdings);
+        setLoaded(true);
+      }).catch(() => setLoaded(true));
       api.get<{ accounts: Account[] }>("/api/accounts").then((r) => setAccounts(r.accounts)).catch(() => {});
     };
     const loadSparks = () => api.get<Record<string, number[]>>("/api/portfolio/sparks").then(setSparks).catch(() => {});
@@ -98,6 +113,24 @@ export default function HomePortfolio() {
     if (pill === "equity") return h.value != null ? fmtCents(h.value) : "—";
     return h.price != null ? `$${fmtPrice(h.price)}` : "—";
   };
+
+  if (!loaded) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-28" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="panel p-4 space-y-3">
+            <div className="flex justify-between"><Skeleton className="h-4 w-36" /><Skeleton className="h-4 w-20" /></div>
+            {[0, 1].map((j) => (
+              <div key={j} className="flex items-center gap-3">
+                <Skeleton className="h-8 w-24" /><Skeleton className="h-6 flex-1" /><Skeleton className="h-8 w-20" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (!holdings.length && !accounts.length) {
     return <p className="text-xs text-dim">Add holdings and accounts on the Wealth tab and they&apos;ll show up here.</p>;
@@ -170,8 +203,9 @@ export default function HomePortfolio() {
                                 {sp && sp.length > 1 ? <Sparkline data={sp} width={92} height={30} />
                                   : <span className="block w-[92px] border-t border-dashed border-edge2" title="No intraday history for options" />}
                               </div>
-                              <span className={`shrink-0 min-w-[86px] text-center px-2 py-1.5 rounded-lg text-[12px] font-bold tabular-nums border ${
-                                up ? "border-up/50 text-up" : "border-down/50 text-down"}`}>
+                              <span key={`${h.id}:${h.price}`}
+                                    className={`shrink-0 min-w-[86px] text-center px-2 py-1.5 rounded-lg text-[12px] font-bold tabular-nums border ${
+                                up ? "border-up/50 text-up" : "border-down/50 text-down"} ${ticks[h.id] === "up" ? "flash-up" : ticks[h.id] === "down" ? "flash-down" : ""}`}>
                                 {pillText(h)}
                               </span>
                             </button>

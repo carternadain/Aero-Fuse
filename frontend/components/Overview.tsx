@@ -8,6 +8,8 @@ import { riskColor, type RiskReport } from "./RiskRating";
 import { TABS, type TabKey } from "./TabNav";
 import NetWorthChart from "./NetWorthChart";
 import HomePortfolio from "./HomePortfolio";
+import PortfolioHeatmap from "./PortfolioHeatmap";
+import WeekRecap from "./WeekRecap";
 
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
 const GUIDE: Record<Exclude<TabKey, "home">, { what: string; when: string }> = {
@@ -49,6 +51,11 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       <section className="panel p-4 sm:p-5">
         <NetWorthChart />
       </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <div className="lg:col-span-3"><PortfolioHeatmap /></div>
+        <div className="lg:col-span-2"><WeekRecap /></div>
+      </div>
 
       <HomePortfolio />
 

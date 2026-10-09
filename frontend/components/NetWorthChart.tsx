@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { fmtCents, isHidden } from "@/lib/privacy";
+import AnimatedNumber from "./AnimatedNumber";
+import Skeleton from "./Skeleton";
 import PriceChart, { NW_RANGES, POLL_MS, RANGE_LABEL, RangeTabs, fmtTime, type ChartData, type Range } from "./PriceChart";
 
 interface NwChart extends ChartData {
@@ -55,7 +57,8 @@ export default function NetWorthChart({ label = "Net worth", height = 210 }: { l
       <div className="px-1">
         <div className="text-[11px] text-dim">{label}</div>
         <div className="font-display text-[42px] sm:text-[48px] leading-none text-txt [font-variant-numeric:tabular-nums]">
-          {shown != null ? fmtCents(shown) : "—"}
+          {shown != null ? <AnimatedNumber value={shown} format={fmtCents} instant={scrub != null} />
+            : <Skeleton className="h-[42px] w-64 mt-1" />}
         </div>
         <div className="text-[12px] mt-1.5 h-4 tabular-nums">
           {chg != null && (

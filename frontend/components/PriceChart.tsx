@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import Skeleton from "./Skeleton";
 
 export type Range = "LIVE" | "1D" | "1W" | "1M" | "3M" | "1Y" | "5Y" | "ALL";
 export const ASSET_RANGES: Range[] = ["LIVE", "1D", "1W", "1M", "3M", "1Y", "5Y"];
@@ -99,9 +100,11 @@ export default function PriceChart({
 
   if (n < 2) {
     return (
-      <div className="flex items-center justify-center text-[11px] text-faint" style={{ height }}>
-        {data ? "No chart data for this range" : "Loading chart…"}
-      </div>
+      data ? (
+        <div className="flex items-center justify-center text-[11px] text-faint" style={{ height }}>No chart data for this range</div>
+      ) : (
+        <Skeleton className="mx-1" style={{ height }} />
+      )
     );
   }
 

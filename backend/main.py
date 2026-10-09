@@ -780,6 +780,36 @@ def get_networth_chart(range: str = "1D"):
     return out
 
 
+@app.get("/api/recap/week")
+def get_week_recap():
+    """This week at a glance: net worth move, best/worst holding by $ and %, money added via the plan."""
+    hs = valued_holdings()["holdings"]
+    live = [h for h in hs if h["kind"] in ("crypto", "stock") and h.get("value")]
+    ctxs = [contextvars.copy_context() for _ in live]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        series = list(pool.map(lambda p: p[0].run(charts.series, p[1]["kind"], p[1]["symbol"], "1W"), zip(ctxs, live)))
+    movers: dict[str, dict] = {}
+    for h, s in zip(live, series):
+        if len(s) < 2 or not s[0][1]:
+            continue
+        pct = (h["price"] / s[0][1] - 1) * 100
+        usd = h["value"] - h["value"] / (1 + pct / 100)
+        m = movers.setdefault(h["symbol"], {"symbol": h["symbol"], "display": h.get("display", h["symbol"]),
+                                            "pct": round(pct, 2), "usd": 0.0, "kind": h["kind"]})
+        m["usd"] = round(m["usd"] + usd, 2)  # same symbol in several accounts adds up
+    ranked = sorted(movers.values(), key=lambda m: m["usd"])  # by $ impact on your net worth
+    by_pct = sorted(movers.values(), key=lambda m: m["pct"])
+    nw = get_networth_chart("1W")
+    plan = get_contributions()
+    return {
+        "nw_change": nw.get("change"), "nw_change_pct": nw.get("change_pct"),
+        "best": ranked[-1] if ranked else None, "worst": ranked[0] if ranked else None,
+        "hottest": by_pct[-1] if by_pct else None,
+        "up_count": sum(1 for m in ranked if m["pct"] > 0), "down_count": sum(1 for m in ranked if m["pct"] < 0),
+        "saved_week": round((plan["monthly_you"] + plan["monthly_match"]) * 7 / 30.44, 2),
+    }
+
+
 @app.get("/api/portfolio/sparks")
 def get_portfolio_sparks():
     return charts.sparks(valued_holdings()["holdings"])

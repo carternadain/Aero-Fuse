@@ -231,3 +231,38 @@ main {
   .btn { min-height: 32px; min-width: 32px; }
   .chip-tap { padding-top: 6px; padding-bottom: 6px; }
 }
+
+/* ── Motion ─────────────────────────────────────────────── */
+/* Shimmer placeholder while data loads */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--color-panel2) 70%, transparent) 30%,
+    color-mix(in srgb, var(--color-edge2) 60%, transparent) 50%,
+    color-mix(in srgb, var(--color-panel2) 70%, transparent) 70%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+/* Tab content eases in instead of popping */
+.tab-enter {
+  animation: tab-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes tab-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Brief glow when a live price ticks up / down */
+.flash-up { animation: flash-up 0.9s ease-out; }
+.flash-down { animation: flash-down 0.9s ease-out; }
+@keyframes flash-up { from { background-color: color-mix(in srgb, var(--color-up) 32%, transparent); } }
+@keyframes flash-down { from { background-color: color-mix(in srgb, var(--color-down) 32%, transparent); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .tab-enter, .flash-up, .flash-down { animation: none !important; }
+}
