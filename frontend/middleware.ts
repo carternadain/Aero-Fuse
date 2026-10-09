@@ -11,7 +11,9 @@ export async function middleware(req: NextRequest) {
       cache: "no-store",
     });
     if (r.status === 401) {
-      return NextResponse.redirect(new URL("/login", req.url));
+      // Relative Location: behind a reverse proxy, req.url carries the internal
+      // host (localhost:3000), which would send phones to a dead address.
+      return new NextResponse(null, { status: 307, headers: { Location: "/login" } });
     }
   } catch {
     // Backend down: let the page load — it shows the offline banner, and has no data.
