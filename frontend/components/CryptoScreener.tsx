@@ -47,7 +47,7 @@ export default function CryptoScreener() {
       <div className="panel-head">
         <span className="panel-title">
           <Bitcoin size={14} /> Crypto Screener
-          <span className="text-[10px] text-faint font-medium ml-1">top 15 · long-term score</span>
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">top 15 · long-term score</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />

@@ -81,7 +81,7 @@ export default function SwingIdeas() {
       <div className="panel-head">
         <span className="panel-title">
           <Compass size={14} /> Swing Ideas
-          <span className="text-[10px] text-faint font-medium ml-1">
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">
             {stocks.length} optionable names by sector · tap a row for why it's listed
           </span>
         </span>
@@ -145,24 +145,24 @@ export default function SwingIdeas() {
             <div
               key={s.symbol}
               onClick={() => openTicker({ symbol: s.symbol, kind: "stock" })}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-panel2 transition-colors cursor-pointer text-xs"
+              className="flex items-center gap-3 max-sm:gap-2 px-3 py-2 hover:bg-panel2 transition-colors cursor-pointer text-xs"
               title="Chart + why it's on the list"
             >
-              <span className="text-faint font-bold tabular-nums w-5">{i + 1}</span>
+              <span className="text-faint font-bold tabular-nums w-5 max-sm:hidden">{i + 1}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-txt text-sm">{s.symbol}</div>
                 <div className="text-[10px] text-faint truncate">
                   {s.name} · {s.sector}
                 </div>
               </div>
-              <span className="tabular-nums text-dim w-20 text-right">
+              <span className="tabular-nums text-dim w-20 max-sm:w-16 text-right">
                 {s.price != null ? `$${s.price.toFixed(2)}` : "—"}
               </span>
               <span className="tabular-nums w-14 text-right hidden sm:block"><Pct v={s.chg_1d} /></span>
               <span className="tabular-nums w-14 text-right"><Pct v={s.chg_1m} /></span>
               <span className="tabular-nums w-14 text-right hidden md:block"><Pct v={s.chg_3m} /></span>
               <span className="tabular-nums w-16 text-right hidden md:block"><Pct v={s.off_high} /></span>
-              <div className="w-28 text-right">
+              <div className="w-28 max-sm:w-16 text-right">
                 <div className="tabular-nums text-sm font-bold" style={{ color }}>
                   {s.score ?? "—"}
                 </div>

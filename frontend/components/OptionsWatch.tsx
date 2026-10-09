@@ -40,7 +40,7 @@ export default function OptionsWatch() {
       <div className="panel-head">
         <span className="panel-title">
           <Target size={14} /> Options Watch
-          <span className="text-[10px] text-faint font-medium ml-1">signals + confluence</span>
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">signals + confluence</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={loadData} disabled={loading} title="Refresh">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />

@@ -110,7 +110,7 @@ export default function Header() {
         <span className="hidden lg:inline text-[11px] text-dim tabular-nums">{clock}</span>
         <button onClick={() => setMode(mode === "simple" ? "pro" : "simple")}
                 title={mode === "simple" ? "Simple view: advanced tools hidden. Tap for Pro" : "Pro view: everything shown. Tap for Simple"}
-                className={`text-[10px] font-extrabold sm:tracking-wider px-1.5 sm:px-2 py-1 rounded-md border transition-colors ${
+                className={`text-[10px] font-extrabold sm:tracking-wider max-sm:min-w-10 px-1.5 sm:px-2 py-1 rounded-md border transition-colors ${
                   mode === "pro" ? "border-amber/50 text-amber bg-amber/10" : "border-edge2 text-dim"}`}>
           {mode === "pro" ? "PRO" : "SIMPLE"}
         </button>

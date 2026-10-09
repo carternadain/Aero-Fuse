@@ -38,7 +38,7 @@ export default function TopBuys() {
       <div className="panel-head">
         <span className="panel-title">
           <Target size={14} /> Top Buys
-          <span className="text-[10px] text-faint font-medium ml-1">crypto + stocks, best long-term score first</span>
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">crypto + stocks, best long-term score first</span>
         </span>
         <div className="flex items-center gap-2">
           <div className="seg flex rounded-lg border border-edge2 text-[10px]">

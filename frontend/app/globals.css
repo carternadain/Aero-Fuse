@@ -250,6 +250,9 @@ main {
   /* Header buttons sit edge to edge, so give them their full 40px box instead */
   .header-tools .icon-btn { width: 40px; height: 40px; margin: 0; }
   .btn { min-height: 32px; min-width: 32px; }
+  /* Panel titles: the description drops under the title instead of squeezing it onto two lines */
+  .panel-title { flex-wrap: wrap; row-gap: 2px; }
+  .panel-sub { flex-basis: 100%; margin-left: 0 !important; padding-left: 31px; }
   .chip-tap { padding-top: 6px; padding-bottom: 6px; }
   /* Wrapping rows of chips: tall enough, and far enough apart that neighbours' hit areas don't overlap */
   .flex-wrap > button { min-height: 32px; min-width: 40px; }
