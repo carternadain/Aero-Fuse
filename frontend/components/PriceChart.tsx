@@ -1,6 +1,7 @@
 "use client";
 
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 
 export type Range = "LIVE" | "1D" | "1W" | "1M" | "3M" | "1Y" | "5Y" | "ALL";
 export const ASSET_RANGES: Range[] = ["LIVE", "1D", "1W", "1M", "3M", "1Y", "5Y"];
@@ -27,14 +28,17 @@ export function fmtTime(t: number, range: Range): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
-function pointAt(pts: { t: number; p: number }[], idx: unknown): { t: number; p: number } | null {
-  const i = typeof idx === "string" ? parseInt(idx, 10) : typeof idx === "number" ? idx : NaN;
-  return Number.isInteger(i) && pts[i] ? pts[i] : null;
-}
+type Pt = { t: number; p: number };
 
 /**
  * Robinhood-style line: no axes, colored by direction over the range, dashed
- * baseline (previous close) on 1D, and scrubbing reports the hovered point.
+ * baseline (previous close) on 1D.
+ *
+ * Scrubbing is handled by our own pointer layer instead of recharts' tooltip:
+ * the chart SVG renders once (memoized) and only the cursor line / dot / dimmed
+ * "future" overlay move, mapped straight from pointer x → point index. That
+ * removes the flicker (no "no point" gaps between samples), keeps 60fps on long
+ * ranges, and keeps tracking a finger for the whole drag on phones.
  */
 export default function PriceChart({
   data, range, height = 200, onScrub,
@@ -42,59 +46,122 @@ export default function PriceChart({
   data: ChartData | null;
   range: Range;
   height?: number;
-  onScrub?: (pt: { t: number; p: number } | null) => void;
+  onScrub?: (pt: Pt | null) => void;
 }) {
-  const pts = data?.points ?? [];
-  if (pts.length < 2) {
-    return (
-      <div className="flex items-center justify-center text-[11px] text-faint" style={{ height }}>
-        {data ? "No chart data for this range" : "Loading chart…"}
-      </div>
-    );
-  }
-  const up = (data?.change ?? pts[pts.length - 1].p - pts[0].p) >= 0;
-  const color = up ? "var(--color-up)" : "var(--color-down)";
-  const gid = `pc-${up ? "u" : "d"}`;
+  const pts = useMemo(() => data?.points ?? [], [data]);
+  const n = pts.length;
+  const wrap = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState<number | null>(null);
+  const frame = useRef<number | null>(null);
+  const lastX = useRef(0);
+  const shown = useRef<number | null>(null); // index currently reported to the parent
 
-  return (
-    <div style={{ height }} className="select-none touch-pan-y">
+  const up = n > 1 ? (data?.change ?? pts[n - 1].p - pts[0].p) >= 0 : true;
+  const color = up ? "var(--color-up)" : "var(--color-down)";
+
+  // Explicit y-domain (with padding) so the overlay can place the dot exactly on the line.
+  const [lo, hi] = useMemo(() => {
+    if (n < 2) return [0, 1];
+    let a = Infinity, b = -Infinity;
+    for (const q of pts) { if (q.p < a) a = q.p; if (q.p > b) b = q.p; }
+    if (range === "1D" && data?.baseline != null) { a = Math.min(a, data.baseline); b = Math.max(b, data.baseline); }
+    const pad = (b - a || Math.abs(b) || 1) * 0.06;
+    return [a - pad, b + pad];
+  }, [pts, n, range, data?.baseline]);
+
+  // Reset the cursor whenever the data or range changes.
+  useEffect(() => { shown.current = null; setIdx(null); }, [data, range]);
+
+  const chart = useMemo(() => {
+    if (n < 2) return null;
+    const gid = `pc-${up ? "u" : "d"}`;
+    const rows = pts.map((q, i) => ({ i, p: q.p }));
+    return (
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={pts}
-          margin={{ top: 6, right: 0, bottom: 0, left: 0 }}
-          // recharts 3 reports the hovered index as a string ("123"), so normalize it
-          onMouseMove={(s) => onScrub?.(pointAt(pts, s?.activeTooltipIndex))}
-          onTouchMove={(s) => onScrub?.(pointAt(pts, s?.activeTooltipIndex))}
-          onMouseLeave={() => onScrub?.(null)}
-          onTouchEnd={() => onScrub?.(null)}
-        >
+        <AreaChart data={rows} margin={{ top: TOP, right: 0, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity={0.22} />
               <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <YAxis hide domain={["auto", "auto"]} />
+          <XAxis hide dataKey="i" type="number" domain={[0, n - 1]} />
+          <YAxis hide domain={[lo, hi]} allowDataOverflow />
           {range === "1D" && data?.baseline != null && (
             <ReferenceLine y={data.baseline} stroke="var(--color-faint)" strokeDasharray="2 4" strokeOpacity={0.7} />
           )}
-          <Tooltip
-            cursor={{ stroke: "var(--color-dim)", strokeWidth: 1 }}
-            content={({ active, payload }) =>
-              active && payload?.[0] ? (
-                <div className="text-[10px] text-faint tabular-nums px-1">
-                  {fmtTime((payload[0].payload as { t: number }).t, range)}
-                </div>
-              ) : null
-            }
-          />
-          <Area type="monotone" dataKey="p" stroke={color} strokeWidth={1.8} fill={`url(#${gid})`}
-                isAnimationActive={false} dot={false} activeDot={{ r: 3.5, fill: color, stroke: "var(--color-bg)" }} />
+          <Area type="linear" dataKey="p" stroke={color} strokeWidth={1.8} fill={`url(#${gid})`}
+                isAnimationActive={false} dot={false} activeDot={false} />
         </AreaChart>
       </ResponsiveContainer>
+    );
+  }, [pts, n, up, color, lo, hi, range, data?.baseline]);
+
+  if (n < 2) {
+    return (
+      <div className="flex items-center justify-center text-[11px] text-faint" style={{ height }}>
+        {data ? "No chart data for this range" : "Loading chart…"}
+      </div>
+    );
+  }
+
+  const update = () => {
+    frame.current = null;
+    const el = wrap.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (lastX.current - r.left) / r.width));
+    const i = Math.round(f * (n - 1));
+    if (shown.current === i) return;  // same point: nothing to redraw
+    shown.current = i;
+    setIdx(i);
+    onScrub?.(pts[i]);
+  };
+  const move = (clientX: number) => {
+    lastX.current = clientX;
+    if (frame.current == null) frame.current = requestAnimationFrame(update); // ≤1 update per frame
+  };
+  const clear = () => {
+    if (frame.current != null) { cancelAnimationFrame(frame.current); frame.current = null; }
+    shown.current = null;
+    setIdx(null);
+    onScrub?.(null);
+  };
+
+  const xPct = idx != null ? (idx / (n - 1)) * 100 : 0;
+  const yPx = idx != null ? TOP + ((hi - pts[idx].p) / (hi - lo)) * (height - TOP) : 0;
+
+  return (
+    <div ref={wrap} style={{ height }} className="relative select-none">
+      {chart}
+      {idx != null && (
+        <>
+          {/* dim everything to the right of the cursor, like Robinhood */}
+          <div className="absolute top-0 bottom-0 right-0 bg-bg/55 pointer-events-none" style={{ left: `${xPct}%` }} />
+          <div className="absolute top-0 bottom-0 w-px bg-dim/70 pointer-events-none" style={{ left: `${xPct}%` }} />
+          <div className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full pointer-events-none ring-2 ring-bg"
+               style={{ left: `${xPct}%`, top: yPx, background: color }} />
+          <div className="absolute -top-1 -translate-x-1/2 px-1.5 rounded text-[10px] text-dim tabular-nums whitespace-nowrap pointer-events-none bg-bg/80"
+               style={{ left: `clamp(32px, ${xPct}%, calc(100% - 32px))` }}>
+            {fmtTime(pts[idx].t, range)}
+          </div>
+        </>
+      )}
+      {/* interaction layer: mouse hover + finger drag (vertical swipes still scroll the page) */}
+      <div
+        className="absolute inset-0 cursor-crosshair"
+        style={{ touchAction: "pan-y" }}
+        onPointerDown={(e) => { if (e.pointerType !== "mouse") (e.target as HTMLElement).setPointerCapture(e.pointerId); move(e.clientX); }}
+        onPointerMove={(e) => move(e.clientX)}
+        onPointerUp={(e) => { if (e.pointerType !== "mouse") clear(); }}
+        onPointerCancel={clear}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse") clear(); }}
+      />
     </div>
   );
 }
+
+const TOP = 6; // chart top margin (px), shared by the SVG and the overlay math
 
 export function RangeTabs({ value, onChange, ranges = ASSET_RANGES }: {
   value: Range; onChange: (r: Range) => void; ranges?: Range[];
