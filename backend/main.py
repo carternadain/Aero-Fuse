@@ -36,6 +36,7 @@ import claude_ai
 import db
 import econ_calendar
 import extras
+import importer
 import liqmap
 import exits
 import brief
@@ -627,6 +628,40 @@ class BudgetIn(BaseModel):
     monthly_limit: float
 
 
+class ImportPreviewIn(BaseModel):
+    filename: str = ""
+    content: str
+    flip_sign: bool = False
+
+
+class ImportRowIn(BaseModel):
+    date: str
+    merchant: str = ""
+    description: str = ""
+    amount: float
+    kind: str = "expense"
+    category: str
+    hash: str | None = None
+
+
+class RuleIn(BaseModel):
+    pattern: str
+    category: str
+    kind: str | None = None
+
+
+class ImportCommitIn(BaseModel):
+    rows: list[ImportRowIn]
+    remember: list[RuleIn] = []
+
+
+class TransactionPatch(BaseModel):
+    category: str
+    kind: str | None = None
+    remember: bool = False
+    apply_to_existing: bool = False
+
+
 # ── Trades ────────────────────────────────────────────────
 
 @app.get("/api/trades")
@@ -1011,6 +1046,99 @@ def get_budget_summary(month: str | None = None):
 @app.post("/api/transactions")
 def post_transaction(tx: TransactionIn):
     return db.create_transaction(tx.model_dump())
+
+
+def _check_category(category: str, kind: str | None):
+    valid = set(importer.EXPENSE_CATEGORIES) | {"income"}
+    if category not in valid:
+        raise HTTPException(400, f"Unknown category '{category}'")
+    if kind not in (None, "income", "expense"):
+        raise HTTPException(400, "kind must be income or expense")
+
+
+IMPORT_MAX_BYTES = 5 * 1024 * 1024
+IMPORT_MAX_ROWS = 5000
+
+
+@app.post("/api/import/preview")
+def import_preview(body: ImportPreviewIn):
+    if len(body.content) > IMPORT_MAX_BYTES:
+        raise HTTPException(413, "That file is too big (5 MB max). Try exporting a shorter date range.")
+    try:
+        parsed = importer.parse(body.filename, body.content)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if len(parsed) > IMPORT_MAX_ROWS:
+        raise HTTPException(413, f"That file has more than {IMPORT_MAX_ROWS} transactions. "
+                                 "Try exporting a shorter date range.")
+    rows = importer.build_preview(parsed, db.list_rules(), body.flip_sign)
+    dupes = db.existing_import_hashes([r["hash"] for r in rows])
+    for r in rows:
+        r["duplicate"] = r["hash"] in dupes
+    return {
+        "rows": rows,
+        "counts": {
+            "total": len(rows),
+            "new": sum(1 for r in rows if not r["duplicate"] and not r["transfer"]),
+            "duplicates": sum(1 for r in rows if r["duplicate"]),
+            "transfers": sum(1 for r in rows if r["transfer"] and not r["duplicate"]),
+        },
+    }
+
+
+@app.post("/api/import/commit")
+def import_commit(body: ImportCommitIn):
+    if len(body.rows) > IMPORT_MAX_ROWS:
+        raise HTTPException(413, "Too many rows in one import.")
+    for r in body.rows:
+        _check_category(r.category, r.kind)
+        if r.amount <= 0:
+            raise HTTPException(400, "Amounts must be positive")
+    for rule in body.remember:
+        _check_category(rule.category, rule.kind)
+        if not rule.pattern.strip():
+            raise HTTPException(400, "Rule pattern can't be empty")
+    for rule in body.remember:
+        db.create_rule(rule.pattern, rule.category, rule.kind)
+    rows = [{"date": r.date, "merchant": r.merchant, "note": r.description, "amount": r.amount,
+             "kind": r.kind or ("income" if r.category == "income" else "expense"),
+             "category": r.category, "hash": r.hash} for r in body.rows]
+    return db.insert_imported_transactions(rows)
+
+
+@app.get("/api/rules")
+def get_rules():
+    return db.list_rules()
+
+
+@app.post("/api/rules")
+def post_rule(body: RuleIn):
+    _check_category(body.category, body.kind)
+    if not body.pattern.strip():
+        raise HTTPException(400, "Rule pattern can't be empty")
+    return db.create_rule(body.pattern, body.category, body.kind)
+
+
+@app.delete("/api/rules/{rule_id}")
+def remove_rule(rule_id: int):
+    if not db.delete_rule(rule_id):
+        raise HTTPException(404, "Rule not found")
+    return {"ok": True}
+
+
+@app.patch("/api/transactions/{tx_id}")
+def patch_transaction(tx_id: int, body: TransactionPatch):
+    _check_category(body.category, body.kind)
+    tx = db.update_transaction_category(tx_id, body.category, body.kind)
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+    updated = 0
+    rule = None
+    if body.remember and tx.get("merchant"):
+        rule = db.create_rule(tx["merchant"], body.category, tx["kind"])
+        if body.apply_to_existing:
+            updated = db.recategorize_by_pattern(tx["merchant"], body.category, tx["kind"])
+    return {"transaction": tx, "rule": rule, "updated": updated}
 
 
 @app.delete("/api/transactions/{tx_id}")

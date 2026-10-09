@@ -230,6 +230,21 @@ def migrate():
         if ccols and "match_max" not in ccols:
             c.execute("ALTER TABLE contributions ADD COLUMN match_max REAL")
 
+        # transactions v2: statement import (merchant, where it came from, dedupe hash)
+        tcols = {r["name"] for r in c.execute("PRAGMA table_info(transactions)").fetchall()}
+        for name, decl in {"merchant": "TEXT DEFAULT ''", "source": "TEXT DEFAULT 'manual'",
+                           "import_hash": "TEXT"}.items():
+            if tcols and name not in tcols:
+                c.execute(f"ALTER TABLE transactions ADD COLUMN {name} {decl}")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_import_hash "
+                  "ON transactions(import_hash) WHERE import_hash IS NOT NULL")
+        c.execute("""CREATE TABLE IF NOT EXISTS category_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        pattern TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                        category TEXT NOT NULL,
+                        kind TEXT,
+                        created_at TEXT)""")
+
 
 def row_to_dict(row: sqlite3.Row) -> dict:
     return dict(row)
@@ -791,9 +806,10 @@ def list_snapshots() -> list[dict]:
 def create_transaction(data: dict) -> dict:
     with conn() as c:
         cur = c.execute(
-            "INSERT INTO transactions (date, category, amount, kind, note) VALUES (?,?,?,?,?)",
+            "INSERT INTO transactions (date, category, amount, kind, note, merchant, source) "
+            "VALUES (?,?,?,?,?,?,'manual')",
             (data.get("date") or utcnow()[:10], data["category"], data["amount"],
-             data.get("kind", "expense"), data.get("note", "")),
+             data.get("kind", "expense"), data.get("note", ""), data.get("merchant", "") or ""),
         )
         row = c.execute("SELECT * FROM transactions WHERE id=?", (cur.lastrowid,)).fetchone()
         return row_to_dict(row)
@@ -815,6 +831,85 @@ def delete_transaction(tx_id: int) -> bool:
     with conn() as c:
         cur = c.execute("DELETE FROM transactions WHERE id=?", (tx_id,))
         return cur.rowcount > 0
+
+
+def get_transaction(tx_id: int) -> dict | None:
+    with conn() as c:
+        row = c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone()
+        return row_to_dict(row) if row else None
+
+
+def existing_import_hashes(hashes: list[str]) -> set[str]:
+    found: set[str] = set()
+    hashes = [h for h in hashes if h]
+    with conn() as c:
+        for i in range(0, len(hashes), 500):  # stay under SQLite's variable limit
+            chunk = hashes[i:i + 500]
+            q = ",".join("?" * len(chunk))
+            found.update(r[0] for r in c.execute(
+                f"SELECT import_hash FROM transactions WHERE import_hash IN ({q})", chunk))
+    return found
+
+
+def insert_imported_transactions(rows: list[dict]) -> dict:
+    """Bulk insert statement rows; rows whose import_hash already exists are skipped."""
+    inserted = duplicates = 0
+    with conn() as c:
+        for r in rows:
+            cur = c.execute(
+                """INSERT OR IGNORE INTO transactions
+                   (date, category, amount, kind, note, merchant, source, import_hash)
+                   VALUES (?,?,?,?,?,?,'import',?)""",
+                (r["date"], r["category"], r["amount"], r.get("kind", "expense"),
+                 r.get("note", ""), r.get("merchant", ""), r.get("hash") or None))
+            if cur.rowcount:
+                inserted += 1
+            else:
+                duplicates += 1
+    return {"inserted": inserted, "duplicates": duplicates}
+
+
+def update_transaction_category(tx_id: int, category: str, kind: str | None = None) -> dict | None:
+    kind = kind or ("income" if category == "income" else "expense")
+    with conn() as c:
+        cur = c.execute("UPDATE transactions SET category=?, kind=? WHERE id=?", (category, kind, tx_id))
+        if not cur.rowcount:
+            return None
+        return row_to_dict(c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone())
+
+
+def recategorize_by_pattern(pattern: str, category: str, kind: str | None = None) -> int:
+    """Re-file existing transactions whose merchant contains `pattern` (case-insensitive)."""
+    kind = kind or ("income" if category == "income" else "expense")
+    like = "%" + pattern.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    with conn() as c:
+        cur = c.execute(
+            "UPDATE transactions SET category=?, kind=? WHERE merchant LIKE ? ESCAPE '\\' "
+            "AND (category != ? OR kind != ?)", (category, kind, like, category, kind))
+        return cur.rowcount
+
+
+def list_rules() -> list[dict]:
+    with conn() as c:
+        return [row_to_dict(r) for r in
+                c.execute("SELECT * FROM category_rules ORDER BY pattern COLLATE NOCASE").fetchall()]
+
+
+def create_rule(pattern: str, category: str, kind: str | None = None) -> dict:
+    pattern = pattern.strip()
+    kind = kind or ("income" if category == "income" else "expense")
+    with conn() as c:
+        c.execute(
+            """INSERT INTO category_rules (pattern, category, kind, created_at) VALUES (?,?,?,?)
+               ON CONFLICT(pattern) DO UPDATE SET category=excluded.category, kind=excluded.kind""",
+            (pattern, category, kind, utcnow()))
+        return row_to_dict(c.execute(
+            "SELECT * FROM category_rules WHERE pattern=?", (pattern,)).fetchone())
+
+
+def delete_rule(rule_id: int) -> bool:
+    with conn() as c:
+        return c.execute("DELETE FROM category_rules WHERE id=?", (rule_id,)).rowcount > 0
 
 
 def get_budgets() -> dict[str, float]:

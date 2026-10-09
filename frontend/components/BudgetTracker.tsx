@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronLeft, ChevronRight, PiggyBank, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileUp, PiggyBank, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { askText } from "./DialogHost";
+import { toast } from "@/lib/bus";
+import { ALL_CATS, EXPENSE_CATS, catLabel, errorText } from "@/lib/categories";
+import ImportStatement from "./ImportStatement";
 
 interface Tx {
   id: number;
@@ -14,6 +17,7 @@ interface Tx {
   amount: number;
   kind: "income" | "expense";
   note: string;
+  merchant?: string;
 }
 
 interface BudgetSummary {
@@ -26,7 +30,6 @@ interface BudgetSummary {
   transactions: Tx[];
 }
 
-const EXPENSE_CATS = ["rent", "food", "transport", "subscriptions", "fun", "trading_fees", "health", "shopping", "other"];
 const PIE_COLORS = ["#e3a83c", "#56b8a4", "#6cb4ff", "#e98cb4", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
 
 function monthShift(month: string, delta: number): string {
@@ -42,6 +45,9 @@ export default function BudgetTracker() {
   });
   const [sum, setSum] = useState<BudgetSummary | null>(null);
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [edit, setEdit] = useState({ category: "other", remember: true, existing: false });
   const [f, setF] = useState({ kind: "expense", category: "food", amount: "", note: "" });
 
   const refresh = () =>
@@ -67,6 +73,27 @@ export default function BudgetTracker() {
     refresh();
   };
 
+  const openEdit = (t: Tx) => {
+    if (editId === t.id) { setEditId(null); return; }
+    setEditId(t.id);
+    setEdit({ category: t.category, remember: !!t.merchant, existing: false });
+  };
+
+  const saveEdit = async (t: Tx) => {
+    try {
+      const res = await api.patch<{ updated: number }>(`/api/transactions/${t.id}`, {
+        category: edit.category,
+        remember: edit.remember && !!t.merchant,
+        apply_to_existing: edit.remember && edit.existing && !!t.merchant,
+      });
+      toast(res.updated ? `Updated ${res.updated + 1} transactions` : "Category updated");
+      setEditId(null);
+      refresh();
+    } catch (e) {
+      toast(errorText(e, "Couldn't change that category."));
+    }
+  };
+
   const pieData = (sum?.categories ?? []).filter((c) => c.spent > 0)
     .map((c) => ({ name: c.category, value: c.spent }));
 
@@ -74,16 +101,21 @@ export default function BudgetTracker() {
     <section className="panel flex flex-col">
       <div className="panel-head">
         <span className="panel-title"><PiggyBank size={14} />Budget</span>
-        <div className="flex items-center gap-1.5">
-          <button className="btn !py-1 !px-1.5" onClick={() => setMonth(monthShift(month, -1))}>
-            <ChevronLeft size={12} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Previous month"
+                  onClick={() => setMonth(monthShift(month, -1))}>
+            <ChevronLeft size={14} />
           </button>
           <span className="text-[11px] text-txt tabular-nums">{month}</span>
-          <button className="btn !py-1 !px-1.5" onClick={() => setMonth(monthShift(month, 1))}>
-            <ChevronRight size={12} />
+          <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Next month"
+                  onClick={() => setMonth(monthShift(month, 1))}>
+            <ChevronRight size={14} />
           </button>
-          <button className="btn btn-primary !py-1 ml-1" onClick={() => setAdding(!adding)}>
-            <Plus size={12} strokeWidth={3} />Tx
+          <button className="btn !min-h-10" onClick={() => setImporting(true)}>
+            <FileUp size={13} />Import
+          </button>
+          <button className="btn btn-primary !min-h-10" onClick={() => setAdding(!adding)}>
+            <Plus size={13} strokeWidth={3} />Tx
           </button>
         </div>
       </div>
@@ -91,24 +123,24 @@ export default function BudgetTracker() {
       {adding && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
           <div className="grid grid-cols-3 gap-2">
-            <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+            <select className="field !h-10" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
               <option value="expense">EXPENSE</option>
               <option value="income">INCOME</option>
             </select>
             {f.kind === "expense" ? (
-              <select className="field" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
+              <select className="field !h-10" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
                 {EXPENSE_CATS.map((c) => <option key={c} value={c}>{c.replace("_", " ").toUpperCase()}</option>)}
               </select>
             ) : (
-              <input className="field" value="income" disabled />
+              <input className="field !h-10" value="income" disabled />
             )}
-            <input className="field" placeholder="$ amount" value={f.amount}
+            <input className="field !h-10" placeholder="$ amount" inputMode="decimal" value={f.amount}
                    onChange={(e) => setF({ ...f, amount: e.target.value })} />
           </div>
           <div className="flex gap-2">
-            <input className="field" placeholder="Note (optional)" value={f.note}
+            <input className="field !h-10" placeholder="Note (optional)" value={f.note}
                    onChange={(e) => setF({ ...f, note: e.target.value })} />
-            <button className="btn btn-primary whitespace-nowrap" onClick={add}>Log</button>
+            <button className="btn btn-primary !min-h-10 whitespace-nowrap" onClick={add}>Log</button>
           </div>
         </div>
       )}
@@ -150,7 +182,7 @@ export default function BudgetTracker() {
                   {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: "#221f1c", border: "1px solid #3b3631", borderRadius: 10, fontSize: 11 }}
+                  contentStyle={{ background: "var(--color-panel2)", border: "1px solid var(--color-edge)", borderRadius: 10, fontSize: 11, color: "var(--color-txt)" }}
                   formatter={(v, name) => [fmtUsd(Number(v)), String(name)]}
                 />
               </PieChart>
@@ -197,22 +229,59 @@ export default function BudgetTracker() {
       </div>
 
       {/* Recent transactions */}
-      <div className="border-t border-edge overflow-y-auto max-h-36">
+      <div className="border-t border-edge overflow-y-auto max-h-80">
         {(sum?.transactions ?? []).map((t) => (
-          <div key={t.id} className="flex items-center gap-2 px-3 py-1 text-[11px] border-t border-edge hover:bg-panel2">
-            <span className="text-faint tabular-nums">{t.date.slice(5)}</span>
-            <span className={t.kind === "income" ? "text-up" : "text-txt"}>{t.category.replace("_", " ")}</span>
-            <span className="text-faint truncate">{t.note}</span>
-            <span className={`ml-auto font-bold tabular-nums ${t.kind === "income" ? "text-up" : "text-down"}`}>
-              {t.kind === "income" ? "+" : "−"}{fmtUsd(t.amount)}
-            </span>
-            <button className="icon-btn"
-                    onClick={() => api.del(`/api/transactions/${t.id}`).then(refresh)}>
-              <X size={12} />
-            </button>
+          <div key={t.id} className="border-t border-edge first:border-t-0">
+            <div className="flex items-center gap-2 pl-3 pr-1 min-h-10 text-[11px] hover:bg-panel2">
+              <span className="text-faint tabular-nums shrink-0">{t.date.slice(5)}</span>
+              <span className="min-w-0 flex-1 truncate text-txt" title={t.note}>{t.merchant || t.note || "—"}</span>
+              <button className={`shrink-0 min-h-10 px-1.5 rounded focus-visible:outline-2 focus-visible:outline-up ${t.kind === "income" ? "text-up" : "text-dim"} hover:text-txt`}
+                      aria-label={`Change category (${catLabel(t.category)})`} aria-expanded={editId === t.id}
+                      onClick={() => openEdit(t)}>
+                {catLabel(t.category)}
+              </button>
+              <span className={`shrink-0 font-bold tabular-nums ${t.kind === "income" ? "text-up" : "text-down"}`}>
+                {t.kind === "income" ? "+" : "−"}{fmtUsd(t.amount)}
+              </span>
+              <button className="icon-btn h-10 w-10 justify-center focus-visible:outline-2 focus-visible:outline-up"
+                      aria-label="Delete transaction"
+                      onClick={() => api.del(`/api/transactions/${t.id}`).then(refresh)}>
+                <X size={14} />
+              </button>
+            </div>
+            {editId === t.id && (
+              <div className="px-3 pb-3 space-y-1 bg-panel2">
+                <select className="field !h-10" value={edit.category} aria-label="Category"
+                        onChange={(e) => setEdit({ ...edit, category: e.target.value })}>
+                  {ALL_CATS.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
+                </select>
+                {t.merchant && (
+                  <>
+                    <label className="flex items-center gap-3 min-h-10 text-[12px] text-txt cursor-pointer">
+                      <input type="checkbox" className="h-5 w-5 accent-up shrink-0" checked={edit.remember}
+                             onChange={(e) => setEdit({ ...edit, remember: e.target.checked })} />
+                      Remember for {t.merchant}
+                    </label>
+                    {edit.remember && (
+                      <label className="flex items-center gap-3 min-h-10 text-[12px] text-txt cursor-pointer">
+                        <input type="checkbox" className="h-5 w-5 accent-up shrink-0" checked={edit.existing}
+                               onChange={(e) => setEdit({ ...edit, existing: e.target.checked })} />
+                        Also change past ones
+                      </label>
+                    )}
+                  </>
+                )}
+                <div className="flex gap-2">
+                  <button className="btn btn-primary !min-h-10 flex-1" onClick={() => saveEdit(t)}>Save</button>
+                  <button className="btn !min-h-10 flex-1" onClick={() => setEditId(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {importing && <ImportStatement onClose={() => setImporting(false)} onDone={refresh} />}
     </section>
   );
 }

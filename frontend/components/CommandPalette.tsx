@@ -51,7 +51,8 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Stress test", "wealth", undefined, "sec-stress", "crash black swan"],
   ["Health check", "wealth", undefined, "sec-health", "free money irs limits emergency fund"],
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
-  ["FIRE & budget", "wealth", undefined, "sec-fire", "retire early spending"],
+  ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules"],
+  ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
 ];
 
 let indexCache: { tickers: IndexTicker[]; accounts: string[] } | null = null;

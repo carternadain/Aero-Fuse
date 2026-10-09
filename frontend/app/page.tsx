@@ -313,18 +313,14 @@ export default function Dashboard() {
                 </div>
               </div>
             </Section>
+            <Section id="sec-spending" title="Money" accent="In & Out" hint="import statements · budget"><BudgetTracker /></Section>
             <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
             <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
             <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>
             <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
             <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
-            <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · budget" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                <div className="lg:col-span-7"><FireCalc /></div>
-                <div className="lg:col-span-5"><BudgetTracker /></div>
-              </div>
-            </Section>
-            <ProHint what="Money Lab, the stress test, the net-worth calendar and FIRE/budget" />
+            <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · retire early" pro><FireCalc /></Section>
+            <ProHint what="Money Lab, the stress test, the net-worth calendar and the FIRE calculator" />
           </>
         )}
 
