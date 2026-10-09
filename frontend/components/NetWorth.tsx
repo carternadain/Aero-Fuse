@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import {
   Banknote, Bitcoin, Camera, Car, CreditCard, Home, Landmark, Package, PiggyBank,
   ChevronDown, ChevronRight, Plus, TrendingUp, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import NetWorthChart from "./NetWorthChart";
+import { fmtQty, isHidden, MASK } from "@/lib/privacy";
 import { askConfirm, askText } from "./DialogHost";
 
 interface Account {
@@ -63,6 +62,7 @@ function CatIcon({ category }: { category: string }) {
 }
 
 export function fmtUsd(n: number): string {
+  if (isHidden()) return MASK;
   const abs = Math.abs(n);
   const s = abs >= 1_000_000
     ? `$${(abs / 1_000_000).toFixed(2)}M`
@@ -186,25 +186,8 @@ export default function NetWorth() {
         </div>
       </div>
 
-      {/* Headline number */}
-      <div className="px-4 pt-3 flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <div className={`font-display text-[40px] leading-none ${totals.net_worth >= 0 ? "text-txt" : "text-down"}`}>
-            {fmtUsd(totals.net_worth)}
-          </div>
-          <div className="text-[10px] text-faint mt-1">
-            {fmtUsd(totals.assets)} assets · {fmtUsd(totals.liabilities)} owed
-          </div>
-        </div>
-        {hold.holdings.length > 0 && (
-          <div className="text-right text-[11px] tabular-nums">
-            <div className={hold.change_1d >= 0 ? "text-up" : "text-down"}>
-              {hold.change_1d >= 0 ? "+" : "−"}{fmtUsd(Math.abs(hold.change_1d))}
-              {hold.change_1d_pct != null && ` (${hold.change_1d_pct > 0 ? "+" : ""}${hold.change_1d_pct.toFixed(2)}%)`}
-            </div>
-            <div className="text-[9px] text-faint">holdings today · live</div>
-          </div>
-        )}
+      <div className="px-3 pt-3 pb-1">
+        <NetWorthChart height={170} />
       </div>
 
       {adding && (
@@ -282,39 +265,6 @@ export default function NetWorth() {
         </div>
       )}
 
-      {/* History chart */}
-      <div className={`${history.length >= 2 ? "h-44" : "h-16"} px-1 pt-2`}>
-        {history.length >= 2 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={history} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="nwFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-up)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--color-up)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#2b2723" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" stroke="#645e53" fontSize={9} tickLine={false}
-                     tickFormatter={(d: string) => d.slice(5)} />
-              <YAxis stroke="#645e53" fontSize={9} tickLine={false} width={52} domain={["auto", "auto"]}
-                     tickFormatter={(v: number) => fmtUsd(v)} />
-              <Tooltip
-                contentStyle={{ background: "#221f1c", border: "1px solid #3b3631", borderRadius: 10, fontSize: 11 }}
-                labelStyle={{ color: "#9b9285" }}
-                formatter={(v) => [fmtUsd(Number(v)), "Net worth"]}
-              />
-              <Area type="monotone" dataKey="net_worth" stroke="var(--color-up)" strokeWidth={2} fill="url(#nwFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-full flex items-center justify-center text-[11px] text-dim text-center px-6">
-            {hold.holdings.length > 0
-              ? "Holdings auto-snapshot every hour, so the line starts drawing itself from tomorrow."
-              : "Add live holdings and this charts itself, or hit Snap after updating balances."}
-          </div>
-        )}
-      </div>
-
       {/* Holdings + accounts */}
       <div className="border-t border-edge">
         {accounts.length === 0 && hold.holdings.length === 0 && (
@@ -345,7 +295,7 @@ export default function NetWorth() {
                   <div className="min-w-0">
                     <div className="text-txt font-bold">{h.display}</div>
                     <div className="text-[9px] text-faint tabular-nums truncate">
-                      {h.qty.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                      {fmtQty(h.qty)}
                       {h.kind === "option" ? (h.qty === 1 ? " contract" : " contracts") : ""}
                       {h.price != null
                         ? ` × $${h.price.toLocaleString(undefined, { maximumFractionDigits: h.price < 10 ? 4 : 2 })}${h.multiplier > 1 ? " ×100" : ""}`

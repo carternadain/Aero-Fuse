@@ -31,6 +31,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 load_dotenv()  # also pick up a local backend/.env if present
 
 import auth
+import charts
 import claude_ai
 import db
 import econ_calendar
@@ -335,7 +336,12 @@ WARM_TIERS = [
     ("markets", 120, 0.4, [lambda: markets_crypto(), lambda: markets_top_buys(), lambda: markets_narratives(),
                            lambda: context_crypto(), lambda: get_news(refresh=False)]),
     ("screeners", 900, 0.5, [lambda: markets_discover(), lambda: markets_stocks(),
-                             lambda: markets_options_watch(), lambda: markets_earnings()]),
+                             lambda: markets_options_watch(), lambda: markets_earnings(),
+                             lambda: get_portfolio_chart("3M"), lambda: get_portfolio_chart("1Y"),
+                             lambda: get_portfolio_chart("5Y")]),
+    # charts: 1D TTL 300s -> 0.4×300 + 120 + ~15s ≈ 255s; 1W/1M (TTL ≥ 1800s) ride along
+    ("charts", 120, 0.4, [lambda: get_portfolio_sparks(), lambda: get_portfolio_chart("1D"),
+                          lambda: get_portfolio_chart("1W"), lambda: get_portfolio_chart("1M")]),
 ]
 
 
@@ -733,6 +739,46 @@ def valued_holdings() -> dict:
 @app.get("/api/holdings")
 def get_holdings():
     return valued_holdings()
+
+
+CHART_RANGES = tuple(charts.RANGES)
+
+
+@app.get("/api/chart/{kind}/{symbol}")
+def get_asset_chart(kind: str, symbol: str, range: str = "1D"):
+    if kind not in ("crypto", "stock", "option") or range not in CHART_RANGES:
+        raise HTTPException(400, f"kind crypto|stock|option, range one of {CHART_RANGES}")
+    return charts.asset_chart(kind, symbol.upper(), range)
+
+
+@app.get("/api/portfolio/chart")
+def get_portfolio_chart(range: str = "1D"):
+    if range not in CHART_RANGES:
+        raise HTTPException(400, f"range one of {CHART_RANGES}")
+    return charts.portfolio_chart(valued_holdings()["holdings"], range)
+
+
+NW_RANGES = {"LIVE": "LIVE", "1D": "1D", "1W": "1W", "1M": "1M", "1Y": "1Y", "ALL": "5Y"}
+
+
+@app.get("/api/networth/chart")
+def get_networth_chart(range: str = "1D"):
+    """Net worth over time = live holdings priced over the range + manual balances − debts.
+    1Y/ALL are back-calculated from today's holdings (recorded history is short)."""
+    if range not in NW_RANGES:
+        raise HTTPException(400, f"range one of {list(NW_RANGES)}")
+    accounts = db.list_accounts()
+    manual = sum(a["balance"] for a in accounts if a["kind"] == "asset") -         sum(a["balance"] for a in accounts if a["kind"] == "liability")
+    out = charts.portfolio_chart(valued_holdings()["holdings"], NW_RANGES[range], offset=manual)
+    snaps = db.list_snapshots()
+    out["backfilled"] = range in ("1Y", "ALL")
+    out["history_since"] = snaps[0]["date"] if snaps else None
+    return out
+
+
+@app.get("/api/portfolio/sparks")
+def get_portfolio_sparks():
+    return charts.sparks(valued_holdings()["holdings"])
 
 
 @app.post("/api/holdings")

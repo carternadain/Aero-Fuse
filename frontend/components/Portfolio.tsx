@@ -5,6 +5,7 @@ import { Briefcase, Plus, X } from "lucide-react";
 import type { Position } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import { askConfirm, askText } from "./DialogHost";
+import { isHidden, MASK } from "@/lib/privacy";
 
 function pnl(p: Position, livePrice?: number): { pct: number | null; usd: number | null } {
   const mark = p.kind === "crypto" && livePrice ? livePrice : p.current;
@@ -77,7 +78,7 @@ export default function Portfolio({
         </span>
         {usd != null && (
           <span className={`tabular-nums text-[10px] ${tone}`}>
-            {usd >= 0 ? "+" : "−"}${Math.abs(usd).toLocaleString()}
+            {isHidden() ? MASK : <>{usd >= 0 ? "+" : "−"}${Math.abs(usd).toLocaleString()}</>}
           </span>
         )}
         <button className="icon-btn" onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${p.asset}?`).then((ok) => { if (ok) api.del(`/api/positions/${p.id}`).then(onChanged); }); }}>
@@ -93,7 +94,7 @@ export default function Portfolio({
         <span className="panel-title"><Briefcase size={14} />Portfolio</span>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-bold tabular-nums ${totalUsd > 0 ? "text-up" : totalUsd < 0 ? "text-down" : "text-dim"}`}>
-            {totalUsd >= 0 ? "+" : "−"}${Math.abs(Math.round(totalUsd)).toLocaleString()}
+            {isHidden() ? MASK : <>{totalUsd >= 0 ? "+" : "−"}${Math.abs(Math.round(totalUsd)).toLocaleString()}</>}
           </span>
           <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)}>
             <Plus size={12} strokeWidth={3} />

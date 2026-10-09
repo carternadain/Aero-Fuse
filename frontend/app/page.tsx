@@ -57,6 +57,12 @@ function SectionDivider({ title, accent, hint }: { title: string; accent: string
 
 export default function Dashboard() {
   const [tab, setTabState] = useState<TabKey>("home");
+  const [, setPrivacyTick] = useState(0); // re-render everything when "hide balances" flips
+  useEffect(() => {
+    const on = () => setPrivacyTick((n) => n + 1);
+    window.addEventListener("privacy", on);
+    return () => window.removeEventListener("privacy", on);
+  }, []);
 
   // Tab lives in the URL hash so refreshes / home-screen relaunches land where you left off.
   useEffect(() => {

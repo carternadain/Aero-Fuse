@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FlaskConical, Hourglass, Rocket, Sprout, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
+import { isHidden } from "@/lib/privacy";
 
 // Shares assumptions with the FIRE calculator (same localStorage key) so the
 // two panels never disagree. Everything is in today's dollars (real returns).
@@ -58,7 +59,7 @@ function Card({ icon, title, children }: { icon: React.ReactNode; title: string;
 
 /** Like fmtUsd, but keeps cents for small amounts ($2.84, not $3). */
 function money(n: number): string {
-  return Math.abs(n) < 100
+  return Math.abs(n) < 100 && !isHidden()
     ? `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : fmtUsd(n);
 }

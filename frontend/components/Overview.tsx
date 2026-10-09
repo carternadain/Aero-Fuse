@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { riskColor, type RiskReport } from "./RiskRating";
 import { TABS, type TabKey } from "./TabNav";
+import NetWorthChart from "./NetWorthChart";
+import HomePortfolio from "./HomePortfolio";
 
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
 const GUIDE: Record<Exclude<TabKey, "home">, { what: string; when: string }> = {
@@ -23,14 +25,10 @@ function greeting(): string {
 }
 
 export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
-  const [nw, setNw] = useState<{ net_worth: number; assets: number; liabilities: number } | null>(null);
-  const [today, setToday] = useState<{ change_1d: number; change_1d_pct: number | null } | null>(null);
   const [risk, setRisk] = useState<RiskReport | null>(null);
   const [plan, setPlan] = useState<{ monthly_you: number; monthly_match: number } | null>(null);
 
   useEffect(() => {
-    api.get<{ totals: typeof nw }>("/api/accounts").then((r) => setNw(r.totals)).catch(() => {});
-    api.get<{ change_1d: number; change_1d_pct: number | null }>("/api/holdings").then(setToday).catch(() => {});
     api.get<RiskReport>("/api/networth/risk").then(setRisk).catch(() => {});
     api.get<{ monthly_you: number; monthly_match: number }>("/api/contributions").then(setPlan).catch(() => {});
   }, []);
@@ -39,8 +37,8 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
 
   return (
     <div className="space-y-4">
-      <div className="pt-2">
-        <h2 className="font-display text-[34px] sm:text-[44px] leading-none text-txt">
+      <div className="pt-1">
+        <h2 className="font-display text-[28px] sm:text-[40px] leading-none text-txt">
           {greeting()}<em className="text-amber">.</em>
         </h2>
         <p className="text-xs text-dim mt-1.5">
@@ -48,24 +46,17 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
         </p>
       </div>
 
-      {/* Snapshot cards: each one jumps to where you'd act on it */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <button onClick={() => onNavigate("wealth")} className="panel p-4 text-left hover:border-edge2 transition-colors group">
-          <div className="text-[10px] font-bold tracking-widest text-faint">NET WORTH</div>
-          <div className="font-display text-[34px] leading-tight text-txt">{nw ? fmtUsd(nw.net_worth) : "—"}</div>
-          <div className="text-[11px] tabular-nums">
-            {today && today.change_1d !== 0 ? (
-              <span className={today.change_1d >= 0 ? "text-up" : "text-down"}>
-                {today.change_1d >= 0 ? "▲" : "▼"} {fmtUsd(Math.abs(today.change_1d))}
-                {today.change_1d_pct != null && ` (${Math.abs(today.change_1d_pct).toFixed(2)}%)`} today
-              </span>
-            ) : <span className="text-faint">live holdings update every minute</span>}
-          </div>
-        </button>
+      <section className="panel p-4 sm:p-5">
+        <NetWorthChart />
+      </section>
 
+      <HomePortfolio />
+
+      {/* Snapshot cards: each one jumps to where you'd act on it */}
+      <div className="grid grid-cols-2 gap-3">
         <button onClick={() => onNavigate("wealth")} className="panel p-4 text-left hover:border-edge2 transition-colors">
           <div className="text-[10px] font-bold tracking-widest text-faint">RISK LEVEL</div>
-          <div className="font-display text-[34px] leading-tight" style={{ color: risk?.score != null ? riskColor(risk.score) : undefined }}>
+          <div className="font-display text-[26px] sm:text-[34px] leading-tight" style={{ color: risk?.score != null ? riskColor(risk.score) : undefined }}>
             {risk?.score != null ? risk.label : "—"}
           </div>
           <div className="text-[11px] text-dim">
@@ -75,7 +66,7 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
 
         <button onClick={() => onNavigate("wealth")} className="panel p-4 text-left hover:border-edge2 transition-colors">
           <div className="text-[10px] font-bold tracking-widest text-faint">SAVING EACH MONTH</div>
-          <div className="font-display text-[34px] leading-tight text-txt">{plan ? fmtUsd(monthly) : "—"}</div>
+          <div className="font-display text-[26px] sm:text-[34px] leading-tight text-txt">{plan ? fmtUsd(monthly) : "—"}</div>
           <div className="text-[11px] text-dim">
             {plan?.monthly_match ? <>incl. <span className="text-cyan">{fmtUsd(plan.monthly_match)}</span> employer match</> : "set up your plan in Wealth"}
           </div>
