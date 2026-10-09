@@ -26,7 +26,7 @@ UA = {"User-Agent": "swing-terminal/1.0"}
 
 # range -> (coinbase granularity s, span s, yfinance period, yfinance interval, cache ttl s, grid step s)
 RANGES: dict[str, tuple[int, int, str, str, int, int]] = {
-    "LIVE": (60, 3_600, "1d", "1m", 60, 60),          # last hour, 1-minute bars
+    "LIVE": (60, 3_600, "1d", "1m", 90, 60),          # last hour, 1-minute bars
     "1D": (300, 86_400, "1d", "5m", 300, 300),
     "1W": (3_600, 7 * 86_400, "5d", "15m", 1_800, 3_600),
     "1M": (21_600, 30 * 86_400, "1mo", "60m", 3_600, 21_600),

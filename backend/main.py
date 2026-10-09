@@ -339,6 +339,8 @@ WARM_TIERS = [
                              lambda: markets_options_watch(), lambda: markets_earnings(),
                              lambda: get_portfolio_chart("3M"), lambda: get_portfolio_chart("1Y"),
                              lambda: get_portfolio_chart("5Y")]),
+    # live: LIVE TTL 90s -> 0.4×90 + 40 + ~3s ≈ 79s
+    ("live", 40, 0.4, [lambda: get_portfolio_chart("LIVE")]),
     # charts: 1D TTL 300s -> 0.4×300 + 120 + ~15s ≈ 255s; 1W/1M (TTL ≥ 1800s) ride along
     ("charts", 120, 0.4, [lambda: get_portfolio_sparks(), lambda: get_portfolio_chart("1D"),
                           lambda: get_portfolio_chart("1W"), lambda: get_portfolio_chart("1M")]),
