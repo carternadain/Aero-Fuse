@@ -52,6 +52,7 @@ import SavingsPlan from "@/components/SavingsPlan";
 import MoneyLab from "@/components/MoneyLab";
 import StressTest from "@/components/StressTest";
 import WealthChecks from "@/components/WealthChecks";
+import TaxCenter from "@/components/TaxCenter";
 import NetWorthCalendar from "@/components/NetWorthCalendar";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
@@ -315,6 +316,7 @@ export default function Dashboard() {
             </Section>
             <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
             <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
+            <Section id="sec-taxes" title="Tax" accent="Savings" hint="gains · harvest losses · wash sales"><TaxCenter /></Section>
             <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>
             <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
             <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
