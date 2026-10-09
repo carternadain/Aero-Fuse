@@ -38,6 +38,7 @@ import Portfolio from "@/components/Portfolio";
 import NetWorth from "@/components/NetWorth";
 import FireCalc from "@/components/FireCalc";
 import BudgetTracker from "@/components/BudgetTracker";
+import BackupPanel from "@/components/BackupPanel";
 import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
@@ -320,6 +321,7 @@ export default function Dashboard() {
             <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
             <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
             <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · retire early" pro><FireCalc /></Section>
+            <Section id="sec-backup" title="Backup" accent="& Export" hint="your data, downloadable"><BackupPanel /></Section>
             <ProHint what="Money Lab, the stress test, the net-worth calendar and the FIRE calculator" />
           </>
         )}

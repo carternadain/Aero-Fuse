@@ -53,6 +53,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
   ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules"],
   ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
+  ["Backup & export", "wealth", undefined, "sec-backup", "download csv json database restore"],
 ];
 
 let indexCache: { tickers: IndexTicker[]; accounts: string[] } | null = null;

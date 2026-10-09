@@ -22,7 +22,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -31,6 +32,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 load_dotenv()  # also pick up a local backend/.env if present
 
 import auth
+import backup
 import charts
 import claude_ai
 import db
@@ -422,6 +424,7 @@ async def lifespan(app: FastAPI):
         print("[auth] " + "!" * 60)
     elif not auth.webhook_secret():
         print("[auth] WEBHOOK_SECRET not set — /webhook will reject all alerts")
+    threading.Thread(target=backup.backup_loop, daemon=True).start()
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
     threading.Thread(target=price_alert_loop, daemon=True).start()
@@ -1759,3 +1762,47 @@ def get_month_recap(month: str | None = None):
 @app.get("/")
 def root():
     return {"service": "trading-terminal-api", "docs": "/docs"}
+
+
+# ── Backup and export ─────────────────────────────────────
+
+def _attach(name: str) -> dict:
+    return {"Content-Disposition": f'attachment; filename="{name}"'}
+
+
+@app.get("/api/export/json")
+def export_json():
+    body = json.dumps(backup.export_json(), indent=1, default=str)
+    return Response(body, media_type="application/json",
+                    headers=_attach(f"aero-fuse-{backup._today()}.json"))
+
+
+@app.get("/api/export/transactions.csv")
+def export_transactions_csv(month: str | None = None):
+    try:
+        body = backup.export_transactions_csv(month)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    name = f"aero-fuse-transactions-{month or backup._today()}.csv"
+    return Response(body, media_type="text/csv", headers=_attach(name))
+
+
+@app.get("/api/export/db")
+def export_db():
+    tmp = backup.temp_snapshot()
+    return FileResponse(tmp, media_type="application/x-sqlite3",
+                        filename=f"aero-fuse-{backup._today()}.db",
+                        background=BackgroundTask(lambda: tmp.unlink(missing_ok=True)))
+
+
+@app.get("/api/backups")
+def backups_list():
+    return backup.status()
+
+
+@app.post("/api/backups/run")
+def backups_run():
+    try:
+        return {"ok": True, "backup": backup.run_backup(), **backup.status()}
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"backup failed: {e}")

@@ -126,6 +126,21 @@ applies additive column upgrades (e.g. the signal AI-verdict columns) to existin
 | **Inspect** | `sqlite3 backend/terminal.db ".tables"` then SQL, or open in DB Browser for SQLite. |
 | **Export** | `sqlite3 -header -csv backend/terminal.db "SELECT * FROM trades;" > trades.csv` |
 
+### Backups and restore
+
+- **Automatic:** the backend writes `backend/backups/terminal-YYYY-MM-DD.db` once a day (and shortly
+  after startup if today's is missing), using SQLite's online backup, so copies are consistent.
+  The newest 14 are kept. The folder is gitignored.
+- **Env vars:** `BACKUP_DIR` (default `backend/backups`), `BACKUP_KEEP` (default `14`).
+- **Download:** Wealth tab → "Backup & Export" (JSON of everything, transactions CSV, database file,
+  and a "Back up now" button). API: `/api/export/json`, `/api/export/transactions.csv?month=YYYY-MM`,
+  `/api/export/db`, `/api/backups`.
+- **Restore:** stop the backend → copy the chosen backup over `backend/terminal.db`
+  (e.g. `cp backend/backups/terminal-2026-01-31.db backend/terminal.db`; delete any
+  `terminal.db-wal` / `-shm` next to it) → start the backend. There is deliberately no
+  restore button in the browser.
+- Backups sit on the same disk as the database; copy them off the machine now and then.
+
 ---
 
 ## 5. Data sources — and is the data good?
