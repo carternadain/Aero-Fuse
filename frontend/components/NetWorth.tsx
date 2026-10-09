@@ -28,6 +28,7 @@ interface Holding {
   qty: number;
   cost_basis: number | null;
   label: string;
+  note?: string;
   price: number | null;
   change_1d: number | null;
   value: number | null;
@@ -126,6 +127,17 @@ export default function NetWorth() {
   };
 
   const editQty = async (h: Holding) => {
+    if (h.note && h.price) {
+      // Proxy-tracked funds (e.g. a 401(k) fund via its index ETF): update by the balance
+      // your 401(k) site shows; units are re-derived from the live price.
+      const v = await askText(`Current balance of ${h.note.split(" · ")[0]} ($):`, String(Math.round(h.value ?? 0)));
+      if (v == null) return;
+      const bal = parseFloat(v.replace(/[$,]/g, ""));
+      if (isNaN(bal) || bal < 0) return;
+      await api.patch(`/api/holdings/${h.id}`, { qty: +(bal / (h.price * h.multiplier)).toFixed(6) });
+      refresh();
+      return;
+    }
     const v = await askText(`New ${h.kind === "option" ? "number of contracts" : "quantity"} for ${h.display}:`, String(h.qty));
     if (v == null) return;
     const qty = parseFloat(v.replace(/,/g, ""));
@@ -294,6 +306,7 @@ export default function NetWorth() {
                      onClick={() => editQty(h)} title="Click to update quantity">
                   <div className="min-w-0">
                     <div className="text-txt font-bold">{h.display}</div>
+                    {h.note && <div className="text-[10px] text-dim truncate">{h.note}</div>}
                     <div className="text-[9px] text-faint tabular-nums truncate">
                       {fmtQty(h.qty)}
                       {h.kind === "option" ? (h.qty === 1 ? " contract" : " contracts") : ""}

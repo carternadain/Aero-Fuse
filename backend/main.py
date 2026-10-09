@@ -523,6 +523,7 @@ class HoldingIn(BaseModel):
     qty: float
     cost_basis: float | None = None
     label: str = ""
+    note: str = ""
 
 
 class ContributionIn(BaseModel):
@@ -555,6 +556,7 @@ class HoldingPatch(BaseModel):
     qty: float | None = None
     cost_basis: float | None = None
     label: str | None = None
+    note: str | None = None
 
 
 class AccountPatch(BaseModel):

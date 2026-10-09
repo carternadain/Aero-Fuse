@@ -162,8 +162,8 @@ export default function HomePortfolio() {
                               <div className="min-w-0 w-[34%]">
                                 <div className="text-[14px] font-bold text-txt truncate">{h.display}</div>
                                 <div className="text-[11px] text-faint truncate">
-                                  {fmtQty(h.qty, 4)} {h.kind === "option" ? (h.qty === 1 ? "contract" : "contracts")
-                                    : h.kind === "stock" ? (h.qty === 1 ? "share" : "shares") : h.symbol}
+                                  {h.note ? h.note : <>{fmtQty(h.qty, 4)} {h.kind === "option" ? (h.qty === 1 ? "contract" : "contracts")
+                                    : h.kind === "stock" ? (h.qty === 1 ? "share" : "shares") : h.symbol}</>}
                                 </div>
                               </div>
                               <div className="flex-1 flex justify-center min-w-0">

@@ -9,7 +9,8 @@ cushion add to the score.
 STABLES = {"USDC", "USDT", "GUSD", "DAI", "PYUSD", "FDUSD", "TUSD"}
 MAJOR_CRYPTO = {"BTC", "ETH", "IBIT", "FBTC", "BITB", "ETHA", "FETH"}   # incl. spot ETFs
 BROAD_FUNDS = {"VOO", "VTI", "SPY", "IVV", "ITOT", "SCHB", "VT", "VXUS", "QQQ", "SCHD", "VUG",
-               "BND", "BOND", "AGG", "VTEB", "SCHX", "SPLG", "VGT"}
+               "BND", "BOND", "AGG", "VTEB", "SCHX", "SPLG", "VGT",
+               "IWV", "VTHR", "ACWX", "IXUS", "VEU", "VTABX", "BNDX", "VGSLX", "VNQ", "FXAIX", "FSKAX"}
 LEVERAGED = {"TSLL", "TQQQ", "SQQQ", "SOXL", "SOXS", "UPRO", "SPXL", "NVDL", "NVDU", "MSTU", "MSTX",
              "CONL", "TSLT", "TNA", "LABU", "FNGU", "BITX", "ETHU", "UVXY"}
 
@@ -29,6 +30,8 @@ SPECULATIVE = {"options", "leveraged", "crypto_alt"}
 
 def _bucket_holding(h: dict) -> str:
     sym, kind = h["symbol"].upper(), h["kind"]
+    if kind == "stock" and sym in BROAD_FUNDS and "401" in (h.get("label") or ""):
+        return "retirement"  # index funds held inside a 401(k) count as 401(k) funds
     if kind == "option":
         return "options"
     if kind == "crypto":

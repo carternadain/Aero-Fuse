@@ -107,7 +107,8 @@ def init_db():
                 qty REAL NOT NULL,                 -- units, shares, or contracts (x100 for options)
                 cost_basis REAL,                   -- optional avg cost per unit
                 label TEXT DEFAULT '',             -- where it's held (Toobit, Fidelity ...)
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                note TEXT DEFAULT ''               -- e.g. the real 401(k) fund a proxy ETF stands in for
             );
 
             CREATE TABLE IF NOT EXISTS contributions (
@@ -198,7 +199,8 @@ def migrate():
                     label TEXT DEFAULT '',
                     updated_at TEXT NOT NULL
                 );
-                INSERT INTO holdings SELECT * FROM holdings_v1;
+                INSERT INTO holdings (id, symbol, kind, qty, cost_basis, label, updated_at)
+                    SELECT id, symbol, kind, qty, cost_basis, label, updated_at FROM holdings_v1;
                 DROP TABLE holdings_v1;
             """)
         cols = {r["name"] for r in c.execute("PRAGMA table_info(signals)").fetchall()}
@@ -213,6 +215,10 @@ def migrate():
         for name, decl in adds.items():
             if name not in cols:
                 c.execute(f"ALTER TABLE signals ADD COLUMN {name} {decl}")
+
+        hcols = {r["name"] for r in c.execute("PRAGMA table_info(holdings)").fetchall()}
+        if hcols and "note" not in hcols:
+            c.execute("ALTER TABLE holdings ADD COLUMN note TEXT DEFAULT ''")
 
         # contributions v2: plan type + max available match
         ccols = {r["name"] for r in c.execute("PRAGMA table_info(contributions)").fetchall()}
@@ -653,9 +659,9 @@ def delete_account(acc_id: int) -> bool:
 def create_holding(data: dict) -> dict:
     with conn() as c:
         cur = c.execute(
-            "INSERT INTO holdings (symbol, kind, qty, cost_basis, label, updated_at) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO holdings (symbol, kind, qty, cost_basis, label, updated_at, note) VALUES (?,?,?,?,?,?,?)",
             (data["symbol"].upper().strip(), data.get("kind", "crypto"), data["qty"],
-             data.get("cost_basis"), data.get("label", ""), utcnow()),
+             data.get("cost_basis"), data.get("label", ""), utcnow(), data.get("note", "") or ""),
         )
         return row_to_dict(c.execute("SELECT * FROM holdings WHERE id=?", (cur.lastrowid,)).fetchone())
 
@@ -667,7 +673,7 @@ def list_holdings() -> list[dict]:
 
 
 def update_holding(h_id: int, fields: dict) -> dict | None:
-    allowed = {"symbol", "kind", "qty", "cost_basis", "label"}
+    allowed = {"symbol", "kind", "qty", "cost_basis", "label", "note"}
     sets, params = [], []
     for k, v in fields.items():
         if k in allowed:

@@ -15,6 +15,7 @@ export interface LiveHolding {
   multiplier: number;
   cost_basis: number | null;
   label: string;
+  note?: string;
   price: number | null;
   change_1d: number | null;
   value: number | null;
@@ -96,6 +97,7 @@ export default function AssetDetail({
 
         <div className="px-4">
           <h2 className="text-xl font-extrabold text-txt">{holding.display}</h2>
+          {holding.note && <p className="text-[12px] text-dim mt-0.5">{holding.note}</p>}
           <div className="font-display text-[40px] leading-tight text-txt [font-variant-numeric:tabular-nums] mt-1">
             {shown != null ? `$${fmtPrice(shown)}` : "—"}
           </div>
