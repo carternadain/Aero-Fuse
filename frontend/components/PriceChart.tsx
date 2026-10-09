@@ -135,7 +135,7 @@ export default function PriceChart({
   const yPx = idx != null ? TOP + ((hi - pts[idx].p) / (hi - lo)) * (height - TOP) : 0;
 
   return (
-    <div ref={wrap} style={{ height }} className="relative select-none">
+    <div ref={wrap} data-noswipe style={{ height }} className="relative select-none">
       {chart}
       {idx != null && (
         <>

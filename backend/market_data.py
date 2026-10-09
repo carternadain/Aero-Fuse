@@ -534,6 +534,7 @@ def _project(quote: dict) -> tuple[str, str]:
     price = quote.get("price")
     target = quote.get("target_mean")
     rec = (quote.get("recommendation") or "").replace("_", " ")
+    rec = "" if rec == "none" else rec
     if price and target:
         upside = (target - price) / price * 100
         if upside >= 8:

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, LogOut } from "lucide-react";
+import { Eye, EyeOff, LogOut, Search } from "lucide-react";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { api, fmtPrice } from "@/lib/api";
 import PalettePicker from "./PalettePicker";
+import AlertsCenter from "./AlertsCenter";
+import { openSearch } from "@/lib/bus";
 
 export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -83,6 +85,10 @@ export default function Header() {
 
       <div className="ml-auto flex items-center gap-3">
         <span className="hidden sm:inline text-[11px] text-dim tabular-nums">{clock}</span>
+        <button className="icon-btn !text-dim hover:!text-txt" title="Search (Ctrl K)" onClick={openSearch}>
+          <Search size={15} />
+        </button>
+        <AlertsCenter />
         <button className="icon-btn !text-dim hover:!text-txt" title={hide ? "Show balances" : "Hide balances"}
                 onClick={() => { setHidden(!hide); setHide(!hide); }}>
           {hide ? <EyeOff size={15} /> : <Eye size={15} />}

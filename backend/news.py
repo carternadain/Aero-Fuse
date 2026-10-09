@@ -122,3 +122,44 @@ def get_macro_news() -> list[dict]:
 
 def clear_cache():
     _cache.clear()
+
+
+def get_news_queries(queries: dict[str, str], per_symbol: int = 4) -> list[dict]:
+    """Google News for {ticker: query}, a few fresh headlines per ticker, de-duplicated."""
+    key = "newsq:" + ",".join(sorted(queries))
+    cached = _from_cache(key)
+    if cached is not None:
+        return cached
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(pair):
+        sym, q = pair
+        try:
+            return fetch_google_news(q, sym)[:per_symbol]
+        except Exception as e:
+            print(f"[news] Google News error for {sym}: {e}")
+            return []
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        batches = list(pool.map(one, queries.items()))
+    items, seen = [], set()
+    for batch in batches:
+        for it in batch:
+            if it["title"] not in seen:
+                seen.add(it["title"])
+                items.append(it)
+    _store(key, items)
+    return items
+
+
+def published_ts(published: str) -> float:
+    """RSS pubDate / ISO string -> unix seconds (0 if unparseable), for sorting newest first."""
+    from datetime import datetime
+    from email.utils import parsedate_to_datetime
+    try:
+        return parsedate_to_datetime(published).timestamp()
+    except Exception:
+        try:
+            return datetime.fromisoformat(published.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0

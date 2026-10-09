@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Bell, RefreshCw, Target } from "lucide-react";
 import type { ScoredAsset } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
-import ScoreHistoryChart from "./ScoreHistoryChart";
+import { openTicker } from "@/lib/bus";
+import StarButton from "./StarButton";
 
 function bandColor(score: number): string {
   if (score >= 75) return "var(--color-up)";
@@ -18,7 +19,6 @@ export default function TopBuys() {
   const [assets, setAssets] = useState<ScoredAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "crypto" | "stock">("all");
-  const [chart, setChart] = useState<ScoredAsset | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -75,11 +75,13 @@ export default function TopBuys() {
           const score = a.score ?? 0;
           const color = bandColor(score);
           return (
-            <button
+            <div
               key={`${a.kind}-${a.id}`}
-              onClick={() => setChart(a)}
+              role="button"
+              tabIndex={0}
+              onClick={() => openTicker({ symbol: a.symbol, kind: a.kind, cgId: a.kind === "crypto" ? a.id : undefined })}
               className="w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-panel2 transition-colors cursor-pointer"
-              title="View score history"
+              title="Chart, why it scores this way, score history"
             >
               <span className="text-xs text-faint font-bold tabular-nums w-5">{i + 1}</span>
               <span
@@ -102,14 +104,12 @@ export default function TopBuys() {
               <span className="text-[10px] font-semibold w-32 text-right hidden sm:block" style={{ color }}>
                 {a.label}
               </span>
-            </button>
+              <StarButton symbol={a.symbol} kind={a.kind} size={13} />
+            </div>
           );
         })}
       </div>
 
-      {chart && (
-        <ScoreHistoryChart kind={chart.kind} id={chart.id} symbol={chart.symbol} onClose={() => setChart(null)} />
-      )}
     </section>
   );
 }

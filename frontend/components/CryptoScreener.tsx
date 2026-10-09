@@ -6,7 +6,8 @@ import type { CryptoCoin } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import ScoreMeter from "./ScoreMeter";
 import Sparkline from "./Sparkline";
-import ScoreHistoryChart from "./ScoreHistoryChart";
+import { openTicker } from "@/lib/bus";
+import StarButton from "./StarButton";
 
 function pct(n: number | null | undefined) {
   if (n == null) return <span className="text-faint">—</span>;
@@ -29,7 +30,6 @@ function mcap(n: number | null) {
 export default function CryptoScreener() {
   const [coins, setCoins] = useState<CryptoCoin[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chart, setChart] = useState<{ id: string; symbol: string } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -78,7 +78,7 @@ export default function CryptoScreener() {
             {coins.map((c) => (
               <tr
                 key={c.id}
-                onClick={() => setChart({ id: c.id, symbol: c.symbol })}
+                onClick={() => openTicker({ symbol: c.symbol.toUpperCase(), kind: "crypto", cgId: c.id })}
                 className="border-t border-edge hover:bg-panel2 transition-colors cursor-pointer"
                 title="View score history"
               >
@@ -86,7 +86,8 @@ export default function CryptoScreener() {
                   <div className="flex items-center gap-2">
                     {c.image && <img src={c.image} alt="" className="w-5 h-5 rounded-full" />}
                     <div className="leading-tight">
-                      <div className="font-bold text-txt">{c.symbol}</div>
+                      <div className="font-bold text-txt flex items-center gap-0.5">{c.symbol}
+                        <StarButton symbol={c.symbol.toUpperCase()} kind="crypto" size={12} className="!p-1 !min-h-0 !min-w-0" /></div>
                       <div className="text-[10px] text-faint">{mcap(c.market_cap)}</div>
                     </div>
                   </div>
@@ -109,12 +110,9 @@ export default function CryptoScreener() {
         </table>
       </div>
       <p className="px-3 py-2 text-[10px] text-faint border-t border-edge">
-        Click any row for its score-history chart. Score blends RSI(14), distance from the 200-day average, and
+        Tap any row for its live chart, why it scores this way, and score history. Score blends RSI(14), distance from the 200-day average, and
         52-week range position. Higher = better long-term accumulation; lower = stretched / overbought. Not financial advice.
       </p>
-      {chart && (
-        <ScoreHistoryChart kind="crypto" id={chart.id} symbol={chart.symbol} onClose={() => setChart(null)} />
-      )}
     </section>
   );
 }

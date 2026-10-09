@@ -8,9 +8,8 @@ import Sparkline from "./Sparkline";
 import Skeleton from "./Skeleton";
 import AssetDetail, { type LiveHolding } from "./AssetDetail";
 
-interface Account { id: number; name: string; category: string; kind: "asset" | "liability"; balance: number; updated_at: string }
+import { accountAnchor, sectionForAccount, sectionForLabel, useLive, type Account, type Section } from "@/lib/live";
 
-type Section = "retirement" | "investing" | "crypto" | "cash" | "debt";
 const SECTION_META: Record<Section, { title: string; icon: LucideIcon; order: number }> = {
   investing: { title: "Investing", icon: Briefcase, order: 0 },
   retirement: { title: "Retirement", icon: PiggyBank, order: 1 },
@@ -19,16 +18,6 @@ const SECTION_META: Record<Section, { title: string; icon: LucideIcon; order: nu
   debt: { title: "Owed", icon: Landmark, order: 4 },
 };
 
-function sectionForLabel(label: string): Section {
-  if (/roth|ira|401|403|retire/i.test(label)) return "retirement";
-  if (/crypto|coinbase|toobit|kraken|binance/i.test(label)) return "crypto";
-  return "investing";
-}
-function sectionForAccount(a: Account): Section {
-  if (a.kind === "liability") return "debt";
-  return a.category === "retirement" ? "retirement" : a.category === "crypto" ? "crypto"
-    : a.category === "cash" ? "cash" : "investing";
-}
 
 type PillMode = "price" | "change" | "equity";
 const PILL_KEY = "home-pill";
@@ -43,13 +32,11 @@ interface Card {
   todayUsd: number | null;
 }
 
-export default function HomePortfolio() {
-  const [holdings, setHoldings] = useState<LiveHolding[]>([]);
-  const [loaded, setLoaded] = useState(false);
+export default function HomePortfolio({ only = null, onClearFilter }: { only?: Section | null; onClearFilter?: () => void }) {
+  const { holdings, accounts, loaded } = useLive();
   // last price we showed per holding, so a changed price can flash up/down
   const lastPx = useRef<Record<number, number>>({});
   const [ticks, setTicks] = useState<Record<number, "up" | "down">>({});
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [sparks, setSparks] = useState<Record<string, number[]>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [pill, setPill] = useState<PillMode>("price");
@@ -57,25 +44,25 @@ export default function HomePortfolio() {
 
   useEffect(() => {
     try { const p = localStorage.getItem(PILL_KEY) as PillMode | null; if (p) setPill(p); } catch { /* */ }
-    const load = () => {
-      api.get<{ holdings: LiveHolding[] }>("/api/holdings").then((r) => {
-        const t: Record<number, "up" | "down"> = {};
-        for (const h of r.holdings) {
-          const prev = lastPx.current[h.id];
-          if (prev != null && h.price != null && h.price !== prev) t[h.id] = h.price > prev ? "up" : "down";
-          if (h.price != null) lastPx.current[h.id] = h.price;
-        }
-        setTicks(t);
-        setHoldings(r.holdings);
-        setLoaded(true);
-      }).catch(() => setLoaded(true));
-      api.get<{ accounts: Account[] }>("/api/accounts").then((r) => setAccounts(r.accounts)).catch(() => {});
-    };
     const loadSparks = () => api.get<Record<string, number[]>>("/api/portfolio/sparks").then(setSparks).catch(() => {});
-    load(); loadSparks();
-    const a = setInterval(load, 60_000), b = setInterval(loadSparks, 300_000);
-    return () => { clearInterval(a); clearInterval(b); };
+    loadSparks();
+    const b = setInterval(loadSparks, 300_000);
+    // an account card was tapped: make sure that account is expanded when we scroll to it
+    const openAcct = (e: Event) => setOpen((o) => ({ ...o, [`l:${(e as CustomEvent<string>).detail}`]: true }));
+    window.addEventListener("app:open-account", openAcct);
+    return () => { clearInterval(b); window.removeEventListener("app:open-account", openAcct); };
   }, []);
+
+  // flash a price pill when its price changes between refreshes
+  useEffect(() => {
+    const t: Record<number, "up" | "down"> = {};
+    for (const h of holdings) {
+      const prev = lastPx.current[h.id];
+      if (prev != null && h.price != null && h.price !== prev) t[h.id] = h.price > prev ? "up" : "down";
+      if (h.price != null) lastPx.current[h.id] = h.price;
+    }
+    setTicks(t);
+  }, [holdings]);
 
   const cyclePill = () => {
     const next: PillMode = pill === "price" ? "change" : pill === "change" ? "equity" : "price";
@@ -106,7 +93,7 @@ export default function HomePortfolio() {
   }, [holdings, accounts]);
 
   const grandTotal = cards.reduce((t, c) => t + Math.max(0, c.total), 0);
-  const sections = (Object.keys(SECTION_META) as Section[]).filter((s) => cards.some((c) => c.section === s));
+  const sections = (Object.keys(SECTION_META) as Section[]).filter((s) => cards.some((c) => c.section === s) && (!only || s === only));
 
   const pillText = (h: LiveHolding) => {
     if (pill === "change") return h.change_1d != null ? `${h.change_1d >= 0 ? "+" : ""}${h.change_1d.toFixed(2)}%` : "—";
@@ -139,7 +126,10 @@ export default function HomePortfolio() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold tracking-widest text-faint">YOUR ACCOUNTS</span>
+        <span className="text-[11px] font-bold tracking-widest text-faint">
+          YOUR ACCOUNTS
+          {only && <button className="ml-2 normal-case tracking-normal text-up" onClick={onClearFilter}>· {SECTION_META[only].title} only · show all</button>}
+        </span>
         <button onClick={cyclePill} className="text-[11px] font-semibold text-dim hover:text-txt px-2 py-1 rounded-md border border-edge2">
           Showing: <span className="text-txt">{pill === "price" ? "Price" : pill === "change" ? "Today %" : "Equity"}</span>
         </button>
@@ -160,7 +150,7 @@ export default function HomePortfolio() {
               {sc.map((c) => {
                 const isOpen = open[c.key] ?? c.live.length > 0;
                 return (
-                  <div key={c.key} className="panel">
+                  <div key={c.key} id={accountAnchor(c.name)} className="panel scroll-mt-28">
                     <button className="w-full flex items-center gap-3 px-4 py-3 text-left"
                             onClick={() => c.live.length && setOpen({ ...open, [c.key]: !isOpen })}>
                       <div className="min-w-0 flex-1">

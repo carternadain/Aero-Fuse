@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Bell, Lightbulb, X } from "lucide-react";
+import { openAlerts, openTicker } from "@/lib/bus";
+import StarButton from "./StarButton";
 import { api, fmtPrice } from "@/lib/api";
 import { fmtCents, fmtQty, isHidden } from "@/lib/privacy";
 import PriceChart, { ASSET_RANGES, POLL_MS, RANGE_LABEL, RangeTabs, fmtTime, type ChartData, type Range } from "./PriceChart";
@@ -89,7 +91,20 @@ export default function AssetDetail({
       <div className="bg-bg sm:bg-panel w-full sm:max-w-xl h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:border sm:border-edge overflow-y-auto
                       pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between px-4 pt-4">
-          <span className="text-[11px] font-bold tracking-widest text-faint uppercase">{holding.kind === "stock" ? "Stock / ETF" : holding.kind}</span>
+          <span className="text-[11px] font-bold tracking-widest text-faint uppercase flex-1">{holding.kind === "stock" ? "Stock / ETF" : holding.kind}</span>
+          {!isOption && (
+            <>
+              <StarButton symbol={holding.symbol} kind={holding.kind as "stock" | "crypto"} size={17} />
+              <button className="icon-btn" title="Price alert"
+                      onClick={() => openAlerts({ symbol: holding.symbol, kind: holding.kind as "stock" | "crypto", price: holding.price ?? undefined })}>
+                <Bell size={17} />
+              </button>
+              <button className="icon-btn" title="Why it moves: score, trend, earnings"
+                      onClick={() => { onClose(); openTicker({ symbol: holding.symbol, kind: holding.kind as "stock" | "crypto" }); }}>
+                <Lightbulb size={17} />
+              </button>
+            </>
+          )}
           <button className="p-2 -mr-2 rounded-full hover:bg-panel2 text-dim" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>

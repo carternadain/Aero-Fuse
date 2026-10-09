@@ -10,15 +10,20 @@ import NetWorthChart from "./NetWorthChart";
 import HomePortfolio from "./HomePortfolio";
 import PortfolioHeatmap from "./PortfolioHeatmap";
 import WeekRecap from "./WeekRecap";
+import AllocationDonut from "./AllocationDonut";
+import AccountCards from "./AccountCards";
+import SinceLastVisit from "./SinceLastVisit";
+import StarredList from "./StarredList";
+import Goals from "./Goals";
+import { ReportBanner } from "./MonthlyReport";
+import type { Section } from "@/lib/live";
 
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
 const GUIDE: Record<Exclude<TabKey, "home">, { what: string; when: string }> = {
-  trading: { what: "Log trades, see incoming TradingView signals, size positions with the Risk Desk.", when: "When you're about to enter or exit a trade" },
-  buys: { what: "Best long-term scores, plus Swing Ideas: 115 stocks by sector (energy, space, AI…).", when: "Looking for your next contract" },
-  stocks: { what: "Your options watchlist with signal confluence, and the tech screener.", when: "Checking names you already follow" },
-  crypto: { what: "Top coins with scores, what narratives are moving, and the market mood.", when: "Checking the crypto side" },
-  news: { what: "Upcoming earnings, analyst targets, and headline sentiment.", when: "Before earnings or a big move" },
-  wealth: { what: "Net worth by account, risk rating, savings plan, FIRE and budget.", when: "Weekly check-in on the big picture" },
+  trading: { what: "Log trades, see incoming TradingView signals, your P&L calendar and streaks, size positions.", when: "When you're about to enter or exit a trade" },
+  markets: { what: "Ideas (top buys, sector map, 115 swing names), Stocks (options watch, compare) and Crypto (liquidation heatmap, coins).", when: "Looking for your next contract" },
+  news: { what: "Headlines for what you own, upcoming earnings and the macro calendar.", when: "Before earnings or a big move" },
+  wealth: { what: "Goals, net worth by account, risk, savings plan, dividends, stress test, FIRE and budget.", when: "Weekly check-in on the big picture" },
 };
 
 function greeting(): string {
@@ -29,6 +34,7 @@ function greeting(): string {
 export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
   const [risk, setRisk] = useState<RiskReport | null>(null);
   const [plan, setPlan] = useState<{ monthly_you: number; monthly_match: number } | null>(null);
+  const [only, setOnly] = useState<Section | null>(null);
 
   useEffect(() => {
     api.get<RiskReport>("/api/networth/risk").then(setRisk).catch(() => {});
@@ -46,18 +52,38 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
         <p className="text-xs text-dim mt-1.5">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · here&apos;s where things stand.
         </p>
+        <SinceLastVisit />
       </div>
 
-      <section className="panel p-4 sm:p-5">
+      <ReportBanner />
+
+      <section id="sec-networth" className="panel p-4 sm:p-5 scroll-mt-28">
         <NetWorthChart />
       </section>
 
+      <AccountCards />
+
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-        <div className="lg:col-span-3"><PortfolioHeatmap /></div>
-        <div className="lg:col-span-2"><WeekRecap /></div>
+        <div id="sec-heatmap" className="lg:col-span-3 scroll-mt-28"><PortfolioHeatmap /></div>
+        <div className="lg:col-span-2 space-y-3">
+          <div id="sec-allocation" className="scroll-mt-28">
+            <AllocationDonut filter={only} onFilter={(s) => {
+              setOnly(s);
+              if (s) setTimeout(() => document.getElementById("sec-accounts")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }} />
+          </div>
+          <div id="sec-week" className="scroll-mt-28"><WeekRecap /></div>
+        </div>
       </div>
 
-      <HomePortfolio />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+        <Goals compact />
+        <StarredList compact />
+      </div>
+
+      <div id="sec-accounts" className="scroll-mt-28">
+        <HomePortfolio only={only} onClearFilter={() => setOnly(null)} />
+      </div>
 
       {/* Snapshot cards: each one jumps to where you'd act on it */}
       <div className="grid grid-cols-2 gap-3">

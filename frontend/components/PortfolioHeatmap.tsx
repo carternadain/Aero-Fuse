@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGrid } from "lucide-react";
-import { api } from "@/lib/api";
+import { useLive } from "@/lib/live";
 import { fmtCents, isHidden } from "@/lib/privacy";
 import AssetDetail, { type LiveHolding } from "./AssetDetail";
 import Skeleton from "./Skeleton";
@@ -46,7 +46,7 @@ function squarify(items: Tile[], W: number, H: number): Rect[] {
 }
 
 /** Diverging fill: stronger color for bigger moves, capped at ±5%. */
-function tileColor(pct: number | null): string {
+export function tileColor(pct: number | null): string {
   if (pct == null) return "color-mix(in srgb, var(--color-panel2) 100%, transparent)";
   const k = Math.min(1, Math.abs(pct) / 5);
   const c = pct >= 0 ? "var(--color-up)" : "var(--color-down)";
@@ -54,17 +54,11 @@ function tileColor(pct: number | null): string {
 }
 
 export default function PortfolioHeatmap() {
-  const [holdings, setHoldings] = useState<LiveHolding[] | null>(null);
+  const live = useLive();
+  const holdings = live.loaded ? live.holdings : null;
   const [detail, setDetail] = useState<LiveHolding | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(0);
-
-  useEffect(() => {
-    const load = () => api.get<{ holdings: LiveHolding[] }>("/api/holdings").then((r) => setHoldings(r.holdings)).catch(() => {});
-    load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     const el = box.current;

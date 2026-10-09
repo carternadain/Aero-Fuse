@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Compass, Plus, RefreshCw } from "lucide-react";
 import type { SwingIdea } from "@/lib/types";
 import { api } from "@/lib/api";
-import ScoreHistoryChart from "./ScoreHistoryChart";
+import { openTicker } from "@/lib/bus";
+import StarButton from "./StarButton";
 
 type SortKey = "score" | "chg_1m" | "chg_3m" | "off_high";
 
@@ -39,7 +40,6 @@ export default function SwingIdeas() {
   const [sector, setSector] = useState("All");
   const [sort, setSort] = useState<SortKey>("score");
   const [loading, setLoading] = useState(true);
-  const [chart, setChart] = useState<SwingIdea | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -82,7 +82,7 @@ export default function SwingIdeas() {
         <span className="panel-title">
           <Compass size={14} /> Swing Ideas
           <span className="text-[10px] text-faint font-medium ml-1">
-            {stocks.length} optionable names by sector · click a row for history
+            {stocks.length} optionable names by sector · tap a row for why it's listed
           </span>
         </span>
         <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function SwingIdeas() {
         <span className="w-14 text-right hidden md:block">3M</span>
         <span className="w-16 text-right hidden md:block">Off high</span>
         <span className="w-28 text-right">Score</span>
-        <span className="w-7" />
+        <span className="w-14" />
       </div>
 
       <div className="divide-y divide-edge">
@@ -144,9 +144,9 @@ export default function SwingIdeas() {
           return (
             <div
               key={s.symbol}
-              onClick={() => setChart(s)}
+              onClick={() => openTicker({ symbol: s.symbol, kind: "stock" })}
               className="flex items-center gap-3 px-3 py-2 hover:bg-panel2 transition-colors cursor-pointer text-xs"
-              title="View score history"
+              title="Chart + why it's on the list"
             >
               <span className="text-faint font-bold tabular-nums w-5">{i + 1}</span>
               <div className="flex-1 min-w-0">
@@ -170,6 +170,7 @@ export default function SwingIdeas() {
                   {s.label}
                 </div>
               </div>
+              <StarButton symbol={s.symbol} kind="stock" size={13} />
               <button
                 className="icon-btn w-7 flex justify-center"
                 disabled={s.watched}
@@ -186,9 +187,6 @@ export default function SwingIdeas() {
         })}
       </div>
 
-      {chart && (
-        <ScoreHistoryChart kind="stock" id={chart.id} symbol={chart.symbol} onClose={() => setChart(null)} />
-      )}
     </section>
   );
 }

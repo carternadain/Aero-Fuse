@@ -35,6 +35,8 @@ import charts
 import claude_ai
 import db
 import econ_calendar
+import extras
+import liqmap
 import market_data
 import news
 import risk
@@ -320,6 +322,23 @@ def networth_snapshot_loop():
         time.sleep(NETWORTH_INTERVAL)
 
 
+# ── Price alerts ──────────────────────────────────────────
+
+PRICE_ALERT_INTERVAL = 60  # seconds
+
+
+def price_alert_loop():
+    """Checks every active price alert once a minute; fired alerts go out as push + Telegram."""
+    print("[alerts] price-alert checker started")
+    while True:
+        try:
+            if any(not a["triggered_at"] for a in extras.alerts()):
+                extras.check_alerts(tg_send if TELEGRAM_BOT_TOKEN else None)
+        except Exception as e:
+            print(f"[alerts] price check error: {e}")
+        time.sleep(PRICE_ALERT_INTERVAL)
+
+
 # ── Cache warmer ──────────────────────────────────────────
 # Refreshes every dataset before its cache expires, so page loads never wait on
 # Yahoo / CoinGecko / news feeds. (Cold, Swing Ideas took ~14s and earnings ~18s.)
@@ -338,11 +357,14 @@ WARM_TIERS = [
     ("screeners", 900, 0.5, [lambda: markets_discover(), lambda: markets_stocks(),
                              lambda: markets_options_watch(), lambda: markets_earnings(),
                              lambda: get_portfolio_chart("3M"), lambda: get_portfolio_chart("1Y"),
-                             lambda: get_portfolio_chart("5Y")]),
+                             lambda: get_portfolio_chart("5Y"), lambda: get_income(),
+                             lambda: get_holdings_news()]),
     # live: LIVE TTL 90s -> 0.4×90 + 40 + ~3s ≈ 79s
     ("live", 40, 0.4, [lambda: get_portfolio_chart("LIVE")]),
+    # liquidation heatmap: 24h TTL 120s -> 0.5×120 + 60 ≈ 120s; 3d/1w have longer TTLs
+    ("liqmap", 60, 0.5, [lambda: liqmap.heatmap("24h"), lambda: liqmap.heatmap("3d"), lambda: liqmap.heatmap("1w")]),
     # charts: 1D TTL 300s -> 0.4×300 + 120 + ~15s ≈ 255s; 1W/1M (TTL ≥ 1800s) ride along
-    ("charts", 120, 0.4, [lambda: get_portfolio_sparks(), lambda: get_portfolio_chart("1D"),
+    ("charts", 120, 0.4, [lambda: get_portfolio_sparks(), lambda: get_account_sparks(), lambda: get_portfolio_chart("1D"),
                           lambda: get_portfolio_chart("1W"), lambda: get_portfolio_chart("1M")]),
 ]
 
@@ -377,6 +399,7 @@ async def lifespan(app: FastAPI):
         print("[auth] WEBHOOK_SECRET not set — /webhook will reject all alerts")
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
+    threading.Thread(target=price_alert_loop, daemon=True).start()
     for label, every, factor, jobs in WARM_TIERS:
         threading.Thread(target=cache_warmer_loop, args=(label, every, factor, jobs), daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
@@ -810,6 +833,20 @@ def get_week_recap():
     }
 
 
+@app.get("/api/accounts/sparks")
+def get_account_sparks():
+    """1D value line per live account (holdings grouped by their account label)."""
+    by: dict[str, list[dict]] = {}
+    for h in valued_holdings()["holdings"]:
+        by.setdefault(h.get("label") or "Other holdings", []).append(h)
+    out = {}
+    for label, hs in by.items():
+        c = charts.portfolio_chart(hs, "1D")
+        pts = charts._downsample([(p["t"], p["p"]) for p in c["points"]], 48)
+        out[label] = {"points": [round(v, 2) for _, v in pts], "change": c.get("change"), "change_pct": c.get("change_pct")}
+    return out
+
+
 @app.get("/api/portfolio/sparks")
 def get_portfolio_sparks():
     return charts.sparks(valued_holdings()["holdings"])
@@ -1155,7 +1192,16 @@ def get_news(refresh: bool = Query(False)):
     items = news.get_news(watchlist)
     macro = news.get_macro_news()
 
-    unscored = [h for h in items + macro if h["id"] not in _sentiment_cache]
+    enrich = _enrich_news(items + macro)
+    return {
+        "watchlist": [enrich(h) for h in items],
+        "macro": [enrich(h) for h in macro],
+        "ai_enabled": claude_ai.get_client() is not None,
+    }
+
+
+def _enrich_news(all_items: list[dict]):
+    unscored = [h for h in all_items if h["id"] not in _sentiment_cache]
     if unscored:
         scores = claude_ai.score_headlines(unscored)
         _sentiment_cache.update(scores)
@@ -1170,11 +1216,41 @@ def get_news(refresh: bool = Query(False)):
     def enrich(h):
         return {**h, **_sentiment_cache.get(h["id"], {"sentiment": "neutral", "summary": ""})}
 
-    return {
-        "watchlist": [enrich(h) for h in items],
-        "macro": [enrich(h) for h in macro],
-        "ai_enabled": claude_ai.get_client() is not None,
-    }
+    return enrich
+
+
+def _news_symbols() -> dict[str, dict]:
+    """Holdings worth searching news for: real tickers (not 401k proxy funds), options by
+    their underlying, biggest positions first."""
+    out: dict[str, dict] = {}
+    for h in valued_holdings()["holdings"]:
+        if h.get("note"):  # proxy fund standing in for a 401(k) option
+            continue
+        sym = h["symbol"].upper()
+        if h["kind"] == "option":
+            import re
+            m = re.match(r"([A-Z.]{1,6})\d{6}[CP]", sym)
+            sym = m.group(1) if m else sym
+        r = out.setdefault(sym, {"symbol": sym, "kind": "crypto" if h["kind"] == "crypto" else "stock",
+                                 "value": 0.0, "change_1d": h["change_1d"] if h["kind"] != "option" else None})
+        r["value"] += h.get("value") or 0
+    return dict(sorted(out.items(), key=lambda kv: kv[1]["value"], reverse=True)[:12])
+
+
+@app.get("/api/news/holdings")
+def get_holdings_news():
+    """Headlines for what you actually own, each tagged with that ticker's move today."""
+    syms = _news_symbols()
+    crypto_names = {"BTC": "Bitcoin", "ETH": "Ethereum", "SOL": "Solana", "ADA": "Cardano", "XRP": "XRP",
+                    "DOGE": "Dogecoin", "AVAX": "Avalanche", "LINK": "Chainlink", "SHIB": "Shiba Inu"}
+    queries = {s: (f"{crypto_names.get(s, s)} crypto" if r["kind"] == "crypto" else f"{s} stock")
+               for s, r in syms.items()}
+    items = news.get_news_queries(queries)
+    enrich = _enrich_news(items)
+    moves = {s: r["change_1d"] for s, r in syms.items()}
+    out = [{**enrich(h), "moves": {s: moves.get(s) for s in h["symbols"]}} for h in items]
+    out.sort(key=lambda h: news.published_ts(h["published"]), reverse=True)
+    return {"items": out, "symbols": list(syms), "ai_enabled": claude_ai.get_client() is not None}
 
 
 # ── Live crypto prices (Coinbase public API, no key) ──────
@@ -1234,6 +1310,265 @@ def evaluate(signal_id: int):
     recent = db.recent_confluence(sig["asset"], sig["direction"])
     verdict = claude_ai.evaluate_signal(sig, recent, db.list_levels())
     return {"signal": sig, "verdict": verdict}
+
+
+# ── Starred watchlist ─────────────────────────────────────
+
+class StarIn(BaseModel):
+    symbol: str
+    kind: str | None = None
+
+
+def _kind(sym: str, kind: str | None) -> str:
+    if kind in ("crypto", "stock"):
+        return kind
+    return extras.guess_kind(sym, db.list_holdings())
+
+
+@app.get("/api/starred")
+def get_starred():
+    return {"items": extras.starred_view()}
+
+
+@app.post("/api/starred")
+def post_star(body: StarIn):
+    extras.star(body.symbol.strip().upper(), _kind(body.symbol, body.kind))
+    return get_starred()
+
+
+@app.delete("/api/starred/{kind}/{symbol}")
+def delete_star(kind: str, symbol: str):
+    extras.unstar(symbol, kind)
+    return {"ok": True}
+
+
+# ── Price alerts + push ───────────────────────────────────
+
+class AlertIn(BaseModel):
+    symbol: str
+    kind: str | None = None
+    op: str
+    price: float
+    note: str = ""
+
+
+class PushSubIn(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+@app.get("/api/alerts")
+def get_alerts():
+    return {"alerts": extras.alerts_view(), "devices": extras.push_count()}
+
+
+@app.post("/api/alerts")
+def post_alert(body: AlertIn):
+    if body.op not in ("above", "below") or body.price <= 0:
+        raise HTTPException(400, "op must be above|below and price > 0")
+    return extras.add_alert(body.symbol.strip().upper(), _kind(body.symbol, body.kind), body.op, body.price, body.note[:120])
+
+
+@app.delete("/api/alerts/{alert_id}")
+def delete_alert(alert_id: str):
+    if not extras.remove_alert(alert_id):
+        raise HTTPException(404, "Alert not found")
+    return {"ok": True}
+
+
+@app.get("/api/push/key")
+def get_push_key():
+    return {"key": extras.push_public_key(), "devices": extras.push_count()}
+
+
+@app.post("/api/push/subscribe")
+def post_push_subscribe(body: PushSubIn, request: Request):
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    proto = request.headers.get("x-forwarded-proto") or "https"
+    origin = f"{proto}://{host}" if host and "localhost" not in host and "127.0.0.1" not in host else None
+    return {"devices": extras.push_subscribe(body.model_dump(), origin)}
+
+
+@app.post("/api/push/unsubscribe")
+def post_push_unsubscribe(body: PushSubIn):
+    return {"devices": extras.push_unsubscribe(body.endpoint)}
+
+
+@app.post("/api/push/test")
+def post_push_test():
+    sent = extras.send_push("Alerts are on 🔔", "This is how price alerts will show up.", url="/#home", tag="test")
+    return {"sent": sent}
+
+
+# ── Goals ─────────────────────────────────────────────────
+
+class GoalIn(BaseModel):
+    id: str | None = None
+    name: str
+    target: float
+    date: str | None = None
+    metric: str = "net_worth"  # net_worth | invested | cash
+
+
+def _goal_values() -> dict[str, float]:
+    hv = valued_holdings()
+    accounts = db.list_accounts()
+    cash = sum(a["balance"] for a in accounts if a["kind"] == "asset" and a["category"] == "cash")
+    invested = hv["value"] + sum(a["balance"] for a in accounts if a["kind"] == "asset" and a["category"] != "cash")
+    return {"net_worth": db.networth_totals(hv["value"])["net_worth"], "invested": invested, "cash": cash}
+
+
+def _goal_monthly(metric: str) -> float:
+    plan = get_contributions()
+    total = plan["monthly_you"] + plan["monthly_match"]
+    if metric == "net_worth":
+        return total
+    cash = plan["by_bucket"].get("cash", 0) + plan["by_bucket"].get("savings", 0)
+    return cash if metric == "cash" else max(0.0, total - cash)
+
+
+@app.get("/api/goals")
+def get_goals():
+    vals = _goal_values()
+    return {"goals": [extras.goal_progress(g, vals.get(g.get("metric", "net_worth"), 0.0),
+                                           _goal_monthly(g.get("metric", "net_worth")))
+                      for g in extras.goals()]}
+
+
+@app.post("/api/goals")
+def post_goal(body: GoalIn):
+    if body.target <= 0 or body.metric not in ("net_worth", "invested", "cash"):
+        raise HTTPException(400, "target > 0, metric net_worth|invested|cash")
+    extras.save_goal(body.model_dump())
+    return get_goals()
+
+
+@app.delete("/api/goals/{goal_id}")
+def delete_goal(goal_id: str):
+    extras.delete_goal(goal_id)
+    return get_goals()
+
+
+# ── Income, ticker insight, compare ───────────────────────
+
+@app.get("/api/liqmap")
+def get_liqmap(range: str = "24h"):
+    if range not in liqmap.RANGES:
+        raise HTTPException(400, f"range one of {list(liqmap.RANGES)}")
+    return liqmap.heatmap(range)
+
+
+@app.get("/api/income")
+def get_income():
+    return extras.income(valued_holdings()["holdings"])
+
+
+@app.get("/api/ticker/{symbol}/why")
+def get_ticker_why(symbol: str, kind: str | None = None):
+    return extras.why(_kind(symbol, kind), symbol.upper())
+
+
+@app.get("/api/compare")
+def get_compare(symbols: str, range: str = "1M"):
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()][:4]
+    if not syms:
+        raise HTTPException(400, "symbols=AAA,BBB")
+    hs = db.list_holdings()
+    return extras.compare([(s, extras.guess_kind(s, hs)) for s in syms], range)
+
+
+@app.get("/api/search/index")
+def get_search_index():
+    """Everything the ⌘K search can jump to that lives on the server."""
+    hs = valued_holdings()["holdings"]
+    tickers: dict[str, dict] = {}
+    for h in hs:
+        if h["kind"] != "option":
+            tickers.setdefault(h["symbol"], {"symbol": h["symbol"], "kind": h["kind"], "name": h.get("note") or None,
+                                             "owned": True})
+    for sector, names in universe.SECTORS.items():
+        for sym, name in names:
+            tickers.setdefault(sym, {"symbol": sym, "kind": "stock", "name": name, "sector": sector, "owned": False})
+            tickers[sym].setdefault("sector", sector)
+            tickers[sym]["name"] = tickers[sym]["name"] or name
+    for c in market_data.crypto_markets(15):
+        sym = c["symbol"].upper()
+        tickers.setdefault(sym, {"symbol": sym, "kind": "crypto", "name": c.get("name"), "owned": False})
+    for sym in _load_list(OPTIONS_FILE, DEFAULT_OPTIONS) + _load_list(STOCKS_FILE, DEFAULT_STOCKS):
+        tickers.setdefault(sym, {"symbol": sym, "kind": "stock", "name": None, "owned": False})
+    labels = sorted({h.get("label") for h in hs if h.get("label")})
+    return {"tickers": list(tickers.values()), "accounts": labels + [a["name"] for a in db.list_accounts()]}
+
+
+# ── Monthly report ────────────────────────────────────────
+
+@app.get("/api/recap/month")
+def get_month_recap(month: str | None = None):
+    """One month on one page: net worth start→end, best/worst day, movers, money in, spending."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if month:
+        try:
+            start = datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(400, "month=YYYY-MM")
+    else:
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    nxt = (start.replace(day=28) + __import__("datetime").timedelta(days=4)).replace(day=1)
+    t0, t1 = start.timestamp(), min(nxt.timestamp(), now.timestamp())
+    if t0 > now.timestamp():
+        raise HTTPException(400, "That month hasn't started yet")
+
+    pts = [(p["t"], p["p"]) for p in get_networth_chart("1Y")["points"]]
+    def at(t):
+        before = [p for tt, p in pts if tt <= t]
+        return before[-1] if before else (pts[0][1] if pts else None)
+    nw_start, nw_end = at(t0), at(t1)
+    # snapshot values are real history; prefer them where they exist
+    snaps = {s["date"]: s["net_worth"] for s in db.list_snapshots()}
+    real_start = snaps.get(start.strftime("%Y-%m-%d"))
+    real_end = snaps.get(datetime.fromtimestamp(t1 - 1, timezone.utc).strftime("%Y-%m-%d"))
+    nw_start = real_start if real_start is not None else nw_start
+    nw_end = real_end if real_end is not None else nw_end
+
+    days = [(tt, p) for tt, p in pts if t0 <= tt <= t1]
+    diffs = [(days[i][0], days[i][1] - days[i - 1][1]) for i in range(1, len(days))]
+    best_day = max(diffs, key=lambda d: d[1]) if diffs else None
+    worst_day = min(diffs, key=lambda d: d[1]) if diffs else None
+
+    hs = valued_holdings()["holdings"]
+    live = [h for h in hs if h["kind"] in ("crypto", "stock") and h.get("value")]
+    ctxs = [contextvars.copy_context() for _ in live]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        series = list(pool.map(lambda p: p[0].run(charts.series, p[1]["kind"], p[1]["symbol"], "1Y"), zip(ctxs, live)))
+    movers: dict[str, dict] = {}
+    for h, s in zip(live, series):
+        a = [p for tt, p in s if tt <= t0] or [p for _, p in s[:1]]
+        b = [p for tt, p in s if tt <= t1]
+        if not a or not b or not a[-1]:
+            continue
+        ps, pe = a[-1], b[-1]
+        m = movers.setdefault(h["symbol"], {"symbol": h["symbol"], "pct": round((pe / ps - 1) * 100, 2), "usd": 0.0})
+        m["usd"] = round(m["usd"] + h["qty"] * h.get("multiplier", 1) * (pe - ps), 2)
+    ranked = sorted(movers.values(), key=lambda m: m["usd"], reverse=True)
+
+    plan = get_contributions()
+    budget = db.budget_summary(start.strftime("%Y-%m"))
+    return {
+        "month": start.strftime("%Y-%m"), "label": start.strftime("%B %Y"), "complete": nxt <= now,
+        "nw_start": round(nw_start, 2) if nw_start is not None else None,
+        "nw_end": round(nw_end, 2) if nw_end is not None else None,
+        "change": round(nw_end - nw_start, 2) if nw_start is not None and nw_end is not None else None,
+        "change_pct": round((nw_end / nw_start - 1) * 100, 2) if nw_start and nw_end is not None else None,
+        "estimated": real_start is None or real_end is None,
+        "best_day": {"t": int(best_day[0]), "usd": round(best_day[1], 2)} if best_day else None,
+        "worst_day": {"t": int(worst_day[0]), "usd": round(worst_day[1], 2)} if worst_day else None,
+        "top": ranked[:3], "bottom": [m for m in ranked[::-1][:3] if m["usd"] < 0],
+        "planned_in": round(plan["monthly_you"] + plan["monthly_match"], 2),
+        "match_in": round(plan["monthly_match"], 2),
+        "spent": budget["expenses"] or None, "earned": budget["income"] or None,
+        "series": [{"t": int(tt), "p": round(p, 2)} for tt, p in days],
+    }
 
 
 @app.get("/")
