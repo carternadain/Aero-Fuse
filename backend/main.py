@@ -323,36 +323,36 @@ def networth_snapshot_loop():
 # Refreshes every dataset before its cache expires, so page loads never wait on
 # Yahoo / CoinGecko / news feeds. (Cold, Swing Ideas took ~14s and earnings ~18s.)
 
+# Each tier runs in its own thread. A tier refreshes entries older than factor×TTL every
+# `every` seconds, so the oldest a user ever sees is about factor×TTL + every + job time.
+# That has to stay under the shortest TTL in the tier:
+#   holdings  : quotes TTL 180s  -> 0.5×180 + 60  + ~5s  ≈ 155s
+#   markets   : min TTL 300s     -> 0.4×300 + 120 + ~10s ≈ 250s
+#   screeners : min TTL 3600s    -> 0.5×3600 + 900 + ~35s ≈ 2735s
 WARM_TIERS = [
-    # (every N seconds, label, jobs)
-    (90, "holdings", [lambda: valued_holdings()]),
-    (240, "markets", [lambda: markets_crypto(), lambda: markets_top_buys(), lambda: markets_narratives(),
-                      lambda: context_crypto(), lambda: get_news(refresh=False)]),
-    (900, "screeners", [lambda: markets_discover(), lambda: markets_stocks(),
-                        lambda: markets_options_watch(), lambda: markets_earnings()]),
+    # (label, every seconds, ttl factor, jobs)
+    ("holdings", 60, 0.5, [lambda: valued_holdings()]),
+    ("markets", 120, 0.4, [lambda: markets_crypto(), lambda: markets_top_buys(), lambda: markets_narratives(),
+                           lambda: context_crypto(), lambda: get_news(refresh=False)]),
+    ("screeners", 900, 0.5, [lambda: markets_discover(), lambda: markets_stocks(),
+                             lambda: markets_options_watch(), lambda: markets_earnings()]),
 ]
 
 
-def cache_warmer_loop():
-    print("[warm] cache warmer started")
-    last = {label: 0.0 for _, label, _ in WARM_TIERS}
+def cache_warmer_loop(label: str, every: int, factor: float, jobs: list):
+    print(f"[warm] {label} warmer started (every {every}s)")
     while True:
-        now = time.time()
-        for every, label, jobs in WARM_TIERS:
-            if now - last[label] < every:
-                continue
-            last[label] = now
-            t0 = time.time()
-            with market_data.refreshing(0.75):
-                for job in jobs:
-                    try:
-                        job()
-                    except Exception as e:
-                        print(f"[warm] {label} job error: {e}")
-            took = time.time() - t0
-            if took > 2:
-                print(f"[warm] {label} refreshed in {took:.1f}s")
-        time.sleep(15)
+        t0 = time.time()
+        with market_data.refreshing(factor):
+            for job in jobs:
+                try:
+                    job()
+                except Exception as e:
+                    print(f"[warm] {label} job error: {e}")
+        took = time.time() - t0
+        if took > 2:
+            print(f"[warm] {label} refreshed in {took:.1f}s")
+        time.sleep(max(5.0, every - took))
 
 
 # ── App setup ─────────────────────────────────────────────
@@ -369,7 +369,8 @@ async def lifespan(app: FastAPI):
         print("[auth] WEBHOOK_SECRET not set — /webhook will reject all alerts")
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
-    threading.Thread(target=cache_warmer_loop, daemon=True).start()
+    for label, every, factor, jobs in WARM_TIERS:
+        threading.Thread(target=cache_warmer_loop, args=(label, every, factor, jobs), daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
         threading.Thread(target=telegram_poll_loop, daemon=True).start()
         threading.Thread(target=score_alert_loop, daemon=True).start()

@@ -453,14 +453,14 @@ def spot_price(symbol: str) -> float | None:
 
 
 def live_quote(symbol: str, kind: str) -> dict:
-    """Live price + 24h/1D % change for a holding. Cached 2 min (kept warm in the background).
+    """Live price + 24h/1D % change for a holding. Cached 3 min (kept warm in the background).
 
     Crypto: Coinbase Exchange 24h stats (last vs 24h open). Stocks: yfinance
     fast_info (last vs previous close).
     """
     sym = symbol.upper()
     key = f"live:{kind}:{sym}"
-    cached = _get(key, 120)
+    cached = _get(key, 180)
     if cached is not None:
         return cached  # type: ignore[return-value]
 

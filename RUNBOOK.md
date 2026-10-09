@@ -182,6 +182,7 @@ poller) with a **persistent disk** (`terminal.db`) — so a normal serverless ho
 - **Address:** `https://<ip-with-dashes>.sslip.io`. sslip.io resolves to the IP, so no DuckDNS account; Caddy gets a Let's Encrypt cert for it. Caddy does HTTPS + security headers only — **no basic auth** (the app login does the locking, and basic auth breaks the iPhone home-screen app).
 - **Node 22 from nodejs.org** (checksum-verified tarball in `/usr/local`): Ubuntu's apt Node is 18, too old for Tailwind v4.
 - **Ports:** Oracle Security List ingress 80,443 (+22); iptables rules saved with `netfilter-persistent`. The app itself listens on 127.0.0.1 only.
+- **Cache warmer:** background threads refresh holdings (60s), markets/news (2m) and screeners (15m) before their caches expire, so pages stay fast. The API service sets `PYTHONUNBUFFERED=1` so `[warm]` lines show in `journalctl -u terminal-api`.
 - **Backups:** `~/backup-db.sh` via cron at 09:15 UTC → `~/backups/terminal-YYYY-MM-DD.db`, 14 days kept.
 - **Code** is shipped from the local repo with `git archive` (no GitHub token on the server). **To update:** commit, then
   ```bash
