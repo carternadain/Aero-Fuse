@@ -86,10 +86,10 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
         <div key={i} className="flex items-center gap-2">
           <span className="text-dim w-8 sm:w-20 shrink-0"><span className="sm:hidden">TP{i + 1}</span><span className="hidden sm:inline">Take profit</span></span>
           <span className="text-faint"><span className="hidden sm:inline">at </span>+</span>
-          <input className="field !py-1 max-sm:flex-1 sm:w-16 min-w-0" inputMode="decimal" value={t.pct}
+          <input className="field !py-1 max-sm:flex-1 sm:w-16 min-w-0" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={t.pct}
                  onChange={(e) => setR({ ...r, tp: r.tp.map((x, j) => (j === i ? { ...x, pct: Number(e.target.value) } : x)) })} />
           <span className="text-faint whitespace-nowrap">% trim</span>
-          <input className="field !py-1 max-sm:flex-1 sm:w-14 min-w-0" inputMode="decimal" value={t.trim}
+          <input className="field !py-1 max-sm:flex-1 sm:w-14 min-w-0" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={t.trim}
                  onChange={(e) => setR({ ...r, tp: r.tp.map((x, j) => (j === i ? { ...x, trim: Number(e.target.value) } : x)) })} />
           <span className="text-faint">%</span>
           <button className="icon-btn ml-auto" onClick={() => setR({ ...r, tp: r.tp.filter((_, j) => j !== i) })}><Trash2 size={12} /></button>
@@ -99,13 +99,13 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
               onClick={() => setR({ ...r, tp: [...r.tp, { pct: (r.tp.at(-1)?.pct ?? 0) + 50, trim: 25 }] })}>
         <Plus size={12} /> add take-profit level
       </button>
-      <div className="grid grid-cols-3 gap-2">
-        <label className="space-y-1"><span className="text-faint text-[10px]">Stop at −%</span>
-          <input className="field !py-1 w-full" inputMode="decimal" value={r.stop != null ? Math.abs(r.stop) : ""} onChange={(e) => setR({ ...r, stop: num(e.target.value) })} /></label>
-        <label className="space-y-1"><span className="text-faint text-[10px]">Trail % off high</span>
-          <input className="field !py-1 w-full" inputMode="decimal" value={r.trail ?? ""} onChange={(e) => setR({ ...r, trail: num(e.target.value) })} /></label>
-        <label className="space-y-1"><span className="text-faint text-[10px]">Flag heat ≥</span>
-          <input className="field !py-1 w-full" inputMode="decimal" value={r.heat ?? ""} onChange={(e) => setR({ ...r, heat: num(e.target.value) })} /></label>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <label className="field-wrap"><span className="field-label">Stop at −%</span>
+          <input className="field !py-1 w-full" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={r.stop != null ? Math.abs(r.stop) : ""} onChange={(e) => setR({ ...r, stop: num(e.target.value) })} /></label>
+        <label className="field-wrap"><span className="field-label">Trail % off high</span>
+          <input className="field !py-1 w-full" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={r.trail ?? ""} onChange={(e) => setR({ ...r, trail: num(e.target.value) })} /></label>
+        <label className="field-wrap max-sm:col-span-2"><span className="field-label">Flag heat ≥</span>
+          <input className="field !py-1 w-full" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={r.heat ?? ""} onChange={(e) => setR({ ...r, heat: num(e.target.value) })} /></label>
       </div>
       <div className="flex gap-2 justify-end pt-1">
         {row.rule && <button className="btn" onClick={() => save(null)}>Remove plan</button>}

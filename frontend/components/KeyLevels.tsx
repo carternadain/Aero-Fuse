@@ -50,17 +50,25 @@ export default function KeyLevels({
       {adding && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
           <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder="Asset" value={f.asset} onChange={(e) => setF({ ...f, asset: e.target.value.toUpperCase() })} />
-            <input className="field" placeholder="Price" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />
+            <label className="field-wrap"><span className="field-label">Asset</span>
+              <input className="field" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="next" value={f.asset} onChange={(e) => setF({ ...f, asset: e.target.value.toUpperCase() })} />
+            </label>
+            <label className="field-wrap"><span className="field-label">Price</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />
+            </label>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder="Label (e.g. weekly high sweep)" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} />
-            <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
-              <option value="liquidity">LIQUIDITY</option>
-              <option value="support">SUPPORT</option>
-              <option value="resistance">RESISTANCE</option>
-              <option value="fib">FIB</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="field-wrap"><span className="field-label">Label</span>
+              <input className="field" autoComplete="off" enterKeyHint="go" placeholder="e.g. weekly high sweep" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+            </label>
+            <label className="field-wrap"><span className="field-label">Kind</span>
+              <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+                <option value="liquidity">LIQUIDITY</option>
+                <option value="support">SUPPORT</option>
+                <option value="resistance">RESISTANCE</option>
+                <option value="fib">FIB</option>
+              </select>
+            </label>
           </div>
           <button className="btn btn-primary w-full" onClick={add}>Pin Level</button>
         </div>

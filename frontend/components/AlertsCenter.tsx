@@ -156,21 +156,27 @@ export default function AlertsCenter() {
             {/* New alert */}
             <div className="px-4 mt-4">
               <div className="text-[11px] font-bold tracking-widest text-faint mb-2">NEW ALERT</div>
-              <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
-                <input className="field uppercase" placeholder="Ticker" value={form.symbol}
-                       onChange={(e) => setForm({ ...form, symbol: e.target.value, kind: undefined })} />
-                <div className="seg flex rounded-lg border border-edge2 text-[12px] font-bold">
+              <div className="grid grid-cols-2 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
+                <label className="field-wrap"><span className="field-label">Ticker</span>
+                  <input className="field uppercase" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="next" value={form.symbol}
+                         onChange={(e) => setForm({ ...form, symbol: e.target.value, kind: undefined })} />
+                </label>
+                <div className="seg flex rounded-lg border border-edge2 text-[12px] font-bold max-sm:order-last max-sm:col-span-2 max-sm:[&>button]:flex-1">
                   {(["above", "below"] as const).map((o) => (
                     <button key={o} onClick={() => setForm({ ...form, op: o })}
                             className={`px-3 ${form.op === o ? "bg-panel2 text-up" : "text-dim"}`}>{o === "above" ? "≥ Above" : "≤ Below"}</button>
                   ))}
                 </div>
-                <input className="field" inputMode="decimal" placeholder="Price" value={form.price}
-                       onChange={(e) => setForm({ ...form, price: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+                <label className="field-wrap"><span className="field-label">Price</span>
+                  <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={form.price}
+                         onChange={(e) => setForm({ ...form, price: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+                </label>
               </div>
-              <div className="flex gap-2 mt-2">
-                <input className="field flex-1" placeholder="Note (optional), e.g. breakout entry" value={form.note}
-                       onChange={(e) => setForm({ ...form, note: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+              <div className="flex gap-2 mt-2 items-end">
+                <label className="field-wrap flex-1"><span className="field-label">Note (optional)</span>
+                  <input className="field" autoComplete="off" enterKeyHint="go" placeholder="e.g. breakout entry" value={form.note}
+                         onChange={(e) => setForm({ ...form, note: e.target.value })} onKeyDown={(e) => e.key === "Enter" && add()} />
+                </label>
                 <button className="btn btn-primary" disabled={busy || !form.symbol || !form.price} onClick={add}><Plus size={14} /> Add</button>
               </div>
             </div>

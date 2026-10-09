@@ -44,9 +44,10 @@ export default function Login() {
           </p>
         </div>
         <input
-          className="field !py-2.5 !text-sm"
+          className="field !py-2.5 sm:!text-sm"
           type="password"
           autoComplete="current-password"
+          enterKeyHint="go"
           placeholder="Password"
           autoFocus
           value={password}

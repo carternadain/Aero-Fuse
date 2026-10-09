@@ -72,26 +72,26 @@ function ContributionForm({
   const f = value;
   return (
     <form className="p-3 space-y-2 bg-panel2" onSubmit={(e) => { e.preventDefault(); onSave(); }}>
-      <label className="block">
-        <span className="text-[10px] text-faint">Account</span>
-        <input className="field" placeholder="e.g. Roth IRA" value={f.account} autoFocus
+      <label className="field-wrap">
+        <span className="field-label">Account</span>
+        <input className="field" placeholder="e.g. Roth IRA" autoComplete="off" enterKeyHint="next" value={f.account} autoFocus
                onChange={(e) => onChange({ ...f, account: e.target.value })} />
       </label>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-[10px] text-faint">You put in ($)</span>
-          <input className="field" inputMode="decimal" placeholder="0" value={f.amount}
+        <label className="field-wrap">
+          <span className="field-label">You put in ($)</span>
+          <input className="field" inputMode="decimal" placeholder="0" autoComplete="off" enterKeyHint="next" value={f.amount}
                  onChange={(e) => onChange({ ...f, amount: e.target.value })} />
         </label>
-        <label className="block">
-          <span className="text-[10px] text-faint">Employer match ($)</span>
-          <input className="field" inputMode="decimal" placeholder="0" value={f.employer_match}
+        <label className="field-wrap">
+          <span className="field-label">Employer match ($)</span>
+          <input className="field" inputMode="decimal" placeholder="0" autoComplete="off" enterKeyHint="next" value={f.employer_match}
                  onChange={(e) => onChange({ ...f, employer_match: e.target.value })} />
         </label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-[10px] text-faint">How often</span>
+        <label className="field-wrap">
+          <span className="field-label">How often</span>
           <select className="field" value={f.frequency} onChange={(e) => onChange({ ...f, frequency: e.target.value })}>
             <option value="weekly">Every week</option>
             <option value="biweekly">Every 2 weeks</option>
@@ -99,8 +99,8 @@ function ContributionForm({
             <option value="monthly">Every month</option>
           </select>
         </label>
-        <label className="block">
-          <span className="text-[10px] text-faint">Type</span>
+        <label className="field-wrap">
+          <span className="field-label">Type</span>
           <select className="field" value={f.bucket} onChange={(e) => onChange({ ...f, bucket: e.target.value })}>
             <option value="retirement">Retirement</option>
             <option value="brokerage">Brokerage</option>
@@ -110,8 +110,8 @@ function ContributionForm({
         </label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-[10px] text-faint">Account kind (for IRS limits)</span>
+        <label className="field-wrap">
+          <span className="field-label">Account kind (for IRS limits)</span>
           <select className="field" value={f.plan_type} onChange={(e) => onChange({ ...f, plan_type: e.target.value })}>
             <option value="401k">401(k) / 403(b)</option>
             <option value="ira">IRA (Roth or traditional)</option>
@@ -119,9 +119,9 @@ function ContributionForm({
           </select>
         </label>
         {f.plan_type === "401k" && (
-          <label className="block">
-            <span className="text-[10px] text-faint">Max match available ($ per period)</span>
-            <input className="field" inputMode="decimal" placeholder="if you know it" value={f.match_max}
+          <label className="field-wrap">
+            <span className="field-label">Max match available ($ per period)</span>
+            <input className="field" inputMode="decimal" placeholder="if you know it" autoComplete="off" enterKeyHint="done" value={f.match_max}
                    onChange={(e) => onChange({ ...f, match_max: e.target.value })} />
           </label>
         )}

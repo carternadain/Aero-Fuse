@@ -216,34 +216,42 @@ export default function NetWorth() {
 
       {adding && mode === "holding" && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
-          <div className="grid grid-cols-3 gap-2">
-            <input className="field uppercase" placeholder="BTC / RDW" value={hf.symbol}
-                   onChange={(e) => setHf({ ...hf, symbol: e.target.value })} />
-            <select className="field" value={hf.kind} onChange={(e) => setHf({ ...hf, kind: e.target.value })}>
-              <option value="crypto">CRYPTO</option>
-              <option value="stock">STOCK / ETF</option>
-              <option value="option">OPTION</option>
-            </select>
-            <input className="field" placeholder={hf.kind === "option" ? "Contracts" : "Quantity"} inputMode="decimal" value={hf.qty}
-                   onChange={(e) => setHf({ ...hf, qty: e.target.value })} />
+          <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+            <label className="field-wrap max-sm:col-span-2"><span className="field-label">Symbol</span>
+              <input className="field uppercase" placeholder="BTC / RDW" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="next" value={hf.symbol}
+                     onChange={(e) => setHf({ ...hf, symbol: e.target.value })} /></label>
+            <label className="field-wrap"><span className="field-label">Type</span>
+              <select className="field" value={hf.kind} onChange={(e) => setHf({ ...hf, kind: e.target.value })}>
+                <option value="crypto">CRYPTO</option>
+                <option value="stock">STOCK / ETF</option>
+                <option value="option">OPTION</option>
+              </select></label>
+            <label className="field-wrap"><span className="field-label">{hf.kind === "option" ? "Contracts" : "Quantity"}</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={hf.qty}
+                     onChange={(e) => setHf({ ...hf, qty: e.target.value })} /></label>
           </div>
           {hf.kind === "option" && (
-            <div className="grid grid-cols-3 gap-2">
-              <input className="field" type="date" title="Expiration" value={hf.expiry}
-                     onChange={(e) => setHf({ ...hf, expiry: e.target.value })} />
-              <input className="field" placeholder="Strike $" inputMode="decimal" value={hf.strike}
-                     onChange={(e) => setHf({ ...hf, strike: e.target.value })} />
-              <select className="field" value={hf.right} onChange={(e) => setHf({ ...hf, right: e.target.value })}>
-                <option value="C">CALL</option>
-                <option value="P">PUT</option>
-              </select>
+            <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+              <label className="field-wrap max-sm:col-span-2"><span className="field-label">Expiration</span>
+                <input className="field" type="date" enterKeyHint="next" value={hf.expiry}
+                       onChange={(e) => setHf({ ...hf, expiry: e.target.value })} /></label>
+              <label className="field-wrap"><span className="field-label">Strike $</span>
+                <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={hf.strike}
+                       onChange={(e) => setHf({ ...hf, strike: e.target.value })} /></label>
+              <label className="field-wrap"><span className="field-label">Call / put</span>
+                <select className="field" value={hf.right} onChange={(e) => setHf({ ...hf, right: e.target.value })}>
+                  <option value="C">CALL</option>
+                  <option value="P">PUT</option>
+                </select></label>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder={hf.kind === "option" ? "Avg premium $ (optional)" : "Avg cost $ (optional)"} inputMode="decimal" value={hf.cost_basis}
-                   onChange={(e) => setHf({ ...hf, cost_basis: e.target.value })} />
-            <input className="field" placeholder="Held at (Toobit, Fidelity…)" value={hf.label}
-                   onChange={(e) => setHf({ ...hf, label: e.target.value })} />
+          <div className="grid grid-cols-2 max-sm:grid-cols-1 gap-2">
+            <label className="field-wrap"><span className="field-label">{hf.kind === "option" ? "Avg premium $ (optional)" : "Avg cost $ (optional)"}</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={hf.cost_basis}
+                     onChange={(e) => setHf({ ...hf, cost_basis: e.target.value })} /></label>
+            <label className="field-wrap"><span className="field-label">Held at</span>
+              <input className="field" placeholder="Toobit, Fidelity…" autoComplete="off" enterKeyHint="done" value={hf.label}
+                     onChange={(e) => setHf({ ...hf, label: e.target.value })} /></label>
           </div>
           <button className="btn btn-primary w-full" onClick={addHolding}>Add Holding</button>
           <p className="text-[10px] text-faint">
@@ -255,23 +263,28 @@ export default function NetWorth() {
 
       {adding && mode === "account" && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
-          <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder="Account name (e.g. Toobit, Fidelity)" value={f.name}
-                   onChange={(e) => setF({ ...f, name: e.target.value })} />
-            <input className="field" placeholder="Balance $" value={f.balance}
-                   onChange={(e) => setF({ ...f, balance: e.target.value })} />
+          <div className="grid grid-cols-2 max-sm:grid-cols-1 gap-2">
+            <label className="field-wrap"><span className="field-label">Account name</span>
+              <input className="field" placeholder="e.g. Toobit, Fidelity" autoComplete="off" enterKeyHint="next" value={f.name}
+                     onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+            <label className="field-wrap"><span className="field-label">Balance $</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={f.balance}
+                     onChange={(e) => setF({ ...f, balance: e.target.value })}
+                     onKeyDown={(e) => { if (e.key === "Enter") add(); }} /></label>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <select className="field" value={f.kind}
-                    onChange={(e) => setF({ ...f, kind: e.target.value, category: e.target.value === "asset" ? "cash" : "credit_card" })}>
-              <option value="asset">ASSET</option>
-              <option value="liability">LIABILITY</option>
-            </select>
-            <select className="field" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-              {(f.kind === "asset" ? ASSET_CATS : LIAB_CATS).map((c) => (
-                <option key={c} value={c}>{c.replace("_", " ").toUpperCase()}</option>
-              ))}
-            </select>
+            <label className="field-wrap"><span className="field-label">Kind</span>
+              <select className="field" value={f.kind}
+                      onChange={(e) => setF({ ...f, kind: e.target.value, category: e.target.value === "asset" ? "cash" : "credit_card" })}>
+                <option value="asset">ASSET</option>
+                <option value="liability">LIABILITY</option>
+              </select></label>
+            <label className="field-wrap"><span className="field-label">Category</span>
+              <select className="field" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
+                {(f.kind === "asset" ? ASSET_CATS : LIAB_CATS).map((c) => (
+                  <option key={c} value={c}>{c.replace("_", " ").toUpperCase()}</option>
+                ))}
+              </select></label>
           </div>
           <button className="btn btn-primary w-full" onClick={add}>Add Account</button>
         </div>

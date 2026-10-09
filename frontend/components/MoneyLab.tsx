@@ -116,7 +116,7 @@ export default function MoneyLab() {
           <span className="text-xs text-dim">If you invest</span>
           <span className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-faint text-sm">$</span>
-            <input className="field !w-28 !pl-5 !py-1 !text-sm font-bold tabular-nums" inputMode="decimal"
+            <input className="field !w-28 max-sm:!w-32 !pl-5 !py-1 sm:!text-sm font-bold tabular-nums" inputMode="decimal" autoComplete="off"
                    value={amount} onChange={(e) => setAmount(e.target.value)} />
           </span>
           <span className="text-xs text-dim">

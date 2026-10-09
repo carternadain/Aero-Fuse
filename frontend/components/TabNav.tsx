@@ -67,7 +67,7 @@ export default function TabNav({
       </nav>
 
       {/* Phone: thumb-reachable bottom bar, clear of the home indicator */}
-      <nav className="sm:hidden fixed inset-x-2 z-40 bottom-[max(8px,env(safe-area-inset-bottom))]
+      <nav className="bottom-nav sm:hidden fixed inset-x-2 z-40 bottom-[max(8px,env(safe-area-inset-bottom))]
                       rounded-2xl border border-edge2/70 bg-panel/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
         <div className="grid grid-cols-5 px-1 py-1.5">
           {TABS.map(({ key, short, icon: Icon }) => {

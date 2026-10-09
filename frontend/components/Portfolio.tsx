@@ -104,22 +104,37 @@ export default function Portfolio({
 
       {adding && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
-          <div className="grid grid-cols-3 gap-2">
-            <input className="field" placeholder="Asset" value={f.asset} onChange={(e) => setF({ ...f, asset: e.target.value.toUpperCase() })} />
-            <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
-              <option value="crypto">CRYPTO</option>
-              <option value="leap">LEAP CALL</option>
-            </select>
-            <input className="field" placeholder="Qty" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <label className="field-wrap"><span className="field-label">Asset</span>
+              <input className="field" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="next" value={f.asset} onChange={(e) => setF({ ...f, asset: e.target.value.toUpperCase() })} />
+            </label>
+            <label className="field-wrap"><span className="field-label">Type</span>
+              <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+                <option value="crypto">CRYPTO</option>
+                <option value="leap">LEAP CALL</option>
+              </select>
+            </label>
+            <label className="field-wrap max-sm:col-span-2"><span className="field-label">Qty</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} />
+            </label>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder={f.kind === "leap" ? "Entry (per contract)" : "Entry price"} value={f.entry} onChange={(e) => setF({ ...f, entry: e.target.value })} />
-            <input className="field" placeholder="Current mark (optional)" value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} />
+            <label className="field-wrap"><span className="field-label">{f.kind === "leap" ? "Entry (per contract)" : "Entry price"}</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={f.entry} onChange={(e) => setF({ ...f, entry: e.target.value })} />
+            </label>
+            <label className="field-wrap"><span className="field-label">Current mark (optional)</span>
+              <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint={f.kind === "leap" ? "next" : "done"} value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })}
+                     onKeyDown={f.kind === "leap" ? undefined : (e) => e.key === "Enter" && add()} />
+            </label>
           </div>
           {f.kind === "leap" && (
             <div className="grid grid-cols-2 gap-2">
-              <input className="field" placeholder="Strike" value={f.strike} onChange={(e) => setF({ ...f, strike: e.target.value })} />
-              <input className="field" placeholder="Expiry (2027-12-17)" value={f.expiry} onChange={(e) => setF({ ...f, expiry: e.target.value })} />
+              <label className="field-wrap"><span className="field-label">Strike</span>
+                <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={f.strike} onChange={(e) => setF({ ...f, strike: e.target.value })} />
+              </label>
+              <label className="field-wrap"><span className="field-label">Expiry</span>
+                <input className="field" type="date" enterKeyHint="done" value={f.expiry} onChange={(e) => setF({ ...f, expiry: e.target.value })} />
+              </label>
             </div>
           )}
           <button className="btn btn-primary w-full" onClick={add}>Add Position</button>

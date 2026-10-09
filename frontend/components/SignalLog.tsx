@@ -127,7 +127,7 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
       </div>
 
       {skipping && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setSkipping(null)}>
+        <div className="fixed inset-0 z-50 flex items-center-safe justify-center bg-black/70 p-4 overflow-y-auto" onClick={() => setSkipping(null)}>
           <div className="panel w-full max-w-sm p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="panel-title">Skip Signal #{skipping.id} — why?</h3>
             <div className="flex flex-wrap gap-1.5">
@@ -137,7 +137,7 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
                 </button>
               ))}
             </div>
-            <input className="field" placeholder="Or custom reason…" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input className="field" autoComplete="off" enterKeyHint="done" placeholder="Or custom reason…" value={reason} onChange={(e) => setReason(e.target.value)} onKeyDown={(e) => e.key === "Enter" && markSkipped()} />
             <div className="flex justify-end gap-2">
               <button className="btn" onClick={() => setSkipping(null)}>Cancel</button>
               <button className="btn btn-primary" onClick={markSkipped}>Log Skip</button>

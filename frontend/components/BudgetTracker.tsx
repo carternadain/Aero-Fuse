@@ -90,24 +90,29 @@ export default function BudgetTracker() {
 
       {adding && (
         <div className="p-3 border-b border-edge space-y-2 bg-panel2">
-          <div className="grid grid-cols-3 gap-2">
-            <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
-              <option value="expense">EXPENSE</option>
-              <option value="income">INCOME</option>
-            </select>
-            {f.kind === "expense" ? (
-              <select className="field" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-                {EXPENSE_CATS.map((c) => <option key={c} value={c}>{c.replace("_", " ").toUpperCase()}</option>)}
-              </select>
-            ) : (
-              <input className="field" value="income" disabled />
-            )}
-            <input className="field" placeholder="$ amount" value={f.amount}
-                   onChange={(e) => setF({ ...f, amount: e.target.value })} />
+          <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+            <label className="field-wrap"><span className="field-label">Type</span>
+              <select className="field" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+                <option value="expense">EXPENSE</option>
+                <option value="income">INCOME</option>
+              </select></label>
+            <label className="field-wrap"><span className="field-label">Category</span>
+              {f.kind === "expense" ? (
+                <select className="field" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
+                  {EXPENSE_CATS.map((c) => <option key={c} value={c}>{c.replace("_", " ").toUpperCase()}</option>)}
+                </select>
+              ) : (
+                <input className="field" value="income" disabled />
+              )}</label>
+            <label className="field-wrap max-sm:col-span-2"><span className="field-label">Amount $</span>
+              <input className="field" inputMode="decimal" placeholder="0" autoComplete="off" enterKeyHint="next" value={f.amount}
+                     onChange={(e) => setF({ ...f, amount: e.target.value })} /></label>
           </div>
-          <div className="flex gap-2">
-            <input className="field" placeholder="Note (optional)" value={f.note}
-                   onChange={(e) => setF({ ...f, note: e.target.value })} />
+          <div className="flex gap-2 items-end">
+            <label className="field-wrap flex-1"><span className="field-label">Note (optional)</span>
+              <input className="field" autoComplete="off" enterKeyHint="done" value={f.note}
+                     onChange={(e) => setF({ ...f, note: e.target.value })}
+                     onKeyDown={(e) => { if (e.key === "Enter") add(); }} /></label>
             <button className="btn btn-primary whitespace-nowrap" onClick={add}>Log</button>
           </div>
         </div>

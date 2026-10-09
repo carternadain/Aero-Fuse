@@ -80,8 +80,8 @@ export default function CompareChart() {
         })}
         {syms.length < 4 && (
           <form onSubmit={(e) => { e.preventDefault(); push(add); }} className="flex items-center">
-            <input value={add} onChange={(e) => setAdd(e.target.value)} placeholder="Add ticker"
-                   className="field !py-1 !text-[12px] w-[96px] uppercase" />
+            <input value={add} onChange={(e) => setAdd(e.target.value)} placeholder="Add ticker" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="go"
+                   className="field !py-1 sm:!text-[12px] w-[96px] max-sm:w-32 uppercase" />
             <button className="icon-btn" type="submit"><Plus size={13} /></button>
           </form>
         )}

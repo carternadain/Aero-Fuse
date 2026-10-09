@@ -37,8 +37,8 @@ export default function TickerEditor({
       ))}
       <div className="inline-flex items-center gap-1">
         <input
-          className="field !w-20 !py-1 !px-2 text-[11px] uppercase"
-          placeholder="TICKER"
+          className="field !w-20 max-sm:!w-28 !py-1 !px-2 sm:text-[11px] uppercase"
+          placeholder="TICKER" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="go"
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}

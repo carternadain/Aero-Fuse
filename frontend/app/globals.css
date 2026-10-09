@@ -218,6 +218,11 @@ main {
   .text-\[11px\] { font-size: 11.5px; }
 }
 
+/* Label + field pair; labels stay visible after you start typing (unlike placeholders):
+   <label className="field-wrap"><span className="field-label">Entry</span><input className="field" /></label> */
+.field-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field-label { font-size: 10px; font-weight: 600; color: var(--color-faint); }
+
 /* Segmented control: the end buttons carry the rounding, so the group needn't clip
    (clipping would also cut off the phone hit areas below) */
 .seg > :first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
@@ -264,6 +269,9 @@ main {
   .field { min-height: 40px; font-size: 16px; }
   select.field { padding-top: 0; padding-bottom: 0; }
   input[type="range"] { height: 40px; }
+  .field-label { font-size: 11px; color: var(--color-dim); }
+  /* Keyboard up (lib/keyboard.ts): the floating tab bar would sit on top of the field */
+  html[data-kbd] .bottom-nav { display: none; }
 }
 
 /* ── Motion ─────────────────────────────────────────────── */
@@ -283,8 +291,10 @@ main {
 }
 
 /* Tab content eases in instead of popping */
+/* backwards, not both: a transform left on <main> after the animation would make it the
+   containing block for every position:fixed dialog inside it (dialogs ended up mid-page, under the tab bar) */
 .tab-enter {
-  animation: tab-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: tab-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 @keyframes tab-enter {
   from { opacity: 0; transform: translateY(6px); }

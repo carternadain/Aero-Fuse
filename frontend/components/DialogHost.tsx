@@ -61,7 +61,7 @@ export default function DialogHost() {
       >
         <p className="text-sm text-txt leading-snug">{req.message}</p>
         {req.kind === "text" && (
-          <input ref={inputRef} className="field !py-2.5 !text-sm" value={text} inputMode="decimal"
+          <input ref={inputRef} className="field !py-2.5 sm:!text-sm" value={text} inputMode="decimal" enterKeyHint="done" autoComplete="off"
                  onChange={(e) => setText(e.target.value)} />
         )}
         <div className="flex gap-2">
