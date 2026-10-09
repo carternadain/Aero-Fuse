@@ -182,7 +182,7 @@ def test_insert_dedupe(tmpdb):
 
 def test_manual_transaction_still_works(tmpdb):
     t = db.create_transaction({"category": "food", "amount": 9.5, "date": "2025-01-01"})
-    assert t["source"] == "manual" and t["merchant"] == "" and t["import_hash"] is None
+    assert t["source"] == "manual" and t["merchant"] == "Food" and t["import_hash"] is None
 
 
 def test_rules_and_recategorize(tmpdb):
@@ -200,3 +200,69 @@ def test_rules_and_recategorize(tmpdb):
     first = db.list_transactions()[0]
     assert db.update_transaction_category(first["id"], "income")["kind"] == "income"
     assert db.delete_rule(r["id"]) is True and db.delete_rule(r["id"]) is False
+
+
+# ── refunds & fallback names ──────────────────────────────
+
+def _prev(desc, amount):
+    return importer.build_preview([{"date": "2025-03-01", "description": desc, "amount": amount}])[0]
+
+
+def test_merchant_refund_is_negative_spending_not_income():
+    r = _prev("AMAZON REFUND", 25.0)
+    assert (r["kind"], r["category"], r["refund"]) == ("expense", "shopping", True)
+    r = _prev("STARBUCKS RETURN", 4.5)
+    assert (r["kind"], r["category"]) == ("expense", "food")
+
+
+def test_tax_refund_and_payroll_stay_income():
+    for desc in ("IRS TREAS 310 TAX REF", "STATE TAX REFUND", "ACME PAYROLL"):
+        r = _prev(desc, 900.0)
+        assert (r["kind"], r["category"], r["refund"]) == ("income", "income", False), desc
+
+
+def test_refund_reduces_category_and_savings_rate(tmpdb):
+    rows = [
+        {"date": "2025-03-01", "merchant": "Amazon", "note": "AMAZON PURCHASE", "amount": 100.0,
+         "kind": "expense", "category": "shopping", "hash": "a"},
+        {"date": "2025-03-05", "merchant": "Amazon", "note": "AMAZON REFUND", "amount": -30.0,
+         "kind": "expense", "category": "shopping", "hash": "b"},
+        {"date": "2025-03-02", "merchant": "Acme", "note": "PAYROLL", "amount": 1000.0,
+         "kind": "income", "category": "income", "hash": "c"},
+    ]
+    db.insert_imported_transactions(rows)
+    s = db.budget_summary("2025-03")
+    assert s["income"] == 1000.0 and s["expenses"] == 70.0
+    assert s["savings_rate"] == 93.0
+    assert next(c for c in s["categories"] if c["category"] == "shopping")["spent"] == 70.0
+    assert db.spending_by_month(["2025-03"])["2025-03"]["shopping"] == 70.0
+
+
+def test_migrate_refunds_idempotent(tmpdb):
+    db.insert_imported_transactions([
+        {"date": "2025-03-05", "merchant": "Amazon Refund", "note": "AMAZON REFUND", "amount": 30.0,
+         "kind": "income", "category": "income", "hash": "r1"},
+        {"date": "2025-03-06", "merchant": "Irs Treas", "note": "IRS TREAS 310 TAX REF", "amount": 500.0,
+         "kind": "income", "category": "income", "hash": "r2"},
+    ])
+    with db.conn() as c:
+        assert db.migrate_refunds(c) == 1
+        assert db.migrate_refunds(c) == 0
+    by = {t["note"]: t for t in db.list_transactions("2025-03")}
+    assert (by["AMAZON REFUND"]["kind"], by["AMAZON REFUND"]["amount"], by["AMAZON REFUND"]["category"]) \
+        == ("expense", -30.0, "shopping")
+    assert by["IRS TREAS 310 TAX REF"]["kind"] == "income"
+
+
+def test_every_transaction_has_a_name(tmpdb):
+    assert importer.display_name("", "RAW TEXT 123", "food") == "RAW TEXT 123"
+    assert importer.display_name("", "  ", "trading_fees") == "Trading Fees"
+    assert _prev("", -5.0)["merchant"] == "Other"
+    db.insert_imported_transactions([
+        {"date": "2025-03-05", "merchant": "", "note": "", "amount": 5.0, "kind": "expense",
+         "category": "fun", "hash": "n1"}])
+    with db.conn() as c:  # simulate an old row with no name at all
+        c.execute("INSERT INTO transactions (date,category,amount,kind,note,merchant) "
+                  "VALUES ('2025-03-07','food',3,'expense','Corner shop','')")
+    names = {t["merchant"] for t in db.list_transactions("2025-03")}
+    assert names == {"Fun", "Corner shop"}

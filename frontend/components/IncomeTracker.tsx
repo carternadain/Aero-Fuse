@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Coins } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { api } from "@/lib/api";
 import { fmtCents, isHidden } from "@/lib/privacy";
@@ -29,8 +28,7 @@ export default function IncomeTracker() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Coins size={14} />Dividend Income</span>
-        <span className="text-[10px] text-faint">next 12 months, estimated</span>
+        <span className="text-[11px] text-dim">Next 12 months, estimated</span>
       </div>
       {!d ? (
         <div className="p-4 space-y-3">{err ? <p className="text-xs text-dim">Couldn&apos;t load dividend data.</p> : <><Skeleton className="h-10 w-48" /><Skeleton className="h-28" /></>}</div>

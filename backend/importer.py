@@ -266,7 +266,37 @@ _TRANSFER = re.compile(
 _INCOME = re.compile(
     r"\b(payroll|direct\s?dep\w*|salary|paycheck|pay check|interest (?:paid|payment|earned|credit)|"
     r"int(?:erest)? pd|dividend|div(?:idend)? pmt|bonus|tax refund|irs treas|gusto|adp|"
-    r"cashback|cash back reward|reimbursement|refund)\b", re.I)
+    r"cashback|cash back reward|reimbursement)\b", re.I)
+
+# Genuine income that merely mentions "refund" (a tax refund is income, not negative spending).
+_TAX_REFUND = re.compile(r"\b(tax\s+ref(?:und)?|irs\s+treas\w*|state\s+tax|fed(?:eral)?\s+tax|treas\s+\d*\s*tax)\b", re.I)
+# A merchant giving money back: counts as negative spending in the category it came from.
+_REFUND = re.compile(
+    r"\b(refunds?|refunded|returns?|returned|reversal|merch(?:andise)?\s+ret(?:urn)?|purchase\s+adj\w*)\b", re.I)
+_NOT_REFUND = re.compile(r"\b(ach\s+return|returned\s+(?:check|item|payment|deposit)|return\s+of\s+principal)\b", re.I)
+
+
+def is_refund(text: str) -> bool:
+    """True when statement text describes a merchant refund (not a tax refund / income)."""
+    t = text or ""
+    return bool(_REFUND.search(t)) and not _TAX_REFUND.search(t) and not _NOT_REFUND.search(t) \
+        and not _INCOME.search(t)
+
+
+def guess_expense_category(text: str) -> str:
+    for cat, rx in _EXPENSE_RX:
+        if rx.search(text.lower()):
+            return cat
+    return "other"
+
+
+def display_name(merchant: str | None, raw: str | None, category: str | None) -> str:
+    """A readable name for a transaction: merchant, else raw statement text, else the category."""
+    for cand in (merchant, raw):
+        c = re.sub(r"\s+", " ", cand or "").strip()
+        if c and c.lower() != "unknown":
+            return c
+    return _title((category or "").replace("_", " ")) or "Transaction"
 
 # order matters: first match wins ("uber eats" must hit food before transport)
 _EXPENSE_KEYWORDS: list[tuple[str, str]] = [
@@ -352,9 +382,19 @@ def build_preview(parsed: list[dict], rules: list[dict] | None = None, flip_sign
         amt = -r["amount"] if flip_sign else r["amount"]
         merchant = clean_merchant(r["description"])
         kind, category, transfer = categorize(merchant, r["description"], amt, rules)
+        refund = False
+        if amt > 0 and not transfer and kind == "income" and category == "income" \
+                and is_refund(f"{merchant} {r['description']}"):
+            # Money back from a merchant: negative spending in the category it likely had.
+            refund = True
+            kind, category = "expense", guess_expense_category(f"{merchant} {r['description']}")
+        elif amt > 0 and not transfer and kind == "expense" and category != "income" \
+                and is_refund(f"{merchant} {r['description']}"):
+            refund = True  # a user rule already filed it under a spending category
         out.append({
-            "date": r["date"], "description": r["description"], "merchant": merchant,
+            "date": r["date"], "description": r["description"],
+            "merchant": display_name(merchant, r["description"], category),
             "amount": round(abs(amt), 2), "kind": kind, "category": category,
-            "transfer": transfer, "hash": h,
+            "transfer": transfer, "refund": refund, "hash": h,
         })
     return out

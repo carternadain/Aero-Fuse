@@ -77,7 +77,7 @@ export default function AllocationDonut({ filter, onFilter }: { filter: Section 
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-              <div className="text-[10px] text-faint">{focused ? SECTION_LABEL[focused.s] : "Total"}</div>
+              <div className="text-[10px] text-faint">{focused ? SECTION_LABEL[focused.s] : "Assets"}</div>
               <div className="text-[15px] font-extrabold text-txt tabular-nums leading-tight">
                 {focused ? `${focused.pct.toFixed(0)}%` : isHidden() ? "•••" : fmtCents(slices.total).replace(/\.\d\d$/, "")}
               </div>

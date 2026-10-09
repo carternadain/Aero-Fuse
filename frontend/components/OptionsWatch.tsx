@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, Target } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import type { OptionsStock } from "@/lib/types";
 import { api, fmtPrice, timeAgo } from "@/lib/api";
 import ScoreMeter from "./ScoreMeter";
@@ -38,10 +38,7 @@ export default function OptionsWatch() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title">
-          <Target size={14} /> Options Watch
-          <span className="panel-sub text-[10px] text-faint font-medium ml-1">signals + confluence</span>
-        </span>
+        <span className="text-[11px] text-dim">Signals + confluence</span>
         <button className="btn !py-1.5 !px-2" onClick={loadData} disabled={loading} title="Refresh">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         </button>

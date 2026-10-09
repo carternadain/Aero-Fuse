@@ -660,6 +660,7 @@ class ImportRowIn(BaseModel):
     kind: str = "expense"
     category: str
     hash: str | None = None
+    refund: bool | None = None  # None: work it out from the statement text
 
 
 class RuleIn(BaseModel):
@@ -1159,9 +1160,14 @@ def import_commit(body: ImportCommitIn):
             raise HTTPException(400, "Rule pattern can't be empty")
     for rule in body.remember:
         db.create_rule(rule.pattern, rule.category, rule.kind)
-    rows = [{"date": r.date, "merchant": r.merchant, "note": r.description, "amount": r.amount,
-             "kind": r.kind or ("income" if r.category == "income" else "expense"),
-             "category": r.category, "hash": r.hash} for r in body.rows]
+    rows = []
+    for r in body.rows:
+        kind = r.kind or ("income" if r.category == "income" else "expense")
+        refund = r.refund if r.refund is not None else importer.is_refund(f"{r.merchant} {r.description}")
+        # A refund is negative spending: store it signed so every Out total nets it off.
+        amount = -r.amount if (refund and kind == "expense" and r.category != "income") else r.amount
+        rows.append({"date": r.date, "merchant": r.merchant, "note": r.description, "amount": amount,
+                     "kind": kind, "category": r.category, "hash": r.hash})
     return db.insert_imported_transactions(rows)
 
 

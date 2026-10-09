@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Gauge, Hourglass, Plus, RefreshCw, Target, Trash2 } from "lucide-react";
+import { ChevronDown, Hourglass, Plus, RefreshCw, Target, Trash2 } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
 import { haptic, navigate, openTicker } from "@/lib/bus";
 import { fmtCents, isHidden } from "@/lib/privacy";
@@ -235,7 +235,7 @@ export default function ExitDesk() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Gauge size={14} />Exit Desk</span>
+        <span className="text-[12px] text-dim">How stretched each holding is</span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh"><RefreshCw size={12} className={loading ? "animate-spin" : ""} /></button>
       </div>
 

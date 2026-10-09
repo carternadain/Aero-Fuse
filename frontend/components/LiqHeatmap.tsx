@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Flame, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import Skeleton from "./Skeleton";
 
@@ -191,7 +191,7 @@ export default function LiqHeatmap() {
   return (
     <section className="panel">
       <div className="panel-head flex-wrap gap-2">
-        <span className="panel-title"><Flame size={14} />BTC Liquidation Heatmap</span>
+        <span className="text-[11px] text-dim">Bitcoin, leveraged positions</span>
         <div className="flex items-center gap-2">
           <div className="seg flex rounded-lg border border-edge2 text-[11px]">
             {RANGES.map(([k, l]) => (

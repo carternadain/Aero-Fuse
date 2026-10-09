@@ -336,10 +336,9 @@ export default function Dashboard() {
           <>
             <Section id="sec-wealth" title="Net Worth" accent="Accounts" hint="tap an account to expand · tap a row to edit">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                <div className="lg:col-span-7"><NetWorth /></div>
+                <div className="lg:col-span-7 space-y-3"><div id="sec-nwhistory" className="scroll-mt-20"><NetWorthHistory /></div><NetWorth /></div>
                 <div className="lg:col-span-5">
                   <Panes items={[
-                    { id: "sec-nwhistory", label: "Over time", node: <NetWorthHistory /> },
                     { id: "sec-risk", label: "Risk", node: <RiskRating /> },
                     { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
                     { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },

@@ -245,6 +245,7 @@ def migrate():
                 c.execute(f"ALTER TABLE transactions ADD COLUMN {name} {decl}")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_import_hash "
                   "ON transactions(import_hash) WHERE import_hash IS NOT NULL")
+        migrate_refunds(c)
         c.execute("""CREATE TABLE IF NOT EXISTS category_rules (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         pattern TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -255,6 +256,21 @@ def migrate():
                         merchant TEXT PRIMARY KEY COLLATE NOCASE,
                         status TEXT NOT NULL CHECK (status IN ('ignored','confirmed')),
                         updated_at TEXT)""")
+
+
+def migrate_refunds(c) -> int:
+    """Idempotent: imported 'income' rows that are really merchant refunds become negative
+    expenses in their best-guess category (so they reduce Out instead of inflating In)."""
+    import importer  # lazy: importer imports db
+    n = 0
+    for r in c.execute("SELECT id, amount, merchant, note FROM transactions WHERE source='import' "
+                       "AND kind='income' AND category='income' AND amount>0").fetchall():
+        text = f"{r['merchant'] or ''} {r['note'] or ''}"
+        if importer.is_refund(text):
+            c.execute("UPDATE transactions SET kind='expense', category=?, amount=? WHERE id=?",
+                      (importer.guess_expense_category(text), -r["amount"], r["id"]))
+            n += 1
+    return n
 
 
 def row_to_dict(row: sqlite3.Row) -> dict:
@@ -852,7 +868,15 @@ def create_transaction(data: dict) -> dict:
              data.get("kind", "expense"), data.get("note", ""), data.get("merchant", "") or ""),
         )
         row = c.execute("SELECT * FROM transactions WHERE id=?", (cur.lastrowid,)).fetchone()
-        return row_to_dict(row)
+        return _tx_out(row)
+
+
+def _tx_out(row) -> dict:
+    """Row -> dict with a guaranteed readable merchant name."""
+    d = row_to_dict(row)
+    from importer import display_name  # lazy: importer imports db
+    d["merchant"] = display_name(d.get("merchant"), d.get("note"), d.get("category"))
+    return d
 
 
 def list_transactions(month: str | None = None, limit: int = 500) -> list[dict]:
@@ -864,7 +888,7 @@ def list_transactions(month: str | None = None, limit: int = 500) -> list[dict]:
         else:
             rows = c.execute(
                 "SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT ?", (limit,)).fetchall()
-        return [row_to_dict(r) for r in rows]
+        return [_tx_out(r) for r in rows]
 
 
 def list_transactions_since(days: int = 800, limit: int = 20000) -> list[dict]:
@@ -873,7 +897,7 @@ def list_transactions_since(days: int = 800, limit: int = 20000) -> list[dict]:
     with conn() as c:
         rows = c.execute("SELECT * FROM transactions WHERE date >= ? ORDER BY date, id LIMIT ?",
                          (cutoff, limit)).fetchall()
-        return [row_to_dict(r) for r in rows]
+        return [_tx_out(r) for r in rows]
 
 
 def get_recurring_overrides() -> dict[str, str]:
@@ -902,7 +926,7 @@ def delete_transaction(tx_id: int) -> bool:
 def get_transaction(tx_id: int) -> dict | None:
     with conn() as c:
         row = c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone()
-        return row_to_dict(row) if row else None
+        return _tx_out(row) if row else None
 
 
 def existing_import_hashes(hashes: list[str]) -> set[str]:
@@ -919,6 +943,7 @@ def existing_import_hashes(hashes: list[str]) -> set[str]:
 
 def insert_imported_transactions(rows: list[dict]) -> dict:
     """Bulk insert statement rows; rows whose import_hash already exists are skipped."""
+    from importer import display_name  # lazy: importer imports db
     inserted = duplicates = 0
     with conn() as c:
         for r in rows:
@@ -927,7 +952,9 @@ def insert_imported_transactions(rows: list[dict]) -> dict:
                    (date, category, amount, kind, note, merchant, source, import_hash)
                    VALUES (?,?,?,?,?,?,'import',?)""",
                 (r["date"], r["category"], r["amount"], r.get("kind", "expense"),
-                 r.get("note", ""), r.get("merchant", ""), r.get("hash") or None))
+                 r.get("note", ""),
+                 display_name(r.get("merchant"), r.get("note"), r.get("category")),
+                 r.get("hash") or None))
             if cur.rowcount:
                 inserted += 1
             else:
@@ -941,7 +968,9 @@ def update_transaction_category(tx_id: int, category: str, kind: str | None = No
         cur = c.execute("UPDATE transactions SET category=?, kind=? WHERE id=?", (category, kind, tx_id))
         if not cur.rowcount:
             return None
-        return row_to_dict(c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone())
+        if kind == "income":  # a refund (negative expense) re-filed as income becomes plain income
+            c.execute("UPDATE transactions SET amount=ABS(amount) WHERE id=? AND amount<0", (tx_id,))
+        return _tx_out(c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone())
 
 
 def recategorize_by_pattern(pattern: str, category: str, kind: str | None = None) -> int:
@@ -1011,7 +1040,8 @@ def spending_by_month(months: list[str]) -> dict[str, dict[str, float]]:
                 FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
                 GROUP BY m, category""", months).fetchall()
     for r in rows:
-        out.setdefault(r["m"], {})[r["category"]] = r["total"]
+        # refunds are negative expenses; a category never shows below zero spent
+        out.setdefault(r["m"], {})[r["category"]] = max(0.0, r["total"])
     return out
 
 
@@ -1105,7 +1135,7 @@ def budget_summary(month: str) -> dict:
     limits = get_budgets()
     categories = [
         {"category": cat,
-         "spent": by_category.get(cat, 0),
+         "spent": max(0, by_category.get(cat, 0)),
          "limit": limits.get(cat)}
         for cat in sorted(set(by_category) | set(limits))
     ]

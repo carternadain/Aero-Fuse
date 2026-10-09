@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, BellOff, BellRing, Plus, Send, Smartphone, Trash2, X } from "lucide-react";
 import { api, fmtPrice, timeAgo } from "@/lib/api";
-import { haptic, on, openTicker, toast, type Kind } from "@/lib/bus";
+import { haptic, on, openTicker, toast, type Kind, type ToastPayload } from "@/lib/bus";
 import { disablePush, enablePush, pushState, pushSupport, type PushSupport } from "@/lib/push";
 
 interface Alert {
@@ -223,17 +223,27 @@ export default function AlertsCenter() {
 
 /** Small transient message at the top (alerts, stars, errors). */
 export function ToastHost() {
-  const [msg, setMsg] = useState<string | null>(null);
+  const [t, setT] = useState<ToastPayload | null>(null);
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    const off = on<string>("app:toast", (m) => { setMsg(m); clearTimeout(t); t = setTimeout(() => setMsg(null), 3500); });
-    return () => { off(); clearTimeout(t); };
+    let timer: ReturnType<typeof setTimeout>;
+    const off = on<string | ToastPayload>("app:toast", (m) => {
+      const p = typeof m === "string" ? { msg: m } : m;
+      setT(p); clearTimeout(timer); timer = setTimeout(() => setT(null), p.ms ?? 3500);
+    });
+    return () => { off(); clearTimeout(timer); };
   }, []);
-  if (!msg) return null;
+  if (!t) return null;
   return (
-    <div className="fixed top-[max(14px,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-[97] tab-enter max-w-[92vw]
-                    px-4 py-2.5 rounded-full border border-edge2 bg-panel/95 backdrop-blur shadow-xl text-[13px] font-bold text-txt truncate">
-      {msg}
+    <div role="status" className="fixed top-[max(14px,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-[97] tab-enter max-w-[92vw]
+                    flex items-center gap-3 pl-4 pr-2 py-1.5 min-h-10 rounded-full border border-edge2 bg-panel/95 backdrop-blur shadow-xl text-[13px] font-bold text-txt">
+      <span className="truncate">{t.msg}</span>
+      {t.action && (
+        <button className="shrink-0 min-h-10 px-3 rounded-full text-up hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-up"
+                onClick={() => { const a = t.action!; setT(null); a.run(); }}>
+          {t.action.label}
+        </button>
+      )}
+      {!t.action && <span className="w-2" aria-hidden />}
     </div>
   );
 }

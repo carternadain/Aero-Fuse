@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronDown, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { budgetChanged, onBudgetChanged, toast } from "@/lib/bus";
@@ -126,8 +126,7 @@ export default function MonthlyBudget() {
 
   return (
     <section className="panel flex flex-col">
-      <div className="panel-head">
-        <span className="panel-title"><Target size={14} />Monthly budget</span>
+      <div className="panel-head !justify-end">
         <div className="flex items-center gap-1.5">
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Previous month"
                   onClick={() => setMonth(monthShift(month, -1))}>

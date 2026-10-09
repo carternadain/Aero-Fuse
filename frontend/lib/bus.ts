@@ -19,7 +19,10 @@ export function on<T>(name: string, fn: (d: T) => void): () => void {
 export const navigate = (t: NavTarget) => emit("app:nav", t);
 /** Open the ticker sheet: live chart, why-it's-listed, star and alert. */
 export const openTicker = (t: TickerTarget) => emit("app:ticker", t);
-export const toast = (msg: string) => emit("app:toast", msg);
+export interface ToastAction { label: string; run: () => void }
+export interface ToastPayload { msg: string; action?: ToastAction; ms?: number }
+export const toast = (msg: string, action?: ToastAction) =>
+  emit<ToastPayload>("app:toast", action ? { msg, action, ms: 5500 } : { msg });
 export const openSearch = () => emit("app:search", null);
 export const openAlerts = (prefill?: { symbol: string; kind?: Kind; price?: number }) => emit("app:alerts", prefill ?? null);
 export const openReport = (month?: string) => emit("app:report", month ?? null);
@@ -44,4 +47,11 @@ export function scrollToId(id: string) {
     if (top > 140 || top < 0) el.scrollIntoView({ block: "start" });
   }, 900);
   return true;
+}
+
+/** "Oct 9" from an ISO date (YYYY-MM-DD...). Parsed as a local date so it never slips a day. */
+export function fmtShortDate(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

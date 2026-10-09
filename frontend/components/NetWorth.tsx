@@ -6,7 +6,6 @@ import {
   ChevronDown, ChevronRight, Plus, TrendingUp, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import NetWorthChart from "./NetWorthChart";
 import { fmtQty, isHidden, MASK } from "@/lib/privacy";
 import { askConfirm, askText } from "./DialogHost";
 
@@ -187,7 +186,7 @@ export default function NetWorth() {
   return (
     <section className="panel flex flex-col">
       <div className="panel-head">
-        <span className="panel-title"><Wallet size={14} />Net Worth</span>
+        <span className="panel-title"><Wallet size={14} />Accounts</span>
         <div className="flex items-center gap-2">
           <button className="btn !py-1" onClick={snapshot} title="Record today's net worth on the chart">
             <Camera size={12} />Snap
@@ -198,8 +197,9 @@ export default function NetWorth() {
         </div>
       </div>
 
-      <div className="px-3 pt-3 pb-1">
-        <NetWorthChart height={170} />
+      <div className="flex items-baseline justify-between px-3 py-2.5 border-b border-edge/60">
+        <span className="text-[11px] text-dim">Assets <span className="text-faint">· before debts</span></span>
+        <span className="text-[15px] font-bold tabular-nums text-txt">{fmtUsd(totals.assets)}</span>
       </div>
 
       {adding && (

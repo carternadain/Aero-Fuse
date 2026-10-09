@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Briefcase, Plus, X } from "lucide-react";
+import { Briefcase, Plus } from "lucide-react";
 import type { Position } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
-import { askConfirm, askText } from "./DialogHost";
+import { askText } from "./DialogHost";
+import SwipeRow, { deferDelete } from "./SwipeRow";
 import { isHidden, MASK } from "@/lib/privacy";
 
 function pnl(p: Position, livePrice?: number): { pct: number | null; usd: number | null } {
@@ -27,6 +28,7 @@ export default function Portfolio({
   onChanged: () => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [hidden, setHidden] = useState<number[]>([]); // deleted, waiting out the Undo window
   const [f, setF] = useState({
     asset: "", kind: "crypto", qty: "", entry: "", current: "", strike: "", expiry: "", notes: "",
   });
@@ -55,16 +57,24 @@ export default function Portfolio({
     onChanged();
   };
 
-  const totalUsd = positions.reduce((sum, p) => sum + (pnl(p, prices[p.asset]).usd ?? 0), 0);
-  const crypto = positions.filter((p) => p.kind === "crypto");
-  const leaps = positions.filter((p) => p.kind === "leap");
+  const totalUsd = positions.filter((p) => !hidden.includes(p.id)).reduce((sum, p) => sum + (pnl(p, prices[p.asset]).usd ?? 0), 0);
+  const live = positions.filter((p) => !hidden.includes(p.id));
+  const crypto = live.filter((p) => p.kind === "crypto");
+  const leaps = live.filter((p) => p.kind === "leap");
 
   const Row = ({ p }: { p: Position }) => {
     const { pct, usd } = pnl(p, prices[p.asset]);
     const tone = (pct ?? 0) > 0 ? "text-up" : (pct ?? 0) < 0 ? "text-down" : "text-dim";
     return (
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
-           onClick={() => updateMark(p)} title="Click to update mark price">
+      <SwipeRow label="Delete position"
+                className="flex items-center gap-2 pl-3 pr-3 [@media(hover:hover)]:pr-1 min-h-11 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
+                onDelete={() => deferDelete({
+                  message: `${p.asset} removed`,
+                  hide: () => setHidden((h) => [...h, p.id]),
+                  restore: () => setHidden((h) => h.filter((i) => i !== p.id)),
+                  commit: () => api.del(`/api/positions/${p.id}`).then(() => { onChanged(); setHidden((h) => h.filter((i) => i !== p.id)); }),
+                })}>
+        <div className="contents" onClick={() => updateMark(p)} title="Click to update mark price">
         <span className="font-bold text-cyan w-12">{p.asset}</span>
         {p.kind === "leap" ? (
           <span className="text-dim text-[10px]">
@@ -81,10 +91,8 @@ export default function Portfolio({
             {isHidden() ? MASK : <>{usd >= 0 ? "+" : "−"}${Math.abs(usd).toLocaleString()}</>}
           </span>
         )}
-        <button className="icon-btn" onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${p.asset}?`).then((ok) => { if (ok) api.del(`/api/positions/${p.id}`).then(onChanged); }); }}>
-          <X size={12} />
-        </button>
-      </div>
+        </div>
+      </SwipeRow>
     );
   };
 

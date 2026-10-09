@@ -11,6 +11,8 @@ import { fmtCents } from "@/lib/privacy";
 interface PreviewRow {
   date: string; description: string; merchant: string; amount: number;
   kind: "income" | "expense"; category: string; transfer: boolean; duplicate: boolean; hash: string;
+  /** a merchant refund: files as negative spending in its category */
+  refund?: boolean;
 }
 interface Preview {
   rows: PreviewRow[];
@@ -117,7 +119,7 @@ export default function ImportStatement({ onClose, onDone }: { onClose: () => vo
       const res = await api.post<{ inserted: number; duplicates: number }>("/api/import/commit", {
         rows: selected.map((r) => ({
           date: r.date, merchant: r.merchant, description: r.description, amount: r.amount,
-          kind: r.kind, category: r.category, hash: r.hash,
+          kind: r.kind, category: r.category, hash: r.hash, refund: r.refund ?? false,
         })),
         remember,
       });
@@ -215,10 +217,11 @@ export default function ImportStatement({ onClose, onDone }: { onClose: () => vo
                       <span className="tabular-nums">{shortDate(r.date)}</span>
                       {r.duplicate && <span className="text-amber"> · already imported</span>}
                       {r.transfer && !r.duplicate && <span className="text-cyan"> · transfer</span>}
+                      {r.refund && !r.duplicate && <span className="text-up"> · refund</span>}
                     </div>
                   </div>
-                  <div className={`ml-auto shrink-0 text-[13px] font-bold tabular-nums ${r.kind === "income" ? "text-up" : "text-down"}`}>
-                    {r.kind === "income" ? "+" : "−"}{fmtCents(r.amount)}
+                  <div className={`ml-auto shrink-0 text-[13px] font-bold tabular-nums ${r.kind === "income" || r.refund ? "text-up" : "text-down"}`}>
+                    {r.kind === "income" || r.refund ? "+" : "−"}{fmtCents(Math.abs(r.amount))}
                   </div>
                   <div className="w-full sm:w-36 shrink-0">
                     <select className="field !h-10 !text-[13px]" value={r.category}

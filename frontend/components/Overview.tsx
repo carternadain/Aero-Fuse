@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { riskColor, type RiskReport } from "./RiskRating";
 import { TABS, type TabKey } from "./TabNav";
-import NetWorthChart from "./NetWorthChart";
+import NetWorthHistory from "./NetWorthHistory";
 import HomePortfolio from "./HomePortfolio";
 import PortfolioHeatmap from "./PortfolioHeatmap";
 import WeekRecap from "./WeekRecap";
@@ -117,7 +117,7 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
   const moneyItems: Pane[] = [];
   if (on("chart")) moneyItems.push({
     id: "sec-networth", label: "Net worth", span: "lg:col-span-12",
-    node: <section className="panel p-4 sm:p-5"><NetWorthChart /></section>,
+    node: <NetWorthHistory />,
   });
   if (showHeat) moneyItems.push({
     id: "sec-heatmap", label: "Today's map", span: showAlloc ? "lg:col-span-7" : "lg:col-span-12",
