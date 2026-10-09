@@ -26,6 +26,7 @@ import TradeCalendar from "@/components/TradeCalendar";
 import Goals from "@/components/Goals";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
+import ExitDesk from "@/components/ExitDesk";
 import StatsBar from "@/components/StatsBar";
 import NewsFeed from "@/components/NewsFeed";
 import TradeTracker from "@/components/TradeTracker";
@@ -232,6 +233,7 @@ export default function Dashboard() {
           <>
             <SectionDivider title="Trading" accent="Desk" hint="signals · trades · levels" />
             <StatsBar stats={stats} edge={edge} />
+            <div id="sec-exits" className="scroll-mt-28"><ExitDesk /></div>
             <div id="sec-riskdesk" className="scroll-mt-28"><RiskDesk trades={trades} /></div>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
               <div className="lg:col-span-4">

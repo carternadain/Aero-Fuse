@@ -37,6 +37,7 @@ import db
 import econ_calendar
 import extras
 import liqmap
+import exits
 import market_data
 import news
 import risk
@@ -339,6 +340,26 @@ def price_alert_loop():
         time.sleep(PRICE_ALERT_INTERVAL)
 
 
+EXIT_RULE_INTERVAL = 10 * 60
+
+
+def exit_rule_loop():
+    """Exit Desk rules (take-profit tiers, stops, trailing, heat line) -> one push per new hit."""
+    print("[exits] rule checker started")
+    time.sleep(90)  # let the warmers fill caches first
+    while True:
+        try:
+            if exits.rules():
+                def notify(title, body, tag):
+                    extras.send_push(title, body, url="/#trading", tag=f"exit-{tag}")
+                    if TELEGRAM_BOT_TOKEN:
+                        tg_send(f"🎯 *{title}*")
+                exits.check_rules(valued_holdings()["holdings"], notify)
+        except Exception as e:
+            print(f"[exits] rule check error: {e}")
+        time.sleep(EXIT_RULE_INTERVAL)
+
+
 # ── Cache warmer ──────────────────────────────────────────
 # Refreshes every dataset before its cache expires, so page loads never wait on
 # Yahoo / CoinGecko / news feeds. (Cold, Swing Ideas took ~14s and earnings ~18s.)
@@ -358,7 +379,7 @@ WARM_TIERS = [
                              lambda: markets_options_watch(), lambda: markets_earnings(),
                              lambda: get_portfolio_chart("3M"), lambda: get_portfolio_chart("1Y"),
                              lambda: get_portfolio_chart("5Y"), lambda: get_income(),
-                             lambda: get_holdings_news()]),
+                             lambda: get_holdings_news(), lambda: get_exit_desk()]),
     # live: LIVE TTL 90s -> 0.4×90 + 40 + ~3s ≈ 79s
     ("live", 40, 0.4, [lambda: get_portfolio_chart("LIVE")]),
     # liquidation heatmap: 24h TTL 120s -> 0.5×120 + 60 ≈ 120s; 3d/1w have longer TTLs
@@ -400,6 +421,7 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
     threading.Thread(target=price_alert_loop, daemon=True).start()
+    threading.Thread(target=exit_rule_loop, daemon=True).start()
     for label, every, factor, jobs in WARM_TIERS:
         threading.Thread(target=cache_warmer_loop, args=(label, every, factor, jobs), daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
@@ -1456,6 +1478,33 @@ def get_liqmap(range: str = "24h"):
     if range not in liqmap.RANGES:
         raise HTTPException(400, f"range one of {list(liqmap.RANGES)}")
     return liqmap.heatmap(range)
+
+
+class ExitRuleIn(BaseModel):
+    key: str
+    rule: dict | None = None
+
+
+@app.get("/api/exits")
+def get_exit_desk():
+    return exits.desk(valued_holdings()["holdings"])
+
+
+@app.put("/api/exits/rule")
+def put_exit_rule(body: ExitRuleIn):
+    r = body.rule
+    if r is not None:
+        tp = [{"pct": float(t["pct"]), "trim": float(t.get("trim") or 0)} for t in (r.get("tp") or [])
+              if isinstance(t, dict) and float(t.get("pct", 0)) > 0][:6]
+        clean = {"tp": tp}
+        for k in ("stop", "trail", "heat"):
+            if r.get(k) not in (None, ""):
+                clean[k] = float(r[k])
+        if "stop" in clean:
+            clean["stop"] = -abs(clean["stop"])
+        r = clean if (tp or len(clean) > 1) else None
+    exits.set_rule(body.key, r)
+    return {"rules": exits.rules()}
 
 
 @app.get("/api/income")

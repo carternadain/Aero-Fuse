@@ -35,6 +35,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["News for my holdings", "news", undefined, "sec-news", "headlines"],
   ["Earnings calendar", "news", undefined, "sec-earnings", ""],
   ["Economic calendar", "news", undefined, "sec-econ", "fed cpi fomc jobs"],
+  ["Exit desk (take profit / heat)", "trading", undefined, "sec-exits", "sell overheated overbought profit stop trim options decay"],
   ["Trade log", "trading", undefined, "sec-trades", "journal"],
   ["Trading calendar & streaks", "trading", undefined, "sec-tradecal", "p&l pnl win rate"],
   ["Risk desk", "trading", undefined, "sec-riskdesk", "position size"],
