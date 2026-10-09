@@ -18,9 +18,7 @@ export default function Section({ id, title, accent, hint, pro = false, children
     <section id={id} className="scroll-mt-28 space-y-3">
       <button className="section-divider w-full flex items-baseline gap-3 pt-3 text-left group"
               onClick={() => { haptic(); toggleCollapsed(id); }} aria-expanded={open}>
-        <h2 className="font-display text-[26px] leading-none text-txt">
-          {title} <em className="text-amber">{accent}</em>
-        </h2>
+        <h2 className="font-display text-[22px] leading-none text-txt">{title} {accent}</h2>
         {pro && <span className="text-[9px] font-bold tracking-widest text-faint border border-edge2 rounded px-1 py-px self-center">PRO</span>}
         <div className="flex-1 h-px bg-edge self-center" />
         {hint && open && <span className="hidden sm:inline text-[10px] text-faint font-medium">{hint}</span>}

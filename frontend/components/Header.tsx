@@ -81,11 +81,8 @@ export default function Header() {
       <div className="flex items-center gap-2.5 shrink-0">
         <span className="live-dot inline-block w-2 h-2 rounded-full bg-up" />
         <h1 className="font-display text-[20px] sm:text-[22px] leading-none text-txt whitespace-nowrap">
-          Swing <em className="text-up">Terminal</em>
+          Aero-Fuse
         </h1>
-        <span className="hidden xl:inline text-[10px] text-faint font-medium">
-          NeuroWave × Kryptonite
-        </span>
       </div>
 
       <div className="order-last sm:order-none basis-full sm:basis-auto sm:flex-1 min-w-0 flex items-center gap-4 overflow-x-auto [scrollbar-width:none]" data-noswipe>

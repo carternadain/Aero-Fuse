@@ -378,9 +378,11 @@ export default function Dashboard() {
           </>
         )}
 
-        <footer className="pb-4 pt-2 text-center text-[10px] text-faint font-medium">
-          Quality over quantity · Confluence + sweep + 2:1 RR minimum · 70% win rate target
-        </footer>
+        {tab === "trading" && (
+          <footer className="pb-4 pt-2 text-center text-[10px] text-faint font-medium">
+            Quality over quantity · Confluence + sweep + 2:1 RR minimum · 70% win rate target
+          </footer>
+        )}
       </main>
     </div>
   );
