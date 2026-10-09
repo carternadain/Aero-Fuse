@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, FileUp, PiggyBank, Plus, X } from "lucide-re
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { askText } from "./DialogHost";
-import { toast } from "@/lib/bus";
+import { budgetChanged, toast } from "@/lib/bus";
 import { ALL_CATS, EXPENSE_CATS, catLabel, errorText } from "@/lib/categories";
 import ImportStatement from "./ImportStatement";
 
@@ -52,6 +52,8 @@ export default function BudgetTracker() {
 
   const refresh = () =>
     api.get<BudgetSummary>(`/api/budget/summary?month=${month}`).then(setSum).catch(() => {});
+  // Anything that changes transactions also tells the bills panel next to us.
+  const changed = () => { refresh(); budgetChanged(); };
 
   useEffect(() => { refresh(); }, [month]);
 
@@ -61,7 +63,7 @@ export default function BudgetTracker() {
     await api.post("/api/transactions", { ...f, amount, category: f.kind === "income" ? "income" : f.category });
     setF({ ...f, amount: "", note: "" });
     setAdding(false);
-    refresh();
+    changed();
   };
 
   const setLimit = async (category: string, current: number | null) => {
@@ -88,7 +90,7 @@ export default function BudgetTracker() {
       });
       toast(res.updated ? `Updated ${res.updated + 1} transactions` : "Category updated");
       setEditId(null);
-      refresh();
+      changed();
     } catch (e) {
       toast(errorText(e, "Couldn't change that category."));
     }
@@ -245,7 +247,7 @@ export default function BudgetTracker() {
               </span>
               <button className="icon-btn h-10 w-10 justify-center focus-visible:outline-2 focus-visible:outline-up"
                       aria-label="Delete transaction"
-                      onClick={() => api.del(`/api/transactions/${t.id}`).then(refresh)}>
+                      onClick={() => api.del(`/api/transactions/${t.id}`).then(changed)}>
                 <X size={14} />
               </button>
             </div>
@@ -281,7 +283,7 @@ export default function BudgetTracker() {
         ))}
       </div>
 
-      {importing && <ImportStatement onClose={() => setImporting(false)} onDone={refresh} />}
+      {importing && <ImportStatement onClose={() => setImporting(false)} onDone={changed} />}
     </section>
   );
 }

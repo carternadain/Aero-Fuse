@@ -39,6 +39,7 @@ import db
 import econ_calendar
 import extras
 import importer
+import recurring
 import liqmap
 import exits
 import brief
@@ -658,6 +659,10 @@ class ImportCommitIn(BaseModel):
     remember: list[RuleIn] = []
 
 
+class RecurringIn(BaseModel):
+    status: str | None = None
+
+
 class TransactionPatch(BaseModel):
     category: str
     kind: str | None = None
@@ -1142,6 +1147,23 @@ def patch_transaction(tx_id: int, body: TransactionPatch):
         if body.apply_to_existing:
             updated = db.recategorize_by_pattern(tx["merchant"], body.category, tx["kind"])
     return {"transaction": tx, "rule": rule, "updated": updated}
+
+
+@app.get("/api/recurring")
+def get_recurring():
+    from datetime import date
+    return recurring.detect(db.list_transactions_since(800), date.today(), db.get_recurring_overrides())
+
+
+@app.put("/api/recurring/{merchant:path}")
+def put_recurring(merchant: str, body: RecurringIn):
+    if body.status not in (None, "ignored", "confirmed"):
+        raise HTTPException(400, "status must be ignored, confirmed or null")
+    merchant = merchant.strip()
+    if not merchant:
+        raise HTTPException(400, "Merchant can't be empty")
+    db.set_recurring_override(merchant, body.status)
+    return {"merchant": merchant, "status": body.status}
 
 
 @app.delete("/api/transactions/{tx_id}")

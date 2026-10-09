@@ -7,7 +7,7 @@ API the frontend uses — nothing here assumes a human is on the other end.
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "terminal.db"
@@ -244,6 +244,10 @@ def migrate():
                         category TEXT NOT NULL,
                         kind TEXT,
                         created_at TEXT)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS recurring_overrides (
+                        merchant TEXT PRIMARY KEY COLLATE NOCASE,
+                        status TEXT NOT NULL CHECK (status IN ('ignored','confirmed')),
+                        updated_at TEXT)""")
 
 
 def row_to_dict(row: sqlite3.Row) -> dict:
@@ -825,6 +829,32 @@ def list_transactions(month: str | None = None, limit: int = 500) -> list[dict]:
             rows = c.execute(
                 "SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT ?", (limit,)).fetchall()
         return [row_to_dict(r) for r in rows]
+
+
+def list_transactions_since(days: int = 800, limit: int = 20000) -> list[dict]:
+    """Everything from the last `days` days, oldest first (for the recurring detector)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    with conn() as c:
+        rows = c.execute("SELECT * FROM transactions WHERE date >= ? ORDER BY date, id LIMIT ?",
+                         (cutoff, limit)).fetchall()
+        return [row_to_dict(r) for r in rows]
+
+
+def get_recurring_overrides() -> dict[str, str]:
+    with conn() as c:
+        return {r["merchant"]: r["status"] for r in
+                c.execute("SELECT merchant, status FROM recurring_overrides").fetchall()}
+
+
+def set_recurring_override(merchant: str, status: str | None) -> None:
+    with conn() as c:
+        if status is None:
+            c.execute("DELETE FROM recurring_overrides WHERE merchant=?", (merchant,))
+        else:
+            c.execute("""INSERT INTO recurring_overrides (merchant, status, updated_at) VALUES (?,?,?)
+                         ON CONFLICT(merchant) DO UPDATE SET status=excluded.status,
+                                                             updated_at=excluded.updated_at""",
+                      (merchant, status, utcnow()))
 
 
 def delete_transaction(tx_id: int) -> bool:
