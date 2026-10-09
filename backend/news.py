@@ -15,8 +15,9 @@ MACRO_QUERY = "Federal Reserve OR FOMC OR CPI inflation OR jobs report market"
 
 
 def _from_cache(key: str) -> list[dict] | None:
+    from market_data import ttl_factor  # warmer refreshes early (see market_data.refreshing)
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < CACHE_TTL:
+    if hit and time.time() - hit[0] < CACHE_TTL * ttl_factor.get():
         return hit[1]
     return None
 

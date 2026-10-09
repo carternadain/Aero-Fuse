@@ -8,7 +8,9 @@ the whole screen.
 
 from __future__ import annotations
 
+import contextvars
 import time
+from contextlib import contextmanager
 
 import requests
 
@@ -17,10 +19,24 @@ import scoring
 # ── tiny TTL cache (key → (stored_at, value)) ─────────────
 _cache: dict[str, tuple[float, object]] = {}
 
+# The background warmer (main.cache_warmer_loop) runs with a factor < 1, so it treats
+# entries as stale *before* users would and refetches them first. Users then always
+# read a warm cache instead of waiting on Yahoo/CoinGecko themselves.
+ttl_factor: contextvars.ContextVar[float] = contextvars.ContextVar("ttl_factor", default=1.0)
+
+
+@contextmanager
+def refreshing(factor: float = 0.75):
+    tok = ttl_factor.set(factor)
+    try:
+        yield
+    finally:
+        ttl_factor.reset(tok)
+
 
 def _get(key: str, ttl: float):
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < ttl:
+    if hit and time.time() - hit[0] < ttl * ttl_factor.get():
         return hit[1]
     return None
 
@@ -437,14 +453,14 @@ def spot_price(symbol: str) -> float | None:
 
 
 def live_quote(symbol: str, kind: str) -> dict:
-    """Live price + 24h/1D % change for a holding. Cached 60s.
+    """Live price + 24h/1D % change for a holding. Cached 2 min (kept warm in the background).
 
     Crypto: Coinbase Exchange 24h stats (last vs 24h open). Stocks: yfinance
     fast_info (last vs previous close).
     """
     sym = symbol.upper()
     key = f"live:{kind}:{sym}"
-    cached = _get(key, 60)
+    cached = _get(key, 120)
     if cached is not None:
         return cached  # type: ignore[return-value]
 

@@ -13,6 +13,7 @@ Brings together:
 import json
 import os
 import threading
+import contextvars
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -318,6 +319,42 @@ def networth_snapshot_loop():
         time.sleep(NETWORTH_INTERVAL)
 
 
+# ── Cache warmer ──────────────────────────────────────────
+# Refreshes every dataset before its cache expires, so page loads never wait on
+# Yahoo / CoinGecko / news feeds. (Cold, Swing Ideas took ~14s and earnings ~18s.)
+
+WARM_TIERS = [
+    # (every N seconds, label, jobs)
+    (90, "holdings", [lambda: valued_holdings()]),
+    (240, "markets", [lambda: markets_crypto(), lambda: markets_top_buys(), lambda: markets_narratives(),
+                      lambda: context_crypto(), lambda: get_news(refresh=False)]),
+    (900, "screeners", [lambda: markets_discover(), lambda: markets_stocks(),
+                        lambda: markets_options_watch(), lambda: markets_earnings()]),
+]
+
+
+def cache_warmer_loop():
+    print("[warm] cache warmer started")
+    last = {label: 0.0 for _, label, _ in WARM_TIERS}
+    while True:
+        now = time.time()
+        for every, label, jobs in WARM_TIERS:
+            if now - last[label] < every:
+                continue
+            last[label] = now
+            t0 = time.time()
+            with market_data.refreshing(0.75):
+                for job in jobs:
+                    try:
+                        job()
+                    except Exception as e:
+                        print(f"[warm] {label} job error: {e}")
+            took = time.time() - t0
+            if took > 2:
+                print(f"[warm] {label} refreshed in {took:.1f}s")
+        time.sleep(15)
+
+
 # ── App setup ─────────────────────────────────────────────
 
 @asynccontextmanager
@@ -332,6 +369,7 @@ async def lifespan(app: FastAPI):
         print("[auth] WEBHOOK_SECRET not set — /webhook will reject all alerts")
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
+    threading.Thread(target=cache_warmer_loop, daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
         threading.Thread(target=telegram_poll_loop, daemon=True).start()
         threading.Thread(target=score_alert_loop, daemon=True).start()
@@ -662,8 +700,10 @@ def option_display(occ: str) -> str:
 def valued_holdings() -> dict:
     """Every holding marked to live prices, plus portfolio-level totals."""
     rows = db.list_holdings()
+    ctxs = [contextvars.copy_context() for _ in rows]  # carry the warmer's TTL factor into workers
     with ThreadPoolExecutor(max_workers=8) as pool:
-        quotes = list(pool.map(lambda h: market_data.live_quote(h["symbol"], h["kind"]), rows))
+        quotes = list(pool.map(lambda pair: pair[0].run(market_data.live_quote, pair[1]["symbol"], pair[1]["kind"]),
+                               zip(ctxs, rows)))
     out, value, prev_value, cost = [], 0.0, 0.0, 0.0
     for h, q in zip(rows, quotes):
         price = q["price"]
