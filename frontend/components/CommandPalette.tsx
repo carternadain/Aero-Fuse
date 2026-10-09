@@ -41,6 +41,9 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Trading calendar & streaks", "trading", undefined, "sec-tradecal", "p&l pnl win rate"],
   ["Risk desk", "trading", undefined, "sec-riskdesk", "position size"],
   ["Signals", "trading", undefined, "sec-signals", "tradingview alerts"],
+  ["Key levels", "trading", undefined, "sec-levels", "support resistance"],
+  ["Positions", "trading", undefined, "sec-positions", "holdings"],
+  ["Sim bot", "trading", undefined, "sec-simbot", "paper trading"],
   ["Edge analytics", "trading", undefined, "sec-analytics", "expectancy"],
   ["Goals", "wealth", undefined, "sec-goals", "target progress"],
   ["Net worth by account", "wealth", undefined, "sec-wealth", "edit balances"],
@@ -51,7 +54,8 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Stress test", "wealth", undefined, "sec-stress", "crash black swan"],
   ["Health check", "wealth", undefined, "sec-health", "free money irs limits emergency fund"],
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
-  ["FIRE & budget", "wealth", undefined, "sec-fire", "retire early spending"],
+  ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early"],
+  ["Budget", "wealth", undefined, "sec-budget", "spending expenses"],
 ];
 
 let indexCache: { tickers: IndexTicker[]; accounts: string[] } | null = null;
