@@ -43,7 +43,7 @@ export default function TabNav({
   return (
     <>
       {/* Desktop / tablet: underline tabs under the header */}
-      <nav className="hidden sm:block sticky top-[49px] z-30 bg-bg/85 backdrop-blur border-b border-edge">
+      <nav className="hidden sm:block sticky top-[var(--header-h,49px)] z-30 bg-bg/85 backdrop-blur border-b border-edge">
         <div className="max-w-[1800px] mx-auto flex items-center gap-1 px-4">
           {TABS.map(({ key, label, icon: Icon }) => {
             const on = active === key;

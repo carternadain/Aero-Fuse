@@ -19,11 +19,11 @@ export default function TickerEditor({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5 max-sm:gap-y-2.5">
       {symbols.map((s) => (
         <span
           key={s}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-panel2 border border-edge2 text-[11px] font-semibold text-dim"
+          className="inline-flex items-center gap-1 px-2 py-0.5 max-sm:min-h-8 max-sm:gap-3 rounded-md bg-panel2 border border-edge2 text-[11px] font-semibold text-dim"
         >
           {s}
           <button

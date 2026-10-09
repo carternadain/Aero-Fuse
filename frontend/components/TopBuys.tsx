@@ -41,7 +41,7 @@ export default function TopBuys() {
           <span className="text-[10px] text-faint font-medium ml-1">crypto + stocks, best long-term score first</span>
         </span>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-edge2 overflow-hidden text-[10px]">
+          <div className="seg flex rounded-lg border border-edge2 text-[10px]">
             {(["all", "crypto", "stock"] as const).map((f) => (
               <button
                 key={f}

@@ -45,13 +45,13 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
             <tr>
               <th className="px-2 py-2 text-left">Time</th>
               <th className="px-2 py-2 text-left">Asset</th>
-              <th className="px-2 py-2 text-left">Indicator</th>
+              <th className="px-2 py-2 text-left hidden sm:table-cell">Indicator</th>
               <th className="px-2 py-2 text-left">Dir</th>
               <th className="px-2 py-2 text-left hidden sm:table-cell">Conv</th>
               <th className="px-2 py-2 text-right hidden sm:table-cell">Price</th>
               <th className="px-2 py-2 text-left">AI</th>
               <th className="px-2 py-2 text-left">Status</th>
-              <th className="px-2 py-2" />
+              <th className="px-2 py-2 hidden sm:table-cell" />
             </tr>
           </thead>
           <tbody>
@@ -68,8 +68,11 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
                     {s.asset}
                     {confluencePairs.has(s.id) && <Flame size={11} className="text-amber" />}
                   </span>
+                  <span className={`sm:hidden block text-[9px] font-semibold ${s.indicator === "neurowave" ? "text-cyan" : "text-amber"}`}>
+                    {s.indicator.slice(0, 5).toUpperCase()}
+                  </span>
                 </td>
-                <td className="px-2 py-2">
+                <td className="px-2 py-2 hidden sm:table-cell">
                   <span className={s.indicator === "neurowave" ? "text-cyan" : "text-amber"}>
                     {s.indicator.slice(0, 5).toUpperCase()}
                   </span>
@@ -106,10 +109,13 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
                   ) : s.skip_reason ? (
                     <span className="text-dim" title={s.skip_reason}>SKIP · {s.skip_reason.slice(0, 18)}</span>
                   ) : (
-                    <span className="text-amber">NEW</span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="text-amber">NEW</span>
+                      <button className="btn !py-0.5 !px-2 sm:hidden" onClick={() => setSkipping(s)}>skip</button>
+                    </span>
                   )}
                 </td>
-                <td className="px-2 py-2 text-right whitespace-nowrap">
+                <td className="px-2 py-2 text-right whitespace-nowrap hidden sm:table-cell">
                   {!s.taken && !s.skip_reason && (
                     <button className="btn !py-0.5 !px-2" onClick={() => setSkipping(s)}>skip</button>
                   )}

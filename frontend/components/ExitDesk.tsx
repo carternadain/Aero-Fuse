@@ -84,12 +84,12 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
       </div>
       {r.tp.map((t, i) => (
         <div key={i} className="flex items-center gap-2">
-          <span className="text-dim w-20">Take profit</span>
-          <span className="text-faint">at +</span>
-          <input className="field !py-1 w-16" inputMode="decimal" value={t.pct}
+          <span className="text-dim w-8 sm:w-20 shrink-0"><span className="sm:hidden">TP{i + 1}</span><span className="hidden sm:inline">Take profit</span></span>
+          <span className="text-faint"><span className="hidden sm:inline">at </span>+</span>
+          <input className="field !py-1 max-sm:flex-1 sm:w-16 min-w-0" inputMode="decimal" value={t.pct}
                  onChange={(e) => setR({ ...r, tp: r.tp.map((x, j) => (j === i ? { ...x, pct: Number(e.target.value) } : x)) })} />
-          <span className="text-faint">% trim</span>
-          <input className="field !py-1 w-14" inputMode="decimal" value={t.trim}
+          <span className="text-faint whitespace-nowrap">% trim</span>
+          <input className="field !py-1 max-sm:flex-1 sm:w-14 min-w-0" inputMode="decimal" value={t.trim}
                  onChange={(e) => setR({ ...r, tp: r.tp.map((x, j) => (j === i ? { ...x, trim: Number(e.target.value) } : x)) })} />
           <span className="text-faint">%</span>
           <button className="icon-btn ml-auto" onClick={() => setR({ ...r, tp: r.tp.filter((_, j) => j !== i) })}><Trash2 size={12} /></button>

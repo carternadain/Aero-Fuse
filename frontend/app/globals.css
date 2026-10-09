@@ -218,18 +218,49 @@ main {
   .text-\[11px\] { font-size: 11.5px; }
 }
 
-/* Phones: give small icon buttons (×, +, edit) a finger-sized 32px hit area */
-@media (max-width: 639px) {
-  .icon-btn {
-    min-width: 32px;
-    min-height: 32px;
-    justify-content: center;
-    margin: -6px;
+/* Segmented control: the end buttons carry the rounding, so the group needn't clip
+   (clipping would also cut off the phone hit areas below) */
+.seg > :first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
+.seg > :last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
+
+/* Phones: every tap target gets at least a 40×40px hit area.
+   Buttons keep their visual size; an invisible ::after grows the touch box around them.
+   (In @layer base so Tailwind's absolute / fixed utilities still win over position: relative.) */
+@layer base {
+  @media (max-width: 639px) {
+    button, [role="button"] { position: relative; }
   }
 }
 @media (max-width: 639px) {
+  button::after, [role="button"]::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 40px);
+    height: max(100%, 40px);
+    transform: translate(-50%, -50%);
+  }
+  .icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+    margin: -10px; /* same footprint in the layout as the bare 20px icon */
+  }
+  /* Header buttons sit edge to edge, so give them their full 40px box instead */
+  .header-tools .icon-btn { width: 40px; height: 40px; margin: 0; }
   .btn { min-height: 32px; min-width: 32px; }
   .chip-tap { padding-top: 6px; padding-bottom: 6px; }
+  /* Wrapping rows of chips: tall enough, and far enough apart that neighbours' hit areas don't overlap */
+  .flex-wrap > button { min-height: 32px; min-width: 40px; }
+  .flex-wrap:has(> button) { row-gap: 10px; }
+  .seg > button { min-width: 40px; }
+  /* List rows that end in a × / edit icon: tall enough that stacked rows' icons don't share a finger */
+  div.flex:has(> .icon-btn:last-child) { min-height: 40px; }
+  /* Inputs can't carry a ::after, so they get real height. 16px text also stops iOS zooming in on focus. */
+  .field { min-height: 40px; font-size: 16px; }
+  select.field { padding-top: 0; padding-bottom: 0; }
+  input[type="range"] { height: 40px; }
 }
 
 /* ── Motion ─────────────────────────────────────────────── */

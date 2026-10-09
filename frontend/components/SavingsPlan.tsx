@@ -256,7 +256,7 @@ export default function SavingsPlan() {
       <div className="border-t border-edge p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-bold tracking-widest text-dim">IF YOU KEEP THIS UP</span>
-          <div className="flex rounded-md border border-edge2 overflow-hidden text-[10px]">
+          <div className="seg flex rounded-md border border-edge2 text-[10px]">
             {[4, 7, 10].map((p) => (
               <button key={p} onClick={() => setRet(p)}
                       className={`chip-tap px-2 py-0.5 font-bold ${ret === p ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>

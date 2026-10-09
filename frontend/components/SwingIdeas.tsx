@@ -86,7 +86,7 @@ export default function SwingIdeas() {
           </span>
         </span>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-edge2 overflow-hidden text-[10px]">
+          <div className="seg flex rounded-lg border border-edge2 text-[10px]">
             {SORTS.map((s) => (
               <button
                 key={s.key}
@@ -172,7 +172,7 @@ export default function SwingIdeas() {
               </div>
               <StarButton symbol={s.symbol} kind="stock" size={13} />
               <button
-                className="icon-btn w-7 flex justify-center"
+                className="icon-btn w-7 flex justify-center max-sm:!ml-2"
                 disabled={s.watched}
                 title={s.watched ? "In Options Watch" : "Add to Options Watch"}
                 onClick={(e) => {

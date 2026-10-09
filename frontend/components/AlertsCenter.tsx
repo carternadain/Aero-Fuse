@@ -159,7 +159,7 @@ export default function AlertsCenter() {
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
                 <input className="field uppercase" placeholder="Ticker" value={form.symbol}
                        onChange={(e) => setForm({ ...form, symbol: e.target.value, kind: undefined })} />
-                <div className="flex rounded-lg border border-edge2 overflow-hidden text-[12px] font-bold">
+                <div className="seg flex rounded-lg border border-edge2 text-[12px] font-bold">
                   {(["above", "below"] as const).map((o) => (
                     <button key={o} onClick={() => setForm({ ...form, op: o })}
                             className={`px-3 ${form.op === o ? "bg-panel2 text-up" : "text-dim"}`}>{o === "above" ? "≥ Above" : "≤ Below"}</button>

@@ -37,7 +37,7 @@ export default function SectorMap() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><LayoutGrid size={14} />Sector Map</span>
-        <div className="flex rounded-lg border border-edge2 overflow-hidden text-[10px]">
+        <div className="seg flex rounded-lg border border-edge2 text-[10px]">
           {PERIODS.map(([k, l]) => (
             <button key={k} onClick={() => setP(k)} className={`px-2.5 py-1 font-bold ${p === k ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>{l}</button>
           ))}

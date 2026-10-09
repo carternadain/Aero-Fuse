@@ -57,7 +57,7 @@ export default function CompareChart() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><GitCompareArrows size={14} />Compare</span>
-        <div className="flex rounded-lg border border-edge2 overflow-hidden text-[10px]">
+        <div className="seg flex rounded-lg border border-edge2 text-[10px]">
           {RANGES.map((r) => (
             <button key={r} onClick={() => setRange(r)}
                     className={`px-2.5 py-1 font-bold ${range === r ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>{r}</button>
@@ -68,9 +68,9 @@ export default function CompareChart() {
         {syms.map((s) => {
           const i = order.indexOf(s);
           return (
-            <span key={s} className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg border border-edge2 text-[12px] font-bold text-txt">
+            <span key={s} className="flex items-center gap-1 max-sm:gap-3 pl-2 pr-1 py-1 max-sm:py-2.5 rounded-lg border border-edge2 text-[12px] font-bold text-txt">
               <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i >= 0 ? i : syms.indexOf(s)] }} />
-              <button onClick={() => openTicker({ symbol: s })}>{s}</button>
+              <button className="max-sm:min-w-10" onClick={() => openTicker({ symbol: s })}>{s}</button>
               <span className="tabular-nums text-dim font-semibold ml-0.5">
                 {shown?.[s] != null ? `${shown[s] >= 0 ? "+" : ""}${shown[s].toFixed(1)}%` : ""}
               </span>

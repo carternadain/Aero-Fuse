@@ -215,7 +215,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-panel2 text-[9px] uppercase tracking-widest text-dim">
             <tr>
-              <th className="px-2 py-2 text-left">#</th>
+              <th className="px-2 py-2 text-left hidden sm:table-cell">#</th>
               <th className="px-2 py-2 text-left">Asset</th>
               <th className="px-2 py-2 text-left">Dir</th>
               <th className="px-2 py-2 text-right">Entry</th>
@@ -225,7 +225,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
               <th className="px-2 py-2 text-left hidden sm:table-cell">Source</th>
               <th className="px-2 py-2 text-right">P&L</th>
               <th className="px-2 py-2 text-left">Status</th>
-              <th className="px-2 py-2" />
+              <th className="px-2 py-2 hidden sm:table-cell" />
             </tr>
           </thead>
           <tbody>
@@ -238,7 +238,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                   className="border-t border-edge hover:bg-panel2 cursor-pointer"
                   onClick={() => setExpanded(expanded === t.id ? null : t.id)}
                 >
-                  <td className="px-2 py-2 text-faint">{t.id}</td>
+                  <td className="px-2 py-2 text-faint hidden sm:table-cell">{t.id}</td>
                   <td className="px-2 py-2 font-bold text-cyan">{t.asset}</td>
                   <td className={`px-2 py-2 font-bold ${t.direction === "long" ? "text-up" : "text-down"}`}>
                     <span className="inline-flex items-center gap-0.5">
@@ -272,7 +272,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                       {t.status.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-2 text-right whitespace-nowrap hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                     {t.status !== "closed" && (
                       <button className="btn !py-1 !px-2 mr-1" title="Close / partial" onClick={() => setClosing(t)}>
                         <X size={11} />
@@ -305,6 +305,13 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                         </div>
                       )}
                       {t.notes && <div className="pt-1 italic">“{t.notes}”</div>}
+                      {/* Phones: the row's action buttons don't fit as a column, so they live here */}
+                      <div className="sm:hidden flex gap-2 pt-2">
+                        {t.status !== "closed" && (
+                          <button className="btn" onClick={() => setClosing(t)}><X size={12} />Close / partial</button>
+                        )}
+                        <button className="btn hover:!text-down hover:!border-down" onClick={() => del(t.id)}><Trash2 size={12} />Delete #{t.id}</button>
+                      </div>
                     </td>
                   </tr>
                 )}
