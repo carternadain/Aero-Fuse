@@ -175,9 +175,9 @@ export default function CommandPalette() {
                       pt-[env(safe-area-inset-top)] max-h-[100dvh] sm:max-h-[70vh] flex flex-col">
         <div className="flex items-center gap-2 px-4 border-b border-edge">
           <Search size={16} className="text-faint shrink-0" />
-          <input ref={input} value={q} onChange={(e) => setQ(e.target.value)}
+          <input ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} value={q} onChange={(e) => setQ(e.target.value)}
                  placeholder="Search tickers, accounts, sections…"
-                 className="flex-1 bg-transparent py-4 text-[15px] text-txt placeholder:text-faint outline-none"
+                 className="flex-1 bg-transparent py-4 text-base sm:text-[15px] text-txt placeholder:text-faint outline-none"
                  onKeyDown={(e) => {
                    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(results.length - 1, s + 1)); }
                    else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }

@@ -42,7 +42,7 @@ export default function StockScreener() {
       <div className="panel-head">
         <span className="panel-title">
           <LineChart size={14} /> Tech Stock Screener
-          <span className="text-[10px] text-faint font-medium ml-1">long-term buy / overbought</span>
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">long-term buy / overbought</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={loadScores} disabled={loading} title="Refresh">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />

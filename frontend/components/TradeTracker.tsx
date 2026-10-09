@@ -66,28 +66,46 @@ function TradeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center bg-black/70 p-4 overflow-y-auto" onClick={onCancel}>
       <div className="panel w-full max-w-lg p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="panel-title">New Trade</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <input className="field" placeholder="Asset" value={f.asset} onChange={(e) => set("asset", e.target.value.toUpperCase())} />
-          <select className="field" value={f.direction} onChange={(e) => set("direction", e.target.value)}>
-            <option value="long">LONG</option><option value="short">SHORT</option>
-          </select>
-          <select className="field" value={f.signal_source} onChange={(e) => set("signal_source", e.target.value)}>
-            {SOURCES.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-          </select>
-          <input className="field" placeholder="Risk %" value={f.risk_pct} onChange={(e) => set("risk_pct", e.target.value)} />
+          <label className="field-wrap"><span className="field-label">Asset</span>
+            <input className="field" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" enterKeyHint="next" value={f.asset} onChange={(e) => set("asset", e.target.value.toUpperCase())} />
+          </label>
+          <label className="field-wrap"><span className="field-label">Direction</span>
+            <select className="field" value={f.direction} onChange={(e) => set("direction", e.target.value)}>
+              <option value="long">LONG</option><option value="short">SHORT</option>
+            </select>
+          </label>
+          <label className="field-wrap"><span className="field-label">Source</span>
+            <select className="field" value={f.signal_source} onChange={(e) => set("signal_source", e.target.value)}>
+              {SOURCES.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+            </select>
+          </label>
+          <label className="field-wrap"><span className="field-label">Risk %</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.risk_pct} onChange={(e) => set("risk_pct", e.target.value)} />
+          </label>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <input className="field" placeholder="Entry *" value={f.entry} onChange={(e) => set("entry", e.target.value)} />
-          <input className="field" placeholder="Stop Loss *" value={f.sl} onChange={(e) => set("sl", e.target.value)} />
+          <label className="field-wrap"><span className="field-label">Entry *</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.entry} onChange={(e) => set("entry", e.target.value)} />
+          </label>
+          <label className="field-wrap"><span className="field-label">Stop Loss *</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.sl} onChange={(e) => set("sl", e.target.value)} />
+          </label>
         </div>
-        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
-          <input className="field" placeholder="TP1 (1.618)" value={f.tp1} onChange={(e) => set("tp1", e.target.value)} />
-          <input className="field" placeholder="TP2 (2.618)" value={f.tp2} onChange={(e) => set("tp2", e.target.value)} />
-          <input className="field" placeholder="TP3 (3.618)" value={f.tp3} onChange={(e) => set("tp3", e.target.value)} />
-          <button className="btn" title="Auto-fill fib extensions from entry/SL" onClick={autoFib}>FIB</button>
+        <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+          <label className="field-wrap"><span className="field-label">TP1 (1.618)</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.tp1} onChange={(e) => set("tp1", e.target.value)} />
+          </label>
+          <label className="field-wrap"><span className="field-label">TP2 (2.618)</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.tp2} onChange={(e) => set("tp2", e.target.value)} />
+          </label>
+          <label className="field-wrap"><span className="field-label">TP3 (3.618)</span>
+            <input className="field" inputMode="decimal" enterKeyHint="next" value={f.tp3} onChange={(e) => set("tp3", e.target.value)} />
+          </label>
+          <button className="btn max-sm:self-end" title="Auto-fill fib extensions from entry/SL" onClick={autoFib}>FIB</button>
         </div>
         <div className="flex gap-4 text-[11px] text-dim">
           <label className="flex items-center gap-1.5 cursor-pointer">
@@ -102,7 +120,9 @@ function TradeForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
             <span className={`ml-auto font-bold ${rr >= 2 ? "text-up" : "text-down"}`}>RR {rr}:1</span>
           )}
         </div>
-        <textarea className="field" rows={2} placeholder="Notes / setup description" value={f.notes} onChange={(e) => set("notes", e.target.value)} />
+        <label className="field-wrap"><span className="field-label">Notes</span>
+          <textarea className="field" rows={2} autoComplete="off" enterKeyHint="done" placeholder="Setup description" value={f.notes} onChange={(e) => set("notes", e.target.value)} />
+        </label>
         {err && <p className="text-[11px] text-down">{err}</p>}
         <div className="flex justify-end gap-2">
           <button className="btn" onClick={onCancel}>Cancel</button>
@@ -137,24 +157,32 @@ function CloseDialog({ trade, onDone, onCancel }: { trade: Trade; onDone: () => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center-safe justify-center bg-black/70 p-4 overflow-y-auto" onClick={onCancel}>
       <div className="panel w-full max-w-sm p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="panel-title">#{trade.id} {trade.asset} {trade.direction.toUpperCase()}</h3>
         <div className="flex gap-2">
           <button className={`btn flex-1 ${mode === "close" ? "btn-primary" : ""}`} onClick={() => setMode("close")}>Full Close</button>
           <button className={`btn flex-1 ${mode === "partial" ? "btn-primary" : ""}`} onClick={() => setMode("partial")}>Partial</button>
         </div>
-        <input className="field" placeholder="Exit price *" value={price} onChange={(e) => setPrice(e.target.value)} />
+        <label className="field-wrap"><span className="field-label">Exit price *</span>
+          <input className="field" inputMode="decimal" enterKeyHint="next" value={price} onChange={(e) => setPrice(e.target.value)} />
+        </label>
         {mode === "partial" && (
           <div className="grid grid-cols-2 gap-2">
-            <input className="field" placeholder="% closed" value={pct} onChange={(e) => setPct(e.target.value)} />
-            <select className="field" value={level} onChange={(e) => setLevel(e.target.value)}>
-              {["TP1", "TP2", "TP3", "manual"].map((l) => <option key={l}>{l}</option>)}
-            </select>
+            <label className="field-wrap"><span className="field-label">% closed</span>
+              <input className="field" inputMode="decimal" enterKeyHint="done" value={pct} onChange={(e) => setPct(e.target.value)} />
+            </label>
+            <label className="field-wrap"><span className="field-label">Level</span>
+              <select className="field" value={level} onChange={(e) => setLevel(e.target.value)}>
+                {["TP1", "TP2", "TP3", "manual"].map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </label>
           </div>
         )}
         {mode === "close" && (
-          <input className="field" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <label className="field-wrap"><span className="field-label">Notes</span>
+            <input className="field" autoComplete="off" enterKeyHint="go" placeholder="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
+          </label>
         )}
         {err && <p className="text-[11px] text-down">{err}</p>}
         <div className="flex justify-end gap-2">
@@ -194,14 +222,14 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
       <div className="panel-head">
         <span className="panel-title"><CandlestickChart size={14} />Trade Tracker</span>
         <div className="flex items-center gap-2">
-          <select className="field !w-auto !py-1 text-[10px]" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
+          <select className="field !w-auto !py-1 sm:text-[10px]" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
             <option value="">ALL</option><option value="open">OPEN</option><option value="closed">CLOSED</option>
           </select>
-          <select className="field !w-auto !py-1 text-[10px]" value={filter.asset} onChange={(e) => setFilter({ ...filter, asset: e.target.value })}>
+          <select className="field !w-auto !py-1 sm:text-[10px]" value={filter.asset} onChange={(e) => setFilter({ ...filter, asset: e.target.value })}>
             <option value="">ASSET</option>
             {assets.map((a) => <option key={a}>{a}</option>)}
           </select>
-          <select className="field !w-auto !py-1 text-[10px] hidden sm:block" value={filter.source} onChange={(e) => setFilter({ ...filter, source: e.target.value })}>
+          <select className="field !w-auto !py-1 sm:text-[10px] hidden sm:block" value={filter.source} onChange={(e) => setFilter({ ...filter, source: e.target.value })}>
             <option value="">SOURCE</option>
             {SOURCES.map((s) => <option key={s} value={s}>{s.toUpperCase()}</option>)}
           </select>
@@ -215,7 +243,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-panel2 text-[9px] uppercase tracking-widest text-dim">
             <tr>
-              <th className="px-2 py-2 text-left">#</th>
+              <th className="px-2 py-2 text-left hidden sm:table-cell">#</th>
               <th className="px-2 py-2 text-left">Asset</th>
               <th className="px-2 py-2 text-left">Dir</th>
               <th className="px-2 py-2 text-right">Entry</th>
@@ -225,7 +253,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
               <th className="px-2 py-2 text-left hidden sm:table-cell">Source</th>
               <th className="px-2 py-2 text-right">P&L</th>
               <th className="px-2 py-2 text-left">Status</th>
-              <th className="px-2 py-2" />
+              <th className="px-2 py-2 hidden sm:table-cell" />
             </tr>
           </thead>
           <tbody>
@@ -238,7 +266,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                   className="border-t border-edge hover:bg-panel2 cursor-pointer"
                   onClick={() => setExpanded(expanded === t.id ? null : t.id)}
                 >
-                  <td className="px-2 py-2 text-faint">{t.id}</td>
+                  <td className="px-2 py-2 text-faint hidden sm:table-cell">{t.id}</td>
                   <td className="px-2 py-2 font-bold text-cyan">{t.asset}</td>
                   <td className={`px-2 py-2 font-bold ${t.direction === "long" ? "text-up" : "text-down"}`}>
                     <span className="inline-flex items-center gap-0.5">
@@ -272,7 +300,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                       {t.status.toUpperCase()}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-2 text-right whitespace-nowrap hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                     {t.status !== "closed" && (
                       <button className="btn !py-1 !px-2 mr-1" title="Close / partial" onClick={() => setClosing(t)}>
                         <X size={11} />
@@ -305,6 +333,13 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
                         </div>
                       )}
                       {t.notes && <div className="pt-1 italic">“{t.notes}”</div>}
+                      {/* Phones: the row's action buttons don't fit as a column, so they live here */}
+                      <div className="sm:hidden flex gap-2 pt-2">
+                        {t.status !== "closed" && (
+                          <button className="btn" onClick={() => setClosing(t)}><X size={12} />Close / partial</button>
+                        )}
+                        <button className="btn hover:!text-down hover:!border-down" onClick={() => del(t.id)}><Trash2 size={12} />Delete #{t.id}</button>
+                      </div>
                     </td>
                   </tr>
                 )}

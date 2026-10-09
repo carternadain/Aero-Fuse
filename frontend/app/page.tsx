@@ -15,6 +15,7 @@ import Header from "@/components/Header";
 import TabNav, { SubTabs, parseHash, type MarketsSub, type TabKey } from "@/components/TabNav";
 import { haptic, on, scrollToId, type NavTarget } from "@/lib/bus";
 import { registerSW } from "@/lib/push";
+import { registerKeyboardAssist } from "@/lib/keyboard";
 import CommandPalette from "@/components/CommandPalette";
 import TickerHost from "@/components/TickerSheet";
 import { ToastHost } from "@/components/AlertsCenter";
@@ -102,7 +103,8 @@ export default function Dashboard() {
     fromHash();
     window.addEventListener("hashchange", fromHash);
     registerSW(); // push notifications for price alerts
-    return () => window.removeEventListener("hashchange", fromHash);
+    const offKbd = registerKeyboardAssist(); // phones: keep the focused field above the keyboard
+    return () => { window.removeEventListener("hashchange", fromHash); offKbd(); };
   }, []);
 
   const subRef = useRef(sub);
