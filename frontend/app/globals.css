@@ -289,6 +289,26 @@ input, select, textarea {
 @keyframes flash-up { from { background-color: color-mix(in srgb, var(--color-up) 32%, transparent); } }
 @keyframes flash-down { from { background-color: color-mix(in srgb, var(--color-down) 32%, transparent); } }
 
+/* Wealth list <-> page: push in from the right, pop back from the left */
+.wp-push { animation: wp-push 0.25s ease-out backwards; }
+.wp-pop { animation: wp-pop 0.25s ease-out backwards; }
+@keyframes wp-push { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes wp-pop { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
+@media (min-width: 1024px) { .wp-push, .wp-pop { animation-name: tab-enter; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .skeleton, .tab-enter, .flash-up, .flash-down { animation: none !important; }
+  .skeleton, .tab-enter, .flash-up, .flash-down, .wp-push, .wp-pop { animation: none !important; }
+}
+
+/* InfoTip: bottom sheet on phones, fade-in dialog on desktop */
+.infotip-backdrop { animation: infotip-fade 0.18s ease-out; }
+.infotip-sheet { animation: infotip-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes infotip-fade { from { opacity: 0; } }
+@keyframes infotip-up { from { transform: translateY(100%); } }
+@media (min-width: 640px) {
+  .infotip-sheet { animation: infotip-pop 0.18s ease-out; }
+  @keyframes infotip-pop { from { opacity: 0; transform: scale(0.97); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .infotip-backdrop, .infotip-sheet { animation: none !important; }
 }

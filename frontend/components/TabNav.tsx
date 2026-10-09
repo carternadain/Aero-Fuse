@@ -7,6 +7,10 @@ import { haptic } from "@/lib/bus";
 
 export type TabKey = "home" | "trading" | "markets" | "news" | "wealth";
 export type MarketsSub = "ideas" | "stocks" | "crypto";
+/** Pages inside the Wealth tab, addressed as #wealth/<page>. */
+export type WealthPage =
+  | "accounts" | "goals" | "plan" | "spending" | "budget" | "dividends" | "taxes" | "whatif" | "backup";
+export const WEALTH_PAGES: WealthPage[] = ["accounts", "goals", "plan", "spending", "budget", "dividends", "taxes", "whatif", "backup"];
 
 export const TABS: { key: TabKey; label: string; short: string; icon: LucideIcon }[] = [
   { key: "home", label: "Home", short: "Home", icon: House },
@@ -23,13 +27,14 @@ export const MARKET_SUBS: { key: MarketsSub; label: string; icon: LucideIcon }[]
 ];
 
 /** Old hashes (#buys, #stocks, #crypto) from before Markets existed still land in the right place. */
-export function parseHash(h: string): { tab: TabKey; sub?: MarketsSub } | null {
+export function parseHash(h: string): { tab: TabKey; sub?: MarketsSub; page?: WealthPage } | null {
   const [t, s] = h.replace(/^#/, "").split("/");
   if (t === "buys") return { tab: "markets", sub: "ideas" };
   if (t === "stocks" || t === "crypto") return { tab: "markets", sub: t };
   if (!TABS.some((x) => x.key === t)) return null;
-  const sub = MARKET_SUBS.some((x) => x.key === s) ? (s as MarketsSub) : undefined;
-  return { tab: t as TabKey, sub };
+  const sub = t === "markets" && MARKET_SUBS.some((x) => x.key === s) ? (s as MarketsSub) : undefined;
+  const page = t === "wealth" && WEALTH_PAGES.includes(s as WealthPage) ? (s as WealthPage) : undefined;
+  return { tab: t as TabKey, sub, page };
 }
 
 export default function TabNav({

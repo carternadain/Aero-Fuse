@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useMemo, useState } from "react";
 import { FlaskConical, Hourglass, Rocket, Sprout, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
@@ -237,8 +238,11 @@ export default function MoneyLab() {
 
       <p className="lg:col-span-2 text-[10px] text-faint flex items-center gap-1.5">
         <FlaskConical size={11} />
-        Today&apos;s dollars: {(real * 100).toFixed(1)}%/yr after inflation ({fire.returnPct}% return − {fire.inflationPct}% inflation), age {fire.age}.
-        Change these in the FIRE calculator below. These are averages, and real markets swing year to year.
+        Today&apos;s dollars, {(real * 100).toFixed(1)}%/yr after inflation, age {fire.age}.
+        <InfoTip topic="these assumptions" title="Assumptions">
+          <p>Today&apos;s dollars: {(real * 100).toFixed(1)}%/yr after inflation ({fire.returnPct}% return − {fire.inflationPct}% inflation), age {fire.age}.</p>
+          <p>Change these in the FIRE calculator below. These are averages, and real markets swing year to year.</p>
+        </InfoTip>
       </p>
     </div>
   );

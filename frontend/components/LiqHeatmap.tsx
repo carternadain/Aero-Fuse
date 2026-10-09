@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
@@ -191,7 +192,12 @@ export default function LiqHeatmap() {
   return (
     <section className="panel">
       <div className="panel-head flex-wrap gap-2">
-        <span className="text-[11px] text-dim">Bitcoin, leveraged positions</span>
+        <span className="flex items-center gap-1 text-[11px] text-dim">Bitcoin, leveraged positions
+          <InfoTip topic="the liquidation heatmap" title="How this is estimated">
+            <p>{d ? `Estimated from ${d.source} open interest, candles and taker buy/sell volume` : "Estimated from open interest, candles and taker buy/sell volume"}: new positions are spread over 5–100× leverage and removed once price trades through their liquidation price. Like every public heatmap it&apos;s a model of one exchange, not actual orders.</p>
+            {d && <p>Updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.</p>}
+          </InfoTip>
+        </span>
         <div className="flex items-center gap-2">
           <div className="seg flex rounded-lg border border-edge2 text-[11px]">
             {RANGES.map(([k, l]) => (
@@ -258,10 +264,8 @@ export default function LiqHeatmap() {
               ))}
             </div>
           ))}
-          <p className="col-span-2 text-[10px] text-faint leading-relaxed">
-            Estimated from {d.source} open interest, candles and taker buy/sell volume: new positions are spread over 5–100× leverage and
-            removed once price trades through their liquidation price. Like every public heatmap it&apos;s a model of one exchange, not actual orders.
-            Updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+          <p className="col-span-2 text-[10px] text-faint">
+            Model estimate, updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
           </p>
         </div>
       )}

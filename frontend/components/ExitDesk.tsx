@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Hourglass, Plus, RefreshCw, Target, Trash2 } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
@@ -236,7 +237,14 @@ export default function ExitDesk() {
     <section className="panel">
       <div className="panel-head">
         <span className="text-[12px] text-dim">How stretched each holding is</span>
-        <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh"><RefreshCw size={12} className={loading ? "animate-spin" : ""} /></button>
+        <div className="flex items-center gap-1">
+          <InfoTip topic="the exit desk" title="Reading the Exit Desk">
+            <p>Short = days to 2 weeks · Mid = weeks to months · Long = months to years. Tap a row for the data behind it.</p>
+            <p>Heat 0–100 per horizon: under 30 = washed out, 45–58 = neutral, over 70 = stretched, over 82 = overheated. Each number is a measurement (RSI, distance from moving averages in units of the asset&apos;s own volatility, range position, funding), shown with what it means. It describes how stretched price is, not where it goes next. Hot assets can stay hot for a long time.</p>
+            <p>Plans are checked every 10 minutes. When a level hits you get a push notification (if on), once per hit.</p>
+          </InfoTip>
+          <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh"><RefreshCw size={12} className={loading ? "animate-spin" : ""} /></button>
+        </div>
       </div>
 
       {b && (
@@ -249,7 +257,7 @@ export default function ExitDesk() {
         </div>
       )}
 
-      <p className="px-4 pt-2 text-[10.5px] text-faint">Short = days to 2 weeks · Mid = weeks to months · Long = months to years. Tap a row for the data behind it.</p>
+      <p className="px-4 pt-2 text-[10.5px] text-faint">Tap a row for the data behind it.</p>
       <div className="flex gap-1.5 px-3 py-2 border-b border-edge overflow-x-auto [scrollbar-width:none]" data-noswipe>
         {([["all", "All"], ["crypto", "Crypto"], ["stock", "Stocks"], ["option", "Options"], ["plans", "With a plan"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)}
@@ -265,9 +273,6 @@ export default function ExitDesk() {
           {rows.map((r) => <RowCard key={r.key} row={r} onSaved={load} />)}
           {!rows.length && <p className="px-4 py-5 text-[12px] text-dim">Nothing here yet.</p>}
           <div className="px-4 py-3 border-t border-edge text-[10.5px] text-faint leading-relaxed space-y-1">
-            <p>Heat 0–100 per horizon: under 30 = washed out, 45–58 = neutral, over 70 = stretched, over 82 = overheated. Each number is a
-              measurement (RSI, distance from moving averages in units of the asset&apos;s own volatility, range position, funding), shown with
-              what it means. It describes how stretched price is, not where it goes next. Hot assets can stay hot for a long time.</p>
             {noCost > 0 && <p>{noCost} positions have no cost basis, so gains and % rules can&apos;t be checked.{" "}
               <button className="text-up font-semibold" onClick={() => navigate({ tab: "wealth", anchor: "sec-wealth" })}>Add cost basis in Wealth →</button></p>}
             <p>Not financial advice. The decision is yours; this is the data and your own plan side by side.</p>

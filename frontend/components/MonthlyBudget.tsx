@@ -45,6 +45,11 @@ const curMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 function monthShift(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -126,13 +131,13 @@ export default function MonthlyBudget() {
 
   return (
     <section className="panel flex flex-col">
-      <div className="panel-head !justify-end">
-        <div className="flex items-center gap-1.5">
+      <div className="panel-head">
+        <div className="flex items-center gap-0.5">
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Previous month"
                   onClick={() => setMonth(monthShift(month, -1))}>
             <ChevronLeft size={14} />
           </button>
-          <span className="text-[11px] text-txt tabular-nums">{month}</span>
+          <span className="min-w-[4.5rem] text-center text-[13px] font-semibold text-txt tabular-nums">{monthLabel(month)}</span>
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Next month"
                   onClick={() => setMonth(monthShift(month, 1))}>
             <ChevronRight size={14} />

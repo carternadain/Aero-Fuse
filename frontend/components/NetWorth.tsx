@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Banknote, Bitcoin, Camera, Car, CreditCard, Home, Landmark, Package, PiggyBank,
-  ChevronDown, ChevronRight, Plus, TrendingUp, Wallet, X, type LucideIcon,
+  ChevronDown, ChevronRight, Plus, TrendingUp, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtQty, isHidden, MASK } from "@/lib/privacy";
 import { askConfirm, askText } from "./DialogHost";
+import SwipeRow, { deferDelete } from "./SwipeRow";
 
 interface Account {
   id: number;
@@ -82,6 +83,7 @@ export default function NetWorth() {
   const [f, setF] = useState({ name: "", kind: "asset", category: "cash", balance: "" });
   const [hf, setHf] = useState({ symbol: "", kind: "crypto", qty: "", cost_basis: "", label: "",
                                  expiry: "", strike: "", right: "C" });
+  const [hiddenAcc, setHiddenAcc] = useState<number[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const refresh = async () => {
@@ -163,12 +165,20 @@ export default function NetWorth() {
     refresh();
   };
 
+  const removeAcc = (a: Account) =>
+    deferDelete({
+      message: `${a.name} removed`,
+      hide: () => setHiddenAcc((h) => [...h, a.id]),
+      restore: () => setHiddenAcc((h) => h.filter((i) => i !== a.id)),
+      commit: () => api.del(`/api/accounts/${a.id}`).then(() => { refresh(); setHiddenAcc((h) => h.filter((i) => i !== a.id)); }),
+    });
+
   const snapshot = async () => {
     await api.post("/api/networth/snapshot");
     refresh();
   };
 
-  const assets = accounts.filter((a) => a.kind === "asset");
+  const assets = accounts.filter((a) => a.kind === "asset" && !hiddenAcc.includes(a.id));
   const manualAssets = assets.reduce((t, a) => t + a.balance, 0);
 
   // Live holdings grouped by where they're held, biggest account first.
@@ -181,12 +191,12 @@ export default function NetWorth() {
     const sum = (rows: Holding[]) => rows.reduce((t, h) => t + (h.value ?? 0), 0);
     return [...m.entries()].sort((a, b) => sum(b[1]) - sum(a[1]));
   }, [hold.holdings]);
-  const liabs = accounts.filter((a) => a.kind === "liability");
+  const liabs = accounts.filter((a) => a.kind === "liability" && !hiddenAcc.includes(a.id));
 
   return (
     <section className="panel flex flex-col">
       <div className="panel-head">
-        <span className="panel-title"><Wallet size={14} />Accounts</span>
+        <span className="text-[12px] text-dim">Tap a row to edit</span>
         <div className="flex items-center gap-2">
           <button className="btn !py-1" onClick={snapshot} title="Record today's net worth on the chart">
             <Camera size={12} />Snap
@@ -352,22 +362,22 @@ export default function NetWorth() {
             </div>
           );
         })}
-        {assets.length > 0 && (
+        {assets.length > 0 && groups.length > 0 && (
           <div className="px-3 py-1.5 border-t border-edge bg-panel2 text-[9px] font-bold tracking-widest text-dim flex justify-between">
             <span>OTHER ACCOUNTS · ENTERED BY HAND</span><span>{fmtUsd(manualAssets)}</span>
           </div>
         )}
         {assets.map((a) => (
-          <div key={a.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
-               onClick={() => editBalance(a)} title="Click to update balance">
-            <CatIcon category={a.category} />
-            <span className="text-txt">{a.name}</span>
-            <span className="text-[9px] text-faint uppercase">{a.category.replace("_", " ")}</span>
-            <span className="ml-auto font-bold tabular-nums text-txt">{fmtUsd(a.balance)}</span>
-            <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${a.name}?`).then((ok) => { if (ok) api.del(`/api/accounts/${a.id}`).then(refresh); }); }}>
-              <X size={12} />
-            </button>
+          <div key={a.id} className="border-t border-edge">
+            <SwipeRow label="Delete account" onDelete={() => removeAcc(a)}
+                      className="flex items-center gap-2 pl-3 pr-3 [@media(hover:hover)]:pr-1 min-h-10 text-xs hover:bg-panel2 cursor-pointer">
+              <div className="flex min-w-0 flex-1 items-center gap-2 py-1.5" onClick={() => editBalance(a)} title="Click to update balance">
+                <CatIcon category={a.category} />
+                <span className="truncate text-txt">{a.name}</span>
+                <span className="text-[9px] text-faint uppercase shrink-0">{a.category.replace("_", " ")}</span>
+                <span className="ml-auto font-bold tabular-nums text-txt">{fmtUsd(a.balance)}</span>
+              </div>
+            </SwipeRow>
           </div>
         ))}
         {liabs.length > 0 && (
@@ -376,16 +386,16 @@ export default function NetWorth() {
           </div>
         )}
         {liabs.map((a) => (
-          <div key={a.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-edge text-xs hover:bg-panel2 cursor-pointer"
-               onClick={() => editBalance(a)} title="Click to update balance">
-            <CatIcon category={a.category} />
-            <span className="text-txt">{a.name}</span>
-            <span className="text-[9px] text-faint uppercase">{a.category.replace("_", " ")}</span>
-            <span className="ml-auto font-bold tabular-nums text-down">{fmtUsd(a.balance)}</span>
-            <button className="icon-btn"
-                    onClick={(e) => { e.stopPropagation(); askConfirm(`Remove ${a.name}?`).then((ok) => { if (ok) api.del(`/api/accounts/${a.id}`).then(refresh); }); }}>
-              <X size={12} />
-            </button>
+          <div key={a.id} className="border-t border-edge">
+            <SwipeRow label="Delete account" onDelete={() => removeAcc(a)}
+                      className="flex items-center gap-2 pl-3 pr-3 [@media(hover:hover)]:pr-1 min-h-10 text-xs hover:bg-panel2 cursor-pointer">
+              <div className="flex min-w-0 flex-1 items-center gap-2 py-1.5" onClick={() => editBalance(a)} title="Click to update balance">
+                <CatIcon category={a.category} />
+                <span className="truncate text-txt">{a.name}</span>
+                <span className="text-[9px] text-faint uppercase shrink-0">{a.category.replace("_", " ")}</span>
+                <span className="ml-auto font-bold tabular-nums text-down">{fmtUsd(a.balance)}</span>
+              </div>
+            </SwipeRow>
           </div>
         ))}
       </div>

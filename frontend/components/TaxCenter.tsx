@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -83,9 +84,12 @@ export default function TaxCenter() {
 
   return (
     <div className="space-y-3">
-      <div className="text-[10.5px] text-faint leading-relaxed">
-        Estimates for planning, not tax advice. US federal 2026 rules.
-        {d.rates.assumed && ` Using ${Math.round(d.rates.ordinary * 100)}% / ${Math.round(d.rates.ltcg * 100)}% until you set your income.`}
+      <div className="flex items-center gap-1 text-[10.5px] text-faint">
+        <span>Planning estimates</span>
+        <InfoTip topic="tax estimates">
+          <p>Estimates for planning, not tax advice. US federal 2026 rules.
+            {d.rates.assumed && ` Using ${Math.round(d.rates.ordinary * 100)}% / ${Math.round(d.rates.ltcg * 100)}% until you set your income.`}</p>
+        </InfoTip>
       </div>
 
       {(d.years.length > 1 || d.days_left > 0) && (
