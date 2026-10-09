@@ -79,10 +79,13 @@ def main():
         for w in range(12, -1, -1):
             growth = (12 - w) * 1050 + (250 if w % 3 == 0 else -180)
             assets = base + growth + 1240
+            cash, prop = 6400, 0
+            inv = assets - cash - prop
             c.execute(
-                """INSERT INTO networth_snapshots (date, assets, liabilities, net_worth)
-                   VALUES (?,?,?,?) ON CONFLICT(date) DO NOTHING""",
-                (days_ago(w * 7), assets, 1240, assets - 1240),
+                """INSERT INTO networth_snapshots (date, assets, liabilities, net_worth,
+                                                   investments, cash, property, source)
+                   VALUES (?,?,?,?,?,?,?,'live') ON CONFLICT(date) DO NOTHING""",
+                (days_ago(w * 7), assets, 1240, assets - 1240, inv, cash, prop),
             )
     db.take_snapshot()
 

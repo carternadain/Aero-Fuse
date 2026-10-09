@@ -45,6 +45,7 @@ import exits
 import brief
 import market_data
 import news
+import nw_history
 import risk
 import scoring
 import universe
@@ -428,6 +429,7 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=backup.backup_loop, daemon=True).start()
     threading.Thread(target=sim_mark_loop, daemon=True).start()
     threading.Thread(target=networth_snapshot_loop, daemon=True).start()
+    threading.Thread(target=_backfill_once, daemon=True).start()
     threading.Thread(target=price_alert_loop, daemon=True).start()
     threading.Thread(target=exit_rule_loop, daemon=True).start()
     for label, every, factor, jobs in WARM_TIERS:
@@ -1034,6 +1036,27 @@ def put_settings(body: SettingsIn):
 @app.post("/api/networth/snapshot")
 def post_snapshot():
     return db.take_snapshot(valued_holdings()["value"])
+
+
+def price_at(kind: str, symbol: str, date_str: str):
+    """Last close on/before date_str (UTC day) from the 1Y series, else None."""
+    from datetime import datetime, timezone
+    end = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() + 86400
+    pts = [p for t, p in charts.series(kind, symbol, "1Y") if t < end]
+    return pts[-1] if pts else None
+
+
+@app.post("/api/networth/backfill")
+def post_networth_backfill():
+    return nw_history.backfill(price_at)
+
+
+def _backfill_once():
+    time.sleep(45)
+    try:
+        print(f"[networth] backfill {nw_history.backfill(price_at)}")
+    except Exception as e:
+        print(f"[networth] backfill error: {e}")
 
 
 @app.get("/api/networth/history")

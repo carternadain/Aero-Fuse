@@ -24,6 +24,7 @@ import CompareChart from "@/components/CompareChart";
 import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
 import Goals from "@/components/Goals";
+import NetWorthHistory from "@/components/NetWorthHistory";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
@@ -315,6 +316,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </Section>
+            <Section id="sec-nwhistory" title="Net Worth" accent="Over Time" hint="recorded daily · what it's made of"><NetWorthHistory /></Section>
             <Section id="sec-spending" title="Money" accent="In & Out" hint="import statements · bills · budget">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
                 <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
