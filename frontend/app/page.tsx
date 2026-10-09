@@ -73,6 +73,10 @@ const PARENT: Record<string, string> = {
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
   "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
+  "sec-topbuys": "sec-ideas", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
+  "sec-compare": "sec-research", "sec-screener": "sec-research",
+  "sec-coins": "sec-crypto", "sec-narratives": "sec-crypto",
+  "sec-earnings": "sec-calendar", "sec-econ": "sec-calendar",
 };
 
 // Swipe order on phones: Markets' sub-tabs sit in the middle of the sequence.
@@ -272,28 +276,35 @@ export default function Dashboard() {
             <SubTabs value={sub} onChange={setSub} />
             <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
             {sub === "ideas" && (
-              <>
-                <Section id="sec-topbuys" title="Top" accent="Buys" hint="best long-term scores · tap for why"><TopBuys /></Section>
-                <Section id="sec-sectors" title="Sector" accent="Map" hint="which themes are moving"><SectorMap /></Section>
-                <Section id="sec-swing" title="Swing" accent="Ideas" hint="energy, nuclear, space, defense, AI & more"><SwingIdeas /></Section>
-              </>
+              <Section id="sec-ideas" title="Buy" accent="Ideas" hint="long-term scores · swing setups · hot themes">
+                <Panes items={[
+                  { id: "sec-topbuys", label: "Long-term", node: <TopBuys /> },
+                  { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
+                  { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
+                ]} />
+              </Section>
             )}
             {sub === "stocks" && (
               <>
                 <Section id="sec-options" title="Options" accent="Watch" hint="your stocks · live signals"><OptionsWatch /></Section>
-                <Section id="sec-compare" title="Side by" accent="Side" hint="up to 4 tickers as % change"><CompareChart /></Section>
-                <Section id="sec-screener" title="Tech Stock" accent="Screener" hint="long-term buy / overbought" pro><StockScreener /></Section>
+                <Section id="sec-research" title="Stock" accent="Research" hint="compare tickers · tech screener">
+                  <Panes items={[
+                    { id: "sec-compare", label: "Compare", node: <CompareChart /> },
+                    { id: "sec-screener", label: "Screener", pro: true, node: <StockScreener /> },
+                  ]} />
+                </Section>
                 <ProHint what="the tech stock screener" />
               </>
             )}
             {sub === "crypto" && (
               <>
                 <Section id="sec-liqmap" title="Liquidation" accent="Heatmap" hint="where leveraged BTC positions get wiped"><LiqHeatmap /></Section>
-                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live · tap a row for its chart">
-                  <CryptoContext />
-                  <CryptoScreener />
+                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live coins · hot sectors">
+                  <Panes items={[
+                    { id: "sec-coins", label: "Coins", node: <div className="space-y-3"><CryptoContext /><CryptoScreener /></div> },
+                    { id: "sec-narratives", label: "Narratives", pro: true, node: <Narratives /> },
+                  ]} />
                 </Section>
-                <Section id="sec-narratives" title="Narratives" accent="Moving" hint="which crypto sectors are hot" pro><Narratives /></Section>
                 <ProHint what="crypto narratives" />
               </>
             )}
@@ -306,8 +317,12 @@ export default function Dashboard() {
             <Section id="sec-news" title="News" accent="For You" hint="what you own · watchlist · macro">
               <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
             </Section>
-            <Section id="sec-earnings" title="Earnings" accent="Ahead" hint="dates · analyst targets"><EarningsCalendar /></Section>
-            <Section id="sec-econ" title="Macro" accent="Calendar" hint="Fed · CPI · jobs" pro><EconCalendar /></Section>
+            <Section id="sec-calendar" title="Coming" accent="Up" hint="earnings · Fed · CPI · jobs">
+              <Panes items={[
+                { id: "sec-earnings", label: "Earnings", node: <EarningsCalendar /> },
+                { id: "sec-econ", label: "Macro", pro: true, node: <EconCalendar /> },
+              ]} />
+            </Section>
             <ProHint what="the macro calendar" />
           </>
         )}
