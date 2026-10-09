@@ -218,18 +218,60 @@ main {
   .text-\[11px\] { font-size: 11.5px; }
 }
 
-/* Phones: give small icon buttons (×, +, edit) a finger-sized 32px hit area */
-@media (max-width: 639px) {
-  .icon-btn {
-    min-width: 32px;
-    min-height: 32px;
-    justify-content: center;
-    margin: -6px;
+/* Label + field pair; labels stay visible after you start typing (unlike placeholders):
+   <label className="field-wrap"><span className="field-label">Entry</span><input className="field" /></label> */
+.field-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field-label { font-size: 10px; font-weight: 600; color: var(--color-faint); }
+
+/* Segmented control: the end buttons carry the rounding, so the group needn't clip
+   (clipping would also cut off the phone hit areas below) */
+.seg > :first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
+.seg > :last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
+
+/* Phones: every tap target gets at least a 40×40px hit area.
+   Buttons keep their visual size; an invisible ::after grows the touch box around them.
+   (In @layer base so Tailwind's absolute / fixed utilities still win over position: relative.) */
+@layer base {
+  @media (max-width: 639px) {
+    button, [role="button"] { position: relative; }
   }
 }
 @media (max-width: 639px) {
+  button::after, [role="button"]::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 40px);
+    height: max(100%, 40px);
+    transform: translate(-50%, -50%);
+  }
+  .icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+    margin: -10px; /* same footprint in the layout as the bare 20px icon */
+  }
+  /* Header buttons sit edge to edge, so give them their full 40px box instead */
+  .header-tools .icon-btn { width: 40px; height: 40px; margin: 0; }
   .btn { min-height: 32px; min-width: 32px; }
+  /* Panel titles: the description drops under the title instead of squeezing it onto two lines */
+  .panel-title { flex-wrap: wrap; row-gap: 2px; }
+  .panel-sub { flex-basis: 100%; margin-left: 0 !important; padding-left: 31px; }
   .chip-tap { padding-top: 6px; padding-bottom: 6px; }
+  /* Wrapping rows of chips: tall enough, and far enough apart that neighbours' hit areas don't overlap */
+  .flex-wrap > button { min-height: 32px; min-width: 40px; }
+  .flex-wrap:has(> button) { row-gap: 10px; }
+  .seg > button { min-width: 40px; }
+  /* List rows that end in a × / edit icon: tall enough that stacked rows' icons don't share a finger */
+  div.flex:has(> .icon-btn:last-child) { min-height: 40px; }
+  /* Inputs can't carry a ::after, so they get real height. 16px text also stops iOS zooming in on focus. */
+  .field { min-height: 40px; font-size: 16px; }
+  select.field { padding-top: 0; padding-bottom: 0; }
+  input[type="range"] { height: 40px; }
+  .field-label { font-size: 11px; color: var(--color-dim); }
+  /* Keyboard up (lib/keyboard.ts): the floating tab bar would sit on top of the field */
+  html[data-kbd] .bottom-nav { display: none; }
 }
 
 /* ── Motion ─────────────────────────────────────────────── */
@@ -249,8 +291,10 @@ main {
 }
 
 /* Tab content eases in instead of popping */
+/* backwards, not both: a transform left on <main> after the animation would make it the
+   containing block for every position:fixed dialog inside it (dialogs ended up mid-page, under the tab bar) */
 .tab-enter {
-  animation: tab-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: tab-enter 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
 }
 @keyframes tab-enter {
   from { opacity: 0; transform: translateY(6px); }

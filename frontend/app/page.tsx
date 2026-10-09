@@ -15,6 +15,7 @@ import Header from "@/components/Header";
 import TabNav, { SubTabs, parseHash, type MarketsSub, type TabKey } from "@/components/TabNav";
 import { haptic, on, scrollToId, type NavTarget } from "@/lib/bus";
 import { registerSW } from "@/lib/push";
+import { registerKeyboardAssist } from "@/lib/keyboard";
 import CommandPalette from "@/components/CommandPalette";
 import TickerHost from "@/components/TickerSheet";
 import { ToastHost } from "@/components/AlertsCenter";
@@ -28,6 +29,7 @@ import NetWorthHistory from "@/components/NetWorthHistory";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
+import Panes from "@/components/Panes";
 import Section, { ProHint } from "@/components/Section";
 import { reveal } from "@/lib/prefs";
 import StatsBar from "@/components/StatsBar";
@@ -55,6 +57,7 @@ import SavingsPlan from "@/components/SavingsPlan";
 import MoneyLab from "@/components/MoneyLab";
 import StressTest from "@/components/StressTest";
 import WealthChecks from "@/components/WealthChecks";
+import TaxCenter from "@/components/TaxCenter";
 import NetWorthCalendar from "@/components/NetWorthCalendar";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
@@ -65,7 +68,19 @@ import OptionsWatch from "@/components/OptionsWatch";
 import EarningsCalendar from "@/components/EarningsCalendar";
 
 // Anchors that live inside another foldable section
-const PARENT: Record<string, string> = { "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-tradecal": "sec-trades" };
+const PARENT: Record<string, string> = {
+  "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth", "sec-nwhistory": "sec-wealth",
+  "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
+  "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow",
+  "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
+  "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
+  "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
+  "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
+  "sec-topbuys": "sec-ideas", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
+  "sec-compare": "sec-research", "sec-screener": "sec-research",
+  "sec-coins": "sec-crypto", "sec-narratives": "sec-crypto",
+  "sec-earnings": "sec-calendar", "sec-econ": "sec-calendar",
+};
 
 // Swipe order on phones: Markets' sub-tabs sit in the middle of the sequence.
 const SEQ: { tab: TabKey; sub?: MarketsSub }[] = [
@@ -104,7 +119,8 @@ export default function Dashboard() {
     fromHash();
     window.addEventListener("hashchange", fromHash);
     registerSW(); // push notifications for price alerts
-    return () => window.removeEventListener("hashchange", fromHash);
+    const offKbd = registerKeyboardAssist(); // phones: keep the focused field above the keyboard
+    return () => { window.removeEventListener("hashchange", fromHash); offKbd(); };
   }, []);
 
   const subRef = useRef(sub);
@@ -114,8 +130,8 @@ export default function Dashboard() {
     if (s) setSubState(s);
     history.replaceState(null, "", `#${t}${t === "markets" ? `/${s ?? subRef.current}` : ""}`);
     if (anchor) {
+      if (PARENT[anchor]) reveal(PARENT[anchor]); // parent first so lastRevealed ends as the pane id
       reveal(anchor);
-      if (PARENT[anchor]) reveal(PARENT[anchor]);
       // wait for the tab to render, then scroll to the section
       let tries = 0;
       const tryScroll = () => { if (!scrollToId(anchor) && tries++ < 20) setTimeout(tryScroll, 60); };
@@ -234,26 +250,26 @@ export default function Dashboard() {
               <ExitDesk />
             </Section>
             <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
-              <TradeTracker trades={trades} onChanged={refreshCore} />
-              <div id="sec-tradecal" className="scroll-mt-28"><TradeCalendar trades={trades} /></div>
-            </Section>
-            <Section id="sec-riskdesk" title="Risk" accent="Desk" hint="position sizing" pro>
-              <RiskDesk trades={trades} />
+              <Panes items={[
+                { id: "sec-tradelist", label: "Trades", node: <TradeTracker trades={trades} onChanged={refreshCore} /> },
+                { id: "sec-tradecal", label: "Calendar", node: <TradeCalendar trades={trades} /> },
+              ]} />
             </Section>
             <Section id="sec-signals" title="Signals" accent="& Levels" hint="TradingView alerts · key levels · positions" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                <div className="lg:col-span-5"><SignalLog signals={signals} onChanged={refreshCore} /></div>
-                <div className="lg:col-span-3"><KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /></div>
-                <div className="lg:col-span-4"><Portfolio positions={positions} prices={prices} onChanged={refreshCore} /></div>
-              </div>
+              <Panes grid items={[
+                { id: "sec-signallog", label: "Signals", span: "lg:col-span-5", node: <SignalLog signals={signals} onChanged={refreshCore} /> },
+                { id: "sec-levels", label: "Levels", span: "lg:col-span-3", node: <KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /> },
+                { id: "sec-positions", label: "Positions", span: "lg:col-span-4", node: <Portfolio positions={positions} prices={prices} onChanged={refreshCore} /> },
+              ]} />
             </Section>
-            <Section id="sec-analytics" title="Edge" accent="Analytics" hint="expectancy · paper-trading bot" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <Analytics />
-                <SimBot />
-              </div>
+            <Section id="sec-edge" title="Edge" accent="Desk" hint="position sizing · expectancy · paper bot" pro>
+              <Panes items={[
+                { id: "sec-riskdesk", label: "Sizing", node: <RiskDesk trades={trades} /> },
+                { id: "sec-analytics", label: "Analytics", node: <Analytics /> },
+                { id: "sec-simbot", label: "Sim bot", node: <SimBot /> },
+              ]} />
             </Section>
-            <ProHint what="the risk desk, signals, key levels and edge analytics" />
+            <ProHint what="signals, key levels, position sizing and edge analytics" />
           </>
         )}
 
@@ -263,28 +279,35 @@ export default function Dashboard() {
             <SubTabs value={sub} onChange={setSub} />
             <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
             {sub === "ideas" && (
-              <>
-                <Section id="sec-topbuys" title="Top" accent="Buys" hint="best long-term scores · tap for why"><TopBuys /></Section>
-                <Section id="sec-sectors" title="Sector" accent="Map" hint="which themes are moving"><SectorMap /></Section>
-                <Section id="sec-swing" title="Swing" accent="Ideas" hint="energy, nuclear, space, defense, AI & more"><SwingIdeas /></Section>
-              </>
+              <Section id="sec-ideas" title="Buy" accent="Ideas" hint="long-term scores · swing setups · hot themes">
+                <Panes items={[
+                  { id: "sec-topbuys", label: "Long-term", node: <TopBuys /> },
+                  { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
+                  { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
+                ]} />
+              </Section>
             )}
             {sub === "stocks" && (
               <>
                 <Section id="sec-options" title="Options" accent="Watch" hint="your stocks · live signals"><OptionsWatch /></Section>
-                <Section id="sec-compare" title="Side by" accent="Side" hint="up to 4 tickers as % change"><CompareChart /></Section>
-                <Section id="sec-screener" title="Tech Stock" accent="Screener" hint="long-term buy / overbought" pro><StockScreener /></Section>
+                <Section id="sec-research" title="Stock" accent="Research" hint="compare tickers · tech screener">
+                  <Panes items={[
+                    { id: "sec-compare", label: "Compare", node: <CompareChart /> },
+                    { id: "sec-screener", label: "Screener", pro: true, node: <StockScreener /> },
+                  ]} />
+                </Section>
                 <ProHint what="the tech stock screener" />
               </>
             )}
             {sub === "crypto" && (
               <>
                 <Section id="sec-liqmap" title="Liquidation" accent="Heatmap" hint="where leveraged BTC positions get wiped"><LiqHeatmap /></Section>
-                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live · tap a row for its chart">
-                  <CryptoContext />
-                  <CryptoScreener />
+                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live coins · hot sectors">
+                  <Panes items={[
+                    { id: "sec-coins", label: "Coins", node: <div className="space-y-3"><CryptoContext /><CryptoScreener /></div> },
+                    { id: "sec-narratives", label: "Narratives", pro: true, node: <Narratives /> },
+                  ]} />
                 </Section>
-                <Section id="sec-narratives" title="Narratives" accent="Moving" hint="which crypto sectors are hot" pro><Narratives /></Section>
                 <ProHint what="crypto narratives" />
               </>
             )}
@@ -297,8 +320,12 @@ export default function Dashboard() {
             <Section id="sec-news" title="News" accent="For You" hint="what you own · watchlist · macro">
               <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
             </Section>
-            <Section id="sec-earnings" title="Earnings" accent="Ahead" hint="dates · analyst targets"><EarningsCalendar /></Section>
-            <Section id="sec-econ" title="Macro" accent="Calendar" hint="Fed · CPI · jobs" pro><EconCalendar /></Section>
+            <Section id="sec-calendar" title="Coming" accent="Up" hint="earnings · Fed · CPI · jobs">
+              <Panes items={[
+                { id: "sec-earnings", label: "Earnings", node: <EarningsCalendar /> },
+                { id: "sec-econ", label: "Macro", pro: true, node: <EconCalendar /> },
+              ]} />
+            </Section>
             <ProHint what="the macro calendar" />
           </>
         )}
@@ -306,31 +333,46 @@ export default function Dashboard() {
         {/* ── Wealth ── */}
         {tab === "wealth" && (
           <>
-            <Section id="sec-goals" title="Your" accent="Goals" hint="on pace or behind"><Goals /></Section>
             <Section id="sec-wealth" title="Net Worth" accent="Accounts" hint="tap an account to expand · tap a row to edit">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
                 <div className="lg:col-span-7"><NetWorth /></div>
-                <div className="lg:col-span-5 space-y-3">
-                  <div id="sec-risk" className="scroll-mt-28"><RiskRating /></div>
-                  <div id="sec-plan" className="scroll-mt-28"><SavingsPlan /></div>
+                <div className="lg:col-span-5">
+                  <Panes items={[
+                    { id: "sec-nwhistory", label: "Over time", node: <NetWorthHistory /> },
+                    { id: "sec-risk", label: "Risk", node: <RiskRating /> },
+                    { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
+                    { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
+                  ]} />
                 </div>
               </div>
             </Section>
-            <Section id="sec-nwhistory" title="Net Worth" accent="Over Time" hint="recorded daily · what it's made of"><NetWorthHistory /></Section>
-            <Section id="sec-spending" title="Money" accent="In & Out" hint="import statements · bills · budget">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
-                <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
-              </div>
+            <Section id="sec-ontrack" title="On" accent="Track" hint="goals · free money · limits · cushion">
+              <Panes items={[
+                { id: "sec-goals", label: "Goals", node: <Goals /> },
+                { id: "sec-health", label: "Health check", node: <WealthChecks /> },
+              ]} />
             </Section>
-            <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
-            <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
-            <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>
-            <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
-            <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
-            <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · retire early" pro><FireCalc /></Section>
+            <Section id="sec-taxes" title="Tax" accent="Savings" hint="gains · harvest losses · wash sales"><TaxCenter /></Section>
+            <Section id="sec-cashflow" title="Money" accent="In & Out" hint="import statements · bills · budget · dividends">
+              <Panes items={[
+                { id: "sec-spending", label: "Spending", node: (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                    <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
+                    <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
+                  </div>
+                ) },
+                { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
+              ]} />
+            </Section>
+            <Section id="sec-whatif" title="What" accent="If" hint="money lab · crash test · FIRE" pro>
+              <Panes items={[
+                { id: "sec-moneylab", label: "Money lab", node: <MoneyLab /> },
+                { id: "sec-stress", label: "Stress test", node: <StressTest /> },
+                { id: "sec-fire", label: "FIRE", node: <FireCalc /> },
+              ]} />
+            </Section>
             <Section id="sec-backup" title="Backup" accent="& Export" hint="your data, downloadable"><BackupPanel /></Section>
-            <ProHint what="Money Lab, the stress test, the net-worth calendar and the FIRE calculator" />
+            <ProHint what="the net-worth calendar, Money Lab, the stress test and FIRE" />
           </>
         )}
 

@@ -14,6 +14,7 @@ const DEFAULT: Prefs = { mode: "simple", collapsed: [], home: {} };
 let prefs: Prefs = DEFAULT;
 let loaded = false;
 const revealed = new Set<string>(); // pro sections opened via search/links this session
+let lastRevealed: string | null = null; // most recent reveal() id, so grouped panes can switch to it
 const subs = new Set<() => void>();
 
 function load() {
@@ -51,8 +52,11 @@ export function toggleCollapsed(id: string) {
 export function reveal(id: string) {
   load();
   revealed.add(id);
+  lastRevealed = id;
   save({ ...prefs, collapsed: prefs.collapsed.filter((x) => x !== id) });
 }
+
+export function getLastRevealed() { return lastRevealed; }
 
 /** Home cards: an explicit on/off from Customize beats the Simple/Pro default. */
 export function setHomeCard(id: string, on: boolean | null) {
