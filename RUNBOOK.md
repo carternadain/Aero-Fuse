@@ -176,6 +176,21 @@ Either way, each new signal triggers the background Claude verdict (if the key i
 The app is two processes with different needs. The backend must run **always-on** (Telegram
 poller) with a **persistent disk** (`terminal.db`) — so a normal serverless host won't do.
 
+### ✅ Live setup (Oct 2026) — how the running server differs from the steps below
+
+- **Server:** Oracle Always Free, Phoenix, `VM.Standard.A1.Flex` (1 OCPU / 6 GB, ARM), Ubuntu 24.04, 2 GB swap.
+- **Address:** `https://<ip-with-dashes>.sslip.io`. sslip.io resolves to the IP, so no DuckDNS account; Caddy gets a Let's Encrypt cert for it. Caddy does HTTPS + security headers only — **no basic auth** (the app login does the locking, and basic auth breaks the iPhone home-screen app).
+- **Node 22 from nodejs.org** (checksum-verified tarball in `/usr/local`): Ubuntu's apt Node is 18, too old for Tailwind v4.
+- **Ports:** Oracle Security List ingress 80,443 (+22); iptables rules saved with `netfilter-persistent`. The app itself listens on 127.0.0.1 only.
+- **Backups:** `~/backup-db.sh` via cron at 09:15 UTC → `~/backups/terminal-YYYY-MM-DD.db`, 14 days kept.
+- **Code** is shipped from the local repo with `git archive` (no GitHub token on the server). **To update:** commit, then
+  ```bash
+  ./deploy.sh ubuntu@<server-ip>
+  ```
+  It never touches the server's `terminal.db` or `.env`.
+- **The server's database is now the main copy.** The local `backend/terminal.db` no longer syncs with it.
+- **Local dev now needs the login too**, because `.env` sets `APP_PASSWORD_HASH`. Comment that line out locally if you want it open on localhost.
+
 ### Recommended: Oracle Cloud "Always Free" VPS — free forever, nothing changes
 
 Telegram poller runs 24/7, the DB lives on a real disk, real HTTPS, your PC can be off.
