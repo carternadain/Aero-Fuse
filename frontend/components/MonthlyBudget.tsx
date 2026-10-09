@@ -149,7 +149,7 @@ export default function MonthlyBudget() {
         </div>
         <div className="py-2">
           <div className="text-[9px] text-dim uppercase tracking-widest">Spent</div>
-          <div className="text-sm font-bold text-txt tabular-nums">{fmtUsd(t?.spent ?? 0)}</div>
+          <div className="text-sm font-bold text-txt tabular-nums">{fmtUsd(t?.spent_targeted ?? 0)}</div>
         </div>
         <div className="py-2">
           <div className="text-[9px] text-dim uppercase tracking-widest">{left < 0 ? "Over" : "Left"}</div>
@@ -168,8 +168,11 @@ export default function MonthlyBudget() {
               <span className="font-bold text-up tabular-nums">{fmtUsd(t.daily_allowance)}</span> a day for the next {plan.days_left} {plan.days_left === 1 ? "day" : "days"}
             </div>
           ) : null}
+          {t && t.spent - t.spent_targeted > 0 && (
+            <div>Plus <span className="tabular-nums text-txt">{fmtUsd(t.spent - t.spent_targeted)}</span> in categories without a target</div>
+          )}
           {t?.projected != null && (
-            <div>On track to spend <span className="tabular-nums text-txt">{fmtUsd(t.projected)}</span></div>
+            <div>All spending on track for <span className="tabular-nums text-txt">{fmtUsd(t.projected)}</span> this month</div>
           )}
         </div>
       )}
@@ -230,11 +233,11 @@ export default function MonthlyBudget() {
                           ? `${fmtUsd(-c.left)} over`
                           : `${fmtUsd(c.left ?? 0)} left`}
                       </span>
-                      {c.avg_3m != null && <span className="tabular-nums">avg {fmtUsd(c.avg_3m)}</span>}
+                      {!!c.avg_3m && <span className="tabular-nums">avg {fmtUsd(c.avg_3m)}</span>}
                     </div>
                   </>
                 )}
-                {!hasT && c.avg_3m != null && (
+                {!hasT && !!c.avg_3m && (
                   <div className="mt-0.5 text-[10px] text-faint tabular-nums">avg {fmtUsd(c.avg_3m)}</div>
                 )}
               </button>

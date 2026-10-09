@@ -75,7 +75,9 @@ def build_plan(month: str, today: date, spending: dict[str, dict[str, float]],
             status = "none"
         elif spent > target:
             status = "over"
-        elif is_current and ((target > 0 and spent >= target * 0.9) or (proj is not None and proj > target)):
+        elif is_current and ((target > 0 and spent >= target * 0.9)
+                            or (proj is not None and proj > target and spent > (pace or 0))):
+            # Close to the limit, or ahead of pace in a month that usually ends over it.
             status = "watch"
         else:
             status = "ok"
