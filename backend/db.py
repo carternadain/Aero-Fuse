@@ -230,6 +230,13 @@ def migrate():
         if ccols and "match_max" not in ccols:
             c.execute("ALTER TABLE contributions ADD COLUMN match_max REAL")
 
+        # net worth snapshots v2: bucket split + where the row came from
+        ncols = {r["name"] for r in c.execute("PRAGMA table_info(networth_snapshots)").fetchall()}
+        for name, decl in {"investments": "REAL", "cash": "REAL", "property": "REAL",
+                           "source": "TEXT DEFAULT 'live'"}.items():
+            if ncols and name not in ncols:
+                c.execute(f"ALTER TABLE networth_snapshots ADD COLUMN {name} {decl}")
+
         # transactions v2: statement import (merchant, where it came from, dedupe hash)
         tcols = {r["name"] for r in c.execute("PRAGMA table_info(transactions)").fetchall()}
         for name, decl in {"merchant": "TEXT DEFAULT ''", "source": "TEXT DEFAULT 'manual'",
@@ -784,19 +791,48 @@ def networth_totals(holdings_value: float = 0.0) -> dict:
             "net_worth": round(assets - liabilities, 2)}
 
 
+INVEST_CATS = ("brokerage", "crypto", "retirement")
+
+
+def _buckets(accounts, holdings_value: float = 0.0) -> dict:
+    """Pure: split account rows (+ holdings value) into assets/liabilities/net worth and buckets."""
+    inv, cash, prop, liab = float(holdings_value or 0), 0.0, 0.0, 0.0
+    for a in accounts:
+        bal = a.get("balance") or 0
+        if a.get("kind") == "liability":
+            liab += bal
+        elif a.get("category") in INVEST_CATS:
+            inv += bal
+        elif a.get("category") == "cash":
+            cash += bal
+        else:
+            prop += bal
+    assets = inv + cash + prop
+    return {"assets": round(assets, 2), "liabilities": round(liab, 2),
+            "net_worth": round(assets - liab, 2), "investments": round(inv, 2),
+            "cash": round(cash, 2), "property": round(prop, 2)}
+
+
+def networth_breakdown(holdings_value: float = 0.0) -> dict:
+    return _buckets(list_accounts(), holdings_value)
+
+
 def take_snapshot(holdings_value: float = 0.0) -> dict:
     """Record today's totals (upsert — re-snapshotting the same day overwrites)."""
-    totals = networth_totals(holdings_value)
+    b = networth_breakdown(holdings_value)
     today = utcnow()[:10]
     with conn() as c:
         c.execute(
-            """INSERT INTO networth_snapshots (date, assets, liabilities, net_worth)
-               VALUES (?,?,?,?)
+            """INSERT INTO networth_snapshots (date, assets, liabilities, net_worth,
+                                               investments, cash, property, source)
+               VALUES (?,?,?,?,?,?,?,'live')
                ON CONFLICT(date) DO UPDATE SET assets=excluded.assets,
-                   liabilities=excluded.liabilities, net_worth=excluded.net_worth""",
-            (today, totals["assets"], totals["liabilities"], totals["net_worth"]),
+                   liabilities=excluded.liabilities, net_worth=excluded.net_worth,
+                   investments=excluded.investments, cash=excluded.cash,
+                   property=excluded.property, source='live'""",
+            (today, b["assets"], b["liabilities"], b["net_worth"], b["investments"], b["cash"], b["property"]),
         )
-    return {"date": today, **totals}
+    return {"date": today, **b}
 
 
 def list_snapshots() -> list[dict]:

@@ -25,6 +25,7 @@ import CompareChart from "@/components/CompareChart";
 import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
 import Goals from "@/components/Goals";
+import NetWorthHistory from "@/components/NetWorthHistory";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
@@ -69,7 +70,7 @@ import EarningsCalendar from "@/components/EarningsCalendar";
 
 // Anchors that live inside another foldable section
 const PARENT: Record<string, string> = {
-  "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth",
+  "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth", "sec-nwhistory": "sec-wealth",
   "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
   "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow", "sec-budget": "sec-cashflow",
   "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
@@ -338,6 +339,7 @@ export default function Dashboard() {
                 <div className="lg:col-span-7"><NetWorth /></div>
                 <div className="lg:col-span-5">
                   <Panes items={[
+                    { id: "sec-nwhistory", label: "Over time", node: <NetWorthHistory /> },
                     { id: "sec-risk", label: "Risk", node: <RiskRating /> },
                     { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
                     { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
