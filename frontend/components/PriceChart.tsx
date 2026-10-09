@@ -27,6 +27,11 @@ export function fmtTime(t: number, range: Range): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
+function pointAt(pts: { t: number; p: number }[], idx: unknown): { t: number; p: number } | null {
+  const i = typeof idx === "string" ? parseInt(idx, 10) : typeof idx === "number" ? idx : NaN;
+  return Number.isInteger(i) && pts[i] ? pts[i] : null;
+}
+
 /**
  * Robinhood-style line: no axes, colored by direction over the range, dashed
  * baseline (previous close) on 1D, and scrubbing reports the hovered point.
@@ -57,11 +62,11 @@ export default function PriceChart({
         <AreaChart
           data={pts}
           margin={{ top: 6, right: 0, bottom: 0, left: 0 }}
-          onMouseMove={(s) => {
-            const i = s?.activeTooltipIndex;
-            onScrub?.(typeof i === "number" && pts[i] ? pts[i] : null);
-          }}
+          // recharts 3 reports the hovered index as a string ("123"), so normalize it
+          onMouseMove={(s) => onScrub?.(pointAt(pts, s?.activeTooltipIndex))}
+          onTouchMove={(s) => onScrub?.(pointAt(pts, s?.activeTooltipIndex))}
           onMouseLeave={() => onScrub?.(null)}
+          onTouchEnd={() => onScrub?.(null)}
         >
           <defs>
             <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
