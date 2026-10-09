@@ -47,6 +47,7 @@ import market_data
 import news
 import risk
 import scoring
+import taxes
 import universe
 
 WATCHLIST_FILE = Path(__file__).parent / "watchlist.json"
@@ -418,6 +419,7 @@ def cache_warmer_loop(label: str, every: int, factor: float, jobs: list):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    taxes.init()
     if not auth.enabled():
         print("[auth] " + "!" * 60)
         print("[auth] APP_PASSWORD_HASH not set — LOGIN DISABLED. Fine on localhost,")
@@ -834,6 +836,10 @@ def valued_holdings() -> dict:
 @app.get("/api/holdings")
 def get_holdings():
     return valued_holdings()
+
+
+taxes.holdings_provider = valued_holdings
+app.include_router(taxes.router)
 
 
 CHART_RANGES = tuple(charts.RANGES)

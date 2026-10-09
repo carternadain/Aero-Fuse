@@ -177,12 +177,12 @@ export default function WealthChecks() {
       </Card>
 
       <Card icon={<LifeBuoy size={14} />} title="Emergency fund">
-        <div className="flex items-end gap-2 flex-wrap">
-          <label className="block">
-            <span className="text-[10px] text-faint">What you spend in a month</span>
+        <div className="flex items-end gap-2 flex-wrap max-sm:flex-nowrap">
+          <label className="field-wrap max-sm:flex-1">
+            <span className="field-label">What you spend in a month</span>
             <span className="relative block">
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-faint text-sm">$</span>
-              <input className="field !w-32 !pl-5 !py-1 !text-sm tabular-nums" inputMode="decimal" placeholder="e.g. 2500"
+              <input className="field !w-32 max-sm:!w-full !pl-5 !py-1 sm:!text-sm tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="done" placeholder="e.g. 2500"
                      value={spendDraft} onChange={(e) => setSpendDraft(e.target.value)}
                      onKeyDown={(e) => { if (e.key === "Enter") saveSpend(); }} />
             </span>
