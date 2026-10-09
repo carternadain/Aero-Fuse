@@ -41,13 +41,17 @@ function Form({ g, onDone }: { g?: Partial<Goal>; onDone: (rows?: Goal[]) => voi
   };
   return (
     <div className="p-3 space-y-2 border-t border-edge bg-panel2/30">
-      <input className="field w-full" placeholder="Goal name, e.g. $100k club" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-      <div className="grid grid-cols-3 gap-2">
-        <input className="field" inputMode="decimal" placeholder="Target $" value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} />
-        <input className="field" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
-        <select className="field" value={f.metric} onChange={(e) => setF({ ...f, metric: e.target.value as Goal["metric"] })}>
-          {Object.entries(METRIC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+      <label className="field-wrap"><span className="field-label">Goal name</span>
+        <input className="field w-full" placeholder="e.g. $100k club" autoComplete="off" enterKeyHint="next" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+      <div className="grid grid-cols-3 max-sm:grid-cols-2 gap-2">
+        <label className="field-wrap"><span className="field-label">Target $</span>
+          <input className="field" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} /></label>
+        <label className="field-wrap"><span className="field-label">Target date</span>
+          <input className="field" type="date" enterKeyHint="done" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
+        <label className="field-wrap max-sm:col-span-2"><span className="field-label">Track</span>
+          <select className="field" value={f.metric} onChange={(e) => setF({ ...f, metric: e.target.value as Goal["metric"] })}>
+            {Object.entries(METRIC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select></label>
       </div>
       <div className="flex gap-2 justify-end">
         <button className="btn" onClick={() => onDone()}>Cancel</button>

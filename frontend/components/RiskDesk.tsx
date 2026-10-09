@@ -75,11 +75,11 @@ export default function RiskDesk({ trades }: { trades: Trade[] }) {
         <span className="panel-title"><Calculator size={14} /> Risk Desk</span>
         <div className="flex items-center gap-2 text-[10px] text-faint">
           <label className="flex items-center gap-1">acct $
-            <input className="field !w-20 !py-0.5 !px-1.5 tabular-nums" value={s.account}
+            <input className="field !w-20 max-sm:!w-24 !py-0.5 !px-1.5 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={s.account}
               onChange={(e) => save({ ...s, account: num(e.target.value) })} />
           </label>
           <label className="flex items-center gap-1">risk %
-            <input className="field !w-12 !py-0.5 !px-1.5 tabular-nums" value={s.riskPct}
+            <input className="field !w-12 max-sm:!w-20 !py-0.5 !px-1.5 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={s.riskPct}
               onChange={(e) => save({ ...s, riskPct: num(e.target.value) })} />
           </label>
         </div>
@@ -89,15 +89,15 @@ export default function RiskDesk({ trades }: { trades: Trade[] }) {
         {/* Position sizer */}
         <div className="p-3 space-y-2">
           <p className="text-[10px] uppercase tracking-wide text-faint font-semibold">Position size</p>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="text-[10px] text-dim">Entry
-              <input className="field !py-1 tabular-nums mt-0.5" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="0" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <label className="field-wrap"><span className="field-label">Entry</span>
+              <input className="field !py-1 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="0" />
             </label>
-            <label className="text-[10px] text-dim">Stop
-              <input className="field !py-1 tabular-nums mt-0.5" value={stop} onChange={(e) => setStop(e.target.value)} placeholder="0" />
+            <label className="field-wrap"><span className="field-label">Stop</span>
+              <input className="field !py-1 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={stop} onChange={(e) => setStop(e.target.value)} placeholder="0" />
             </label>
-            <label className="text-[10px] text-dim">Target
-              <input className="field !py-1 tabular-nums mt-0.5" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="opt" />
+            <label className="field-wrap max-sm:col-span-2"><span className="field-label">Target</span>
+              <input className="field !py-1 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="optional" />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-y-1 text-xs pt-1">
@@ -142,7 +142,7 @@ export default function RiskDesk({ trades }: { trades: Trade[] }) {
           <label className="flex items-center justify-between text-[10px] text-faint">
             Daily loss limit
             <span className="flex items-center gap-1">
-              <input className="field !w-14 !py-0.5 !px-1.5 tabular-nums" value={s.dailyLossPct}
+              <input className="field !w-14 max-sm:!w-20 !py-0.5 !px-1.5 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={s.dailyLossPct}
                 onChange={(e) => save({ ...s, dailyLossPct: num(e.target.value) })} />%
             </span>
           </label>

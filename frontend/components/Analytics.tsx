@@ -58,7 +58,7 @@ export default function Analytics() {
       <div className="panel-head">
         <span className="panel-title">
           <BarChart3 size={14} /> Performance
-          <span className="text-[10px] text-faint font-medium ml-1">in R (risk units){a ? ` · ${a.sample} trades` : ""}</span>
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1">in R (risk units){a ? ` · ${a.sample} trades` : ""}</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
