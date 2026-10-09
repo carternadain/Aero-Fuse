@@ -38,6 +38,7 @@ import econ_calendar
 import extras
 import liqmap
 import exits
+import brief
 import market_data
 import news
 import risk
@@ -380,6 +381,8 @@ WARM_TIERS = [
                              lambda: get_portfolio_chart("3M"), lambda: get_portfolio_chart("1Y"),
                              lambda: get_portfolio_chart("5Y"), lambda: get_income(),
                              lambda: get_holdings_news(), lambda: get_exit_desk()]),
+    # brief: TTL 180s -> 0.5×180 + 60 ≈ 150s
+    ("brief", 60, 0.5, [lambda: get_brief()]),
     # live: LIVE TTL 90s -> 0.4×90 + 40 + ~3s ≈ 79s
     ("live", 40, 0.4, [lambda: get_portfolio_chart("LIVE")]),
     # liquidation heatmap: 24h TTL 120s -> 0.5×120 + 60 ≈ 120s; 3d/1w have longer TTLs
@@ -1505,6 +1508,11 @@ def put_exit_rule(body: ExitRuleIn):
         r = clean if (tp or len(clean) > 1) else None
     exits.set_rule(body.key, r)
     return {"rules": exits.rules()}
+
+
+@app.get("/api/brief")
+def get_brief():
+    return brief.build(valued_holdings()["holdings"], get_goals()["goals"])
 
 
 @app.get("/api/income")

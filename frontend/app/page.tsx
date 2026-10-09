@@ -27,6 +27,8 @@ import Goals from "@/components/Goals";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
+import Section, { ProHint } from "@/components/Section";
+import { reveal } from "@/lib/prefs";
 import StatsBar from "@/components/StatsBar";
 import NewsFeed from "@/components/NewsFeed";
 import TradeTracker from "@/components/TradeTracker";
@@ -59,6 +61,9 @@ import StockScreener from "@/components/StockScreener";
 import OptionsWatch from "@/components/OptionsWatch";
 import EarningsCalendar from "@/components/EarningsCalendar";
 
+// Anchors that live inside another foldable section
+const PARENT: Record<string, string> = { "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-tradecal": "sec-trades" };
+
 // Swipe order on phones: Markets' sub-tabs sit in the middle of the sequence.
 const SEQ: { tab: TabKey; sub?: MarketsSub }[] = [
   { tab: "home" }, { tab: "trading" }, { tab: "markets", sub: "ideas" }, { tab: "markets", sub: "stocks" },
@@ -73,18 +78,6 @@ function inHScroll(el: HTMLElement | null): boolean {
     if ((ox === "auto" || ox === "scroll") && n.scrollWidth > n.clientWidth + 2) return true;
   }
   return false;
-}
-
-function SectionDivider({ title, accent, hint, id }: { title: string; accent: string; hint?: string; id?: string }) {
-  return (
-    <div id={id} className="section-divider flex items-baseline gap-3 pt-3 scroll-mt-28">
-      <h2 className="font-display text-[26px] leading-none text-txt">
-        {title} <em className="text-amber">{accent}</em>
-      </h2>
-      <div className="flex-1 h-px bg-edge self-center" />
-      {hint && <span className="hidden sm:inline text-[10px] text-faint font-medium">{hint}</span>}
-    </div>
-  );
 }
 
 export default function Dashboard() {
@@ -118,6 +111,8 @@ export default function Dashboard() {
     if (s) setSubState(s);
     history.replaceState(null, "", `#${t}${t === "markets" ? `/${s ?? subRef.current}` : ""}`);
     if (anchor) {
+      reveal(anchor);
+      if (PARENT[anchor]) reveal(PARENT[anchor]);
       // wait for the tab to render, then scroll to the section
       let tries = 0;
       const tryScroll = () => { if (!scrollToId(anchor) && tries++ < 20) setTimeout(tryScroll, 60); };
@@ -226,39 +221,36 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Trading ── */}
         {tab === "home" && <Overview onNavigate={setTab} />}
 
+        {/* ── Trading ── */}
         {tab === "trading" && (
           <>
-            <SectionDivider title="Trading" accent="Desk" hint="signals · trades · levels" />
             <StatsBar stats={stats} edge={edge} />
-            <div id="sec-exits" className="scroll-mt-28"><ExitDesk /></div>
-            <div id="sec-riskdesk" className="scroll-mt-28"><RiskDesk trades={trades} /></div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-              <div className="lg:col-span-4">
-                <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
+            <Section id="sec-exits" title="Exit" accent="Desk" hint="how stretched each holding is · your take-profit plan">
+              <ExitDesk />
+            </Section>
+            <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
+              <TradeTracker trades={trades} onChanged={refreshCore} />
+              <div id="sec-tradecal" className="scroll-mt-28"><TradeCalendar trades={trades} /></div>
+            </Section>
+            <Section id="sec-riskdesk" title="Risk" accent="Desk" hint="position sizing" pro>
+              <RiskDesk trades={trades} />
+            </Section>
+            <Section id="sec-signals" title="Signals" accent="& Levels" hint="TradingView alerts · key levels · positions" pro>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                <div className="lg:col-span-5"><SignalLog signals={signals} onChanged={refreshCore} /></div>
+                <div className="lg:col-span-3"><KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /></div>
+                <div className="lg:col-span-4"><Portfolio positions={positions} prices={prices} onChanged={refreshCore} /></div>
               </div>
-              <div className="lg:col-span-8 space-y-3">
-                <div id="sec-trades" className="scroll-mt-28"><TradeTracker trades={trades} onChanged={refreshCore} /></div>
-                <div id="sec-tradecal" className="scroll-mt-28"><TradeCalendar trades={trades} /></div>
+            </Section>
+            <Section id="sec-analytics" title="Edge" accent="Analytics" hint="expectancy · paper-trading bot" pro>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <Analytics />
+                <SimBot />
               </div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-              <div id="sec-signals" className="lg:col-span-5 scroll-mt-28">
-                <SignalLog signals={signals} onChanged={refreshCore} />
-              </div>
-              <div className="lg:col-span-3">
-                <KeyLevels levels={levels} prices={prices} onChanged={refreshCore} />
-              </div>
-              <div className="lg:col-span-4">
-                <Portfolio positions={positions} prices={prices} onChanged={refreshCore} />
-              </div>
-            </div>
-            <div id="sec-analytics" className="grid grid-cols-1 lg:grid-cols-2 gap-3 scroll-mt-28">
-              <Analytics />
-              <SimBot />
-            </div>
+            </Section>
+            <ProHint what="the risk desk, signals, key levels and edge analytics" />
           </>
         )}
 
@@ -269,38 +261,28 @@ export default function Dashboard() {
             <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
             {sub === "ideas" && (
               <>
-                <SectionDivider id="sec-topbuys" title="Top" accent="Buys" hint="best long-term scores · tap for why" />
-                <TopBuys />
-                <SectionDivider id="sec-sectors" title="Sector" accent="Map" hint="which themes are moving" />
-                <SectorMap />
-                <SectionDivider id="sec-swing" title="Swing" accent="Ideas" hint="energy, nuclear, space, defense, AI & more · + adds to Options Watch" />
-                <SwingIdeas />
+                <Section id="sec-topbuys" title="Top" accent="Buys" hint="best long-term scores · tap for why"><TopBuys /></Section>
+                <Section id="sec-sectors" title="Sector" accent="Map" hint="which themes are moving"><SectorMap /></Section>
+                <Section id="sec-swing" title="Swing" accent="Ideas" hint="energy, nuclear, space, defense, AI & more"><SwingIdeas /></Section>
               </>
             )}
             {sub === "stocks" && (
               <>
-                <SectionDivider id="sec-options" title="Options" accent="Watch" hint="your 8 stocks · live signals" />
-                <OptionsWatch />
-                <SectionDivider id="sec-compare" title="Side by" accent="Side" hint="up to 4 tickers as % change" />
-                <CompareChart />
-                <SectionDivider id="sec-screener" title="Tech Stock" accent="Screener" hint="long-term buy / overbought" />
-                <StockScreener />
+                <Section id="sec-options" title="Options" accent="Watch" hint="your stocks · live signals"><OptionsWatch /></Section>
+                <Section id="sec-compare" title="Side by" accent="Side" hint="up to 4 tickers as % change"><CompareChart /></Section>
+                <Section id="sec-screener" title="Tech Stock" accent="Screener" hint="long-term buy / overbought" pro><StockScreener /></Section>
+                <ProHint what="the tech stock screener" />
               </>
             )}
             {sub === "crypto" && (
               <>
-                <SectionDivider id="sec-liqmap" title="Liquidation" accent="Heatmap" hint="where leveraged BTC positions get wiped" />
-                <LiqHeatmap />
-                <SectionDivider id="sec-crypto" title="Crypto" accent="Markets" hint="live · tap a row for its chart" />
-                <CryptoContext />
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
-                  <div className="xl:col-span-8">
-                    <CryptoScreener />
-                  </div>
-                  <div id="sec-narratives" className="xl:col-span-4 scroll-mt-28">
-                    <Narratives />
-                  </div>
-                </div>
+                <Section id="sec-liqmap" title="Liquidation" accent="Heatmap" hint="where leveraged BTC positions get wiped"><LiqHeatmap /></Section>
+                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live · tap a row for its chart">
+                  <CryptoContext />
+                  <CryptoScreener />
+                </Section>
+                <Section id="sec-narratives" title="Narratives" accent="Moving" hint="which crypto sectors are hot" pro><Narratives /></Section>
+                <ProHint what="crypto narratives" />
               </>
             )}
           </>
@@ -309,52 +291,40 @@ export default function Dashboard() {
         {/* ── News ── */}
         {tab === "news" && (
           <>
-            <SectionDivider title="News" accent="& Earnings" hint="projections · sentiment · macro" />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-              <div id="sec-news" className="lg:col-span-4 lg:order-3 scroll-mt-28">
-                <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
-              </div>
-              <div id="sec-econ" className="lg:col-span-4 lg:order-1 scroll-mt-28">
-                <EconCalendar />
-              </div>
-              <div id="sec-earnings" className="lg:col-span-4 lg:order-2 scroll-mt-28">
-                <EarningsCalendar />
-              </div>
-            </div>
+            <Section id="sec-news" title="News" accent="For You" hint="what you own · watchlist · macro">
+              <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
+            </Section>
+            <Section id="sec-earnings" title="Earnings" accent="Ahead" hint="dates · analyst targets"><EarningsCalendar /></Section>
+            <Section id="sec-econ" title="Macro" accent="Calendar" hint="Fed · CPI · jobs" pro><EconCalendar /></Section>
+            <ProHint what="the macro calendar" />
           </>
         )}
 
         {/* ── Wealth ── */}
         {tab === "wealth" && (
           <>
-            <SectionDivider title="Wealth" accent="Desk" hint="tap an account to expand it · tap a row to edit" />
-            <div id="sec-goals" className="scroll-mt-28"><Goals /></div>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-              <div id="sec-wealth" className="lg:col-span-7 scroll-mt-28">
-                <NetWorth />
+            <Section id="sec-goals" title="Your" accent="Goals" hint="on pace or behind"><Goals /></Section>
+            <Section id="sec-wealth" title="Net Worth" accent="Accounts" hint="tap an account to expand · tap a row to edit">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                <div className="lg:col-span-7"><NetWorth /></div>
+                <div className="lg:col-span-5 space-y-3">
+                  <div id="sec-risk" className="scroll-mt-28"><RiskRating /></div>
+                  <div id="sec-plan" className="scroll-mt-28"><SavingsPlan /></div>
+                </div>
               </div>
-              <div className="lg:col-span-5 space-y-3">
-                <div id="sec-risk" className="scroll-mt-28"><RiskRating /></div>
-                <div id="sec-plan" className="scroll-mt-28"><SavingsPlan /></div>
-                <div id="sec-income" className="scroll-mt-28"><IncomeTracker /></div>
+            </Section>
+            <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
+            <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
+            <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>
+            <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
+            <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
+            <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · budget" pro>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                <div className="lg:col-span-7"><FireCalc /></div>
+                <div className="lg:col-span-5"><BudgetTracker /></div>
               </div>
-            </div>
-            <SectionDivider id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" />
-            <MoneyLab />
-            <SectionDivider id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" />
-            <StressTest />
-            <SectionDivider id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations" />
-            <WealthChecks />
-            <NetWorthCalendar />
-            <SectionDivider id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · budget" />
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-              <div className="lg:col-span-7">
-                <FireCalc />
-              </div>
-              <div className="lg:col-span-5">
-                <BudgetTracker />
-              </div>
-            </div>
+            </Section>
+            <ProHint what="Money Lab, the stress test, the net-worth calendar and FIRE/budget" />
           </>
         )}
 

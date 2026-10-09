@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, CornerDownLeft, Eye, FileBarChart, Hash, Search, Star, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Layers, CornerDownLeft, Eye, FileBarChart, Hash, Search, Star, Wallet, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { haptic, navigate, on, openAlerts, openReport, openTicker, type Kind } from "@/lib/bus";
 import { accountAnchor } from "@/lib/live";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { useStars } from "@/lib/stars";
+import { getMode, setMode } from "@/lib/prefs";
 
 interface IndexTicker { symbol: string; kind: Kind; name: string | null; sector?: string; owned: boolean }
 
@@ -49,6 +50,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Money lab", "wealth", undefined, "sec-moneylab", "time machine milestones"],
   ["Stress test", "wealth", undefined, "sec-stress", "crash black swan"],
   ["Health check", "wealth", undefined, "sec-health", "free money irs limits emergency fund"],
+  ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
   ["FIRE & budget", "wealth", undefined, "sec-fire", "retire early spending"],
 ];
 
@@ -125,6 +127,8 @@ export default function CommandPalette() {
     out.push(
       { id: "x:hide", group: "Actions", label: isHidden() ? "Show balances" : "Hide balances", icon: Eye, keywords: "privacy mask",
         run: () => setHidden(!isHidden()) },
+      { id: "x:mode", group: "Actions", label: getMode() === "simple" ? "Switch to Pro mode (show everything)" : "Switch to Simple mode",
+        icon: Layers, keywords: "simple pro advanced declutter view", run: () => setMode(getMode() === "simple" ? "pro" : "simple") },
       { id: "x:alert", group: "Actions", label: "New price alert", icon: Bell, keywords: "notify ping", run: () => openAlerts() },
       { id: "x:report", group: "Actions", label: "Monthly report", icon: FileBarChart, keywords: "recap summary month", run: () => openReport() },
     );

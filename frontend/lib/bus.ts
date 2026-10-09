@@ -33,5 +33,11 @@ export function scrollToId(id: string) {
   const el = document.getElementById(id);
   if (!el) return false;
   el.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Panels above it may still be loading and changing height, which can cut a smooth
+  // scroll short; land it for sure once things settle.
+  setTimeout(() => {
+    const top = el.getBoundingClientRect().top;
+    if (top > 140 || top < 0) el.scrollIntoView({ block: "start" });
+  }, 900);
   return true;
 }

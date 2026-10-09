@@ -7,6 +7,7 @@ import { api, fmtPrice } from "@/lib/api";
 import PalettePicker from "./PalettePicker";
 import AlertsCenter from "./AlertsCenter";
 import { openSearch } from "@/lib/bus";
+import { setMode, usePrefs } from "@/lib/prefs";
 
 export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -14,6 +15,7 @@ export default function Header() {
   const [clock, setClock] = useState("");
   const [authOn, setAuthOn] = useState(false);
   const [hide, setHide] = useState(false);
+  const { mode } = usePrefs();
   useEffect(() => setHide(isHidden()), []);
 
   useEffect(() => {
@@ -83,8 +85,14 @@ export default function Header() {
         })}
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <span className="hidden sm:inline text-[11px] text-dim tabular-nums">{clock}</span>
+        <button onClick={() => setMode(mode === "simple" ? "pro" : "simple")}
+                title={mode === "simple" ? "Simple view: advanced tools hidden. Tap for Pro" : "Pro view: everything shown. Tap for Simple"}
+                className={`text-[10px] font-extrabold tracking-wider px-2 py-1 rounded-md border transition-colors ${
+                  mode === "pro" ? "border-amber/50 text-amber bg-amber/10" : "border-edge2 text-dim"}`}>
+          {mode === "pro" ? "PRO" : "SIMPLE"}
+        </button>
         <button className="icon-btn !text-dim hover:!text-txt" title="Search (Ctrl K)" onClick={openSearch}>
           <Search size={15} />
         </button>

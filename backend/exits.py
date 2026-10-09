@@ -98,7 +98,7 @@ def _sig(name: str, value: str, heat: float | None, note: str) -> dict:
 
 def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
     key = f"heat:{kind}:{sym}"
-    hit = _get(key, 900)
+    hit = _get(key, 2400)  # inputs are daily/weekly bars; the screeners warmer refreshes every 15 min
     if hit is not None:
         return hit  # type: ignore[return-value]
     closes = _daily(kind, sym)
