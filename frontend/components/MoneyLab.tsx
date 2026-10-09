@@ -135,7 +135,7 @@ export default function MoneyLab() {
         <div className="flex flex-wrap gap-1.5">
           {[["Coffee", 6], ["Dinner out", 60], ["Sneakers", 180], ["New phone", 1100]].map(([label, v]) => (
             <button key={label} onClick={() => setAmount(String(v))}
-                    className="px-2 py-0.5 rounded-md border border-edge2 text-[10px] text-dim hover:text-txt hover:border-amber/60">
+                    className="chip-tap px-2 py-0.5 rounded-md border border-edge2 text-[10px] text-dim hover:text-txt hover:border-amber/60">
               {label} ${v}
             </button>
           ))}

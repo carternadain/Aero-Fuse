@@ -90,7 +90,7 @@ def crypto_markets(limit: int = 15) -> list[dict]:
     coins: list[dict] = []
     for c in raw:
         sym = (c.get("symbol") or "").upper()
-        if sym in STABLES:
+        if sym in STABLES or "_" in sym:  # "_" = tokenized RWAs (e.g. FIGR_HELOC), not crypto
             continue
         spark = (c.get("sparkline_in_7d") or {}).get("price") or []
         coins.append({
@@ -111,7 +111,7 @@ def crypto_markets(limit: int = 15) -> list[dict]:
 
     # Attach the long-term score using daily history (cached per coin).
     for coin in coins:
-        hist = crypto_history(coin["id"])
+        hist = crypto_history(coin["id"], coin["symbol"])
         coin["score"] = scoring.long_term_score(hist) if hist else None
 
     _set("cg_markets", coins)
@@ -119,7 +119,19 @@ def crypto_markets(limit: int = 15) -> list[dict]:
     return coins
 
 
-def crypto_history(coin_id: str) -> list[float]:
+def _coinbase_daily(symbol: str | None) -> list[tuple[float, float]]:
+    """~1y of Coinbase daily closes [(unix_s, close)], or [] if the coin isn't listed there."""
+    if not symbol:
+        return []
+    try:
+        import charts  # local import: charts imports this module
+        return charts._coinbase(symbol.upper(), 86_400, 365 * 86_400)
+    except Exception as e:
+        print(f"[market_data] coinbase daily {symbol} error: {e}")
+        return []
+
+
+def crypto_history(coin_id: str, symbol: str | None = None) -> list[float]:
     """~1y of daily closes for one coin (for scoring). Cached 6h per coin."""
     key = f"cg_hist:{coin_id}"
     cached = _get(key, 6 * 3600)
@@ -136,14 +148,16 @@ def crypto_history(coin_id: str) -> list[float]:
         closes = [p[1] for p in r.json().get("prices", [])]
     except Exception as e:
         print(f"[market_data] crypto_history {coin_id} error: {e}")
-        closes = _get(f"{key}:stale", 86400) or []
-    _set(key, closes)
+        closes = []
+    if not closes:  # CoinGecko's free tier rate-limits history: try Coinbase, then last good
+        closes = [c for _, c in _coinbase_daily(symbol)] or (_get(f"{key}:stale", 86400) or [])
     if closes:
+        _set(key, closes)
         _set(f"{key}:stale", closes)
-    return closes
+    return closes  # an empty result is NOT cached, so the next request retries
 
 
-def crypto_history_dated(coin_id: str) -> list[dict]:
+def crypto_history_dated(coin_id: str, symbol: str | None = None) -> list[dict]:
     """~1y of daily {date, price} for charting. Cached 6h per coin."""
     key = f"cg_histd:{coin_id}"
     cached = _get(key, 6 * 3600)
@@ -164,9 +178,13 @@ def crypto_history_dated(coin_id: str) -> list[dict]:
             points.append({"date": d, "price": round(price, 6)})
     except Exception as e:
         print(f"[market_data] crypto_history_dated {coin_id} error: {e}")
-        points = _get(f"{key}:stale", 86400) or []
-    _set(key, points)
+        points = []
+    if not points:
+        from datetime import datetime, timezone
+        points = [{"date": datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%d"), "price": round(c, 6)}
+                  for t, c in _coinbase_daily(symbol)] or (_get(f"{key}:stale", 86400) or [])
     if points:
+        _set(key, points)
         _set(f"{key}:stale", points)
     return points
 
@@ -195,7 +213,11 @@ def stock_history_dated(ticker: str) -> list[dict]:
 
 def history_with_scores(kind: str, key_id: str) -> dict:
     """Dated price + point-in-time score series for the detail chart."""
-    points = crypto_history_dated(key_id) if kind == "crypto" else stock_history_dated(key_id)
+    if kind == "crypto":
+        sym = next((c["symbol"] for c in (_get("cg_markets", 86400) or []) if c.get("id") == key_id), None)
+        points = crypto_history_dated(key_id, sym)
+    else:
+        points = stock_history_dated(key_id)
     prices = [p["price"] for p in points]
     scores = scoring.score_series(prices)
     rows = [{"date": p["date"], "price": p["price"], "score": s}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, RefreshCw, Trophy } from "lucide-react";
+import { Bell, RefreshCw, Target } from "lucide-react";
 import type { ScoredAsset } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import ScoreHistoryChart from "./ScoreHistoryChart";
@@ -37,7 +37,7 @@ export default function TopBuys() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <Trophy size={14} /> Top Buys
+          <Target size={14} /> Top Buys
           <span className="text-[10px] text-faint font-medium ml-1">crypto + stocks, best long-term score first</span>
         </span>
         <div className="flex items-center gap-2">

@@ -162,11 +162,13 @@ export default function HomePortfolio() {
                               <div className="min-w-0 w-[34%]">
                                 <div className="text-[14px] font-bold text-txt truncate">{h.display}</div>
                                 <div className="text-[11px] text-faint truncate">
-                                  {fmtQty(h.qty, 4)} {h.kind === "option" ? (h.qty === 1 ? "contract" : "contracts") : h.kind === "stock" ? "shares" : ""}
+                                  {fmtQty(h.qty, 4)} {h.kind === "option" ? (h.qty === 1 ? "contract" : "contracts")
+                                    : h.kind === "stock" ? (h.qty === 1 ? "share" : "shares") : h.symbol}
                                 </div>
                               </div>
                               <div className="flex-1 flex justify-center min-w-0">
-                                {sp && sp.length > 1 ? <Sparkline data={sp} width={92} height={30} /> : <span className="text-[10px] text-faint">{h.kind === "option" ? "no chart" : ""}</span>}
+                                {sp && sp.length > 1 ? <Sparkline data={sp} width={92} height={30} />
+                                  : <span className="block w-[92px] border-t border-dashed border-edge2" title="No intraday history for options" />}
                               </div>
                               <span className={`shrink-0 min-w-[86px] text-center px-2 py-1.5 rounded-lg text-[12px] font-bold tabular-nums border ${
                                 up ? "border-up/50 text-up" : "border-down/50 text-down"}`}>

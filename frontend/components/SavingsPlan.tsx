@@ -259,7 +259,7 @@ export default function SavingsPlan() {
           <div className="flex rounded-md border border-edge2 overflow-hidden text-[10px]">
             {[4, 7, 10].map((p) => (
               <button key={p} onClick={() => setRet(p)}
-                      className={`px-2 py-0.5 font-bold ${ret === p ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>
+                      className={`chip-tap px-2 py-0.5 font-bold ${ret === p ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>
                 {p}%/yr
               </button>
             ))}

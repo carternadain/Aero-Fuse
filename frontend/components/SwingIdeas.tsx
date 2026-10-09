@@ -110,7 +110,7 @@ export default function SwingIdeas() {
           <button
             key={s}
             onClick={() => setSector(s)}
-            className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold transition-colors ${
+            className={`chip-tap px-2 py-0.5 rounded-md border text-[10px] font-semibold transition-colors ${
               sector === s ? "border-up/50 bg-up/10 text-up" : "border-edge2 text-dim hover:text-txt"
             }`}
           >

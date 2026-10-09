@@ -75,10 +75,15 @@ input, select, textarea {
 
 .panel-head {
   display: flex;
+  flex-wrap: wrap; /* phones: controls drop under the title instead of crushing it */
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 11px 14px;
   border-bottom: 1px solid var(--color-edge);
+}
+.panel-head button {
+  white-space: nowrap;
 }
 
 .panel-title {
@@ -89,9 +94,14 @@ input, select, textarea {
   font-weight: 700;
   color: var(--color-txt);
 }
-.panel-title svg {
+/* Icon chip: tinted rounded square instead of a bare glyph */
+.panel-title > svg {
   color: var(--color-amber);
   flex-shrink: 0;
+  box-sizing: content-box;
+  padding: 5px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-amber) 13%, transparent);
 }
 
 .field {
@@ -198,4 +208,26 @@ main {
   --color-warn: #c4baab;
   --color-on-up: #1a1814;
   --color-cyan: #d9d2c6;
+}
+
+/* Phones: nudge the smallest text sizes up, since 9px is hard to read on a phone */
+@media (max-width: 639px) {
+  .text-\[9px\] { font-size: 10px; }
+  .text-\[9\.5px\] { font-size: 10.5px; }
+  .text-\[10px\] { font-size: 11px; }
+  .text-\[11px\] { font-size: 11.5px; }
+}
+
+/* Phones: give small icon buttons (×, +, edit) a finger-sized 32px hit area */
+@media (max-width: 639px) {
+  .icon-btn {
+    min-width: 32px;
+    min-height: 32px;
+    justify-content: center;
+    margin: -6px;
+  }
+}
+@media (max-width: 639px) {
+  .btn { min-height: 32px; min-width: 32px; }
+  .chip-tap { padding-top: 6px; padding-bottom: 6px; }
 }

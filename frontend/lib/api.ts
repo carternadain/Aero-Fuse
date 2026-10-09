@@ -29,9 +29,11 @@ export const api = {
 
 export function fmtPrice(n: number | null | undefined): string {
   if (n == null) return "—";
-  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-  if (n >= 10) return n.toFixed(2);
-  return n.toFixed(4);
+  const a = Math.abs(n);
+  if (a >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (a >= 1) return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (a === 0) return "0.00";
+  return n.toLocaleString("en-US", { maximumSignificantDigits: 4, minimumSignificantDigits: 2 });
 }
 
 export function fmtPnl(n: number | null | undefined): string {

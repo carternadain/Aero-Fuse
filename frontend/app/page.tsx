@@ -135,7 +135,7 @@ export default function Dashboard() {
       <Header />
       <TabNav active={tab} onChange={setTab} />
       <DialogHost />
-      <main className="p-3 sm:p-4 pb-24 sm:pb-6 space-y-3 max-w-[1800px] mx-auto">
+      <main className="p-3 sm:p-4 pb-28 sm:pb-6 space-y-3 max-w-[1800px] mx-auto">
         {backendDown && (
           <div className="panel border-down/50 px-4 py-3 text-xs text-down">
             ⚠ Backend offline — start it with:{" "}
