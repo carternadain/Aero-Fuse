@@ -3,10 +3,10 @@
 import InfoTip from "./InfoTip";
 import Skeleton from "./Skeleton";
 import StarButton from "./StarButton";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Layers, RefreshCw } from "lucide-react";
-import { CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { Zone, ZoneChartResponse, ZoneHolding, ZonesResponse } from "@/lib/types";
+import { Area, ComposedChart, Line, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import type { Zone, ZoneChartRange, ZoneChartResponse, ZoneHolding, ZonesResponse } from "@/lib/types";
 import { api, fmtPnl, fmtPrice } from "@/lib/api";
 import { haptic, navigate } from "@/lib/bus";
 import { fmtCents, isHidden } from "@/lib/privacy";
@@ -15,9 +15,29 @@ type Kind = "stock" | "crypto";
 interface Sel { kind: Kind; symbol: string }
 
 const LS_KEY = "buyzones:sel";
-const ZONE_COLOR: Record<Zone, string> = { buy: "var(--color-up)", hold: "var(--color-amber)", sell: "var(--color-down)" };
-const ZONE_BG: Record<Zone, string> = { buy: "bg-up", hold: "bg-amber", sell: "bg-down" };
-const ZONE_NAME: Record<Zone, string> = { buy: "Buy zone", hold: "Hold zone", sell: "Sell zone" };
+const ZONE_COLOR: Record<Zone, string> = { buy: "var(--color-up)", hold: "var(--color-dim)", sell: "var(--color-down)" };
+const ZONE_BG: Record<Zone, string> = { buy: "bg-up", hold: "bg-dim", sell: "bg-down" };
+const ZONE_NAME: Record<Zone, string> = { buy: "Buy zone", hold: "Hold", sell: "Sell zone" };
+// Hold is quiet grey everywhere: hero, track, line and legend.
+const LINE_COLOR: Record<Zone, string> = { buy: "var(--color-up)", hold: "var(--color-dim)", sell: "var(--color-down)" };
+const LINE_BG: Record<Zone, string> = { buy: "bg-up", hold: "bg-dim", sell: "bg-down" };
+
+const RANGE_KEY = "buyzones:range";
+const RANGES: { key: ZoneChartRange; label: string; past: string }[] = [
+  { key: "1Y", label: "1Y", past: "past year" },
+  { key: "3Y", label: "3Y", past: "past 3 years" },
+  { key: "5Y", label: "5Y", past: "past 5 years" },
+  { key: "MAX", label: "Max", past: "all time" },
+];
+const isRange = (v: unknown): v is ZoneChartRange => RANGES.some((r) => r.key === v);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtDate = (d: string) => { const [y, m, day] = d.split("-").map(Number); return `${MONTHS[m - 1]} ${day}, ${y}`; };
+const fmtMonYr = (d: string) => `${MONTHS[Number(d.slice(5, 7)) - 1]} ’${d.slice(2, 4)}`;
+const fmtChange = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`;
+
+type ChartPoint = ZoneChartResponse["points"][number];
+const CHART_TOP = 8;   // px, chart top margin
+const AXIS_H = 22;     // px, x-axis band; the overlay plot box sits between these two
 
 export function zoneOf(score: number | null | undefined): Zone | null {
   if (score == null) return null;
@@ -46,6 +66,221 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] font-bold tracking-widest text-faint uppercase">{children}</div>
 );
 
+function Row({ h, onPick }: { h: ZoneHolding; onPick: (h: ZoneHolding) => void }) {
+  const z = h.zone ?? zoneOf(h.score?.score);
+  const c = z ? ZONE_COLOR[z] : "var(--color-dim)";
+  return (
+    <button
+      onClick={() => onPick(h)}
+      className="w-full min-h-[44px] flex items-center gap-2 px-3 py-2 text-left hover:bg-panel2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyan"
+    >
+      <span className="font-bold text-txt text-sm w-14 shrink-0 truncate">{h.symbol}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12px] font-semibold truncate" style={{ color: c }}>
+          {h.score?.label ?? "—"} <span className="tabular-nums text-dim font-normal">· {h.score ? Math.round(h.score.score) : "—"}</span>
+        </span>
+        <span className="block text-[10px] text-faint tabular-nums truncate">
+          {h.weight_pct.toFixed(1)}% of holdings{isHidden() ? "" : ` · ${fmtCents(h.value)}`}
+        </span>
+      </span>
+      {h.gain_pct != null && (
+        <span className={`tabular-nums text-[12px] font-bold shrink-0 ${h.gain_pct >= 0 ? "text-up" : "text-down"}`}>{fmtPnl(h.gain_pct)}</span>
+      )}
+    </button>
+  );
+}
+
+function Group({ title, rows, empty, onPick }: { title: string; rows: ZoneHolding[]; empty: string; onPick: (h: ZoneHolding) => void }) {
+  return (
+    <div>
+      <div className="px-3 pt-3 pb-1"><Label>{title}</Label></div>
+      {rows.length === 0 ? (
+        <p className="px-3 pb-2 text-xs text-dim">{empty}</p>
+      ) : (
+        <div className="divide-y divide-edge">{rows.map((h) => <Row key={`${h.kind}-${h.symbol}`} h={h} onPick={onPick} />)}</div>
+      )}
+    </div>
+  );
+}
+
+/** Apple Stocks-style price line, coloured along its length by zone, with a scrub readout. */
+function ZoneChart({ chart, range, dim }: { chart: ZoneChartResponse; range: ZoneChartRange; dim: boolean }) {
+  const points = chart.points;
+  const n = points.length;
+  const gid = `zc${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState<number | null>(null);
+  useEffect(() => setIdx(null), [chart]);
+
+  const zoneAt = useCallback((p: ChartPoint): Zone => zoneOf(p.score) ?? "hold", []);
+
+  // Hard colour stops: two stops at the same offset wherever the zone changes.
+  const stops = useMemo(() => {
+    const out: { o: number; z: Zone }[] = [];
+    let prev: Zone | null = null;
+    points.forEach((p, i) => {
+      const z = zoneAt(p);
+      const o = n > 1 ? i / (n - 1) : 0;
+      if (prev == null) out.push({ o: 0, z });
+      else if (z !== prev) out.push({ o, z: prev }, { o, z });
+      prev = z;
+    });
+    if (prev) out.push({ o: 1, z: prev });
+    return out;
+  }, [points, n, zoneAt]);
+
+  const ticks = useMemo(() => {
+    const keyLen = range === "1Y" ? 7 : 4;
+    const cand: number[] = [];
+    for (let i = 1; i < n; i++) {
+      const f = i / (n - 1);
+      if (f > 0.05 && f < 0.95 && points[i].date.slice(0, keyLen) !== points[i - 1].date.slice(0, keyLen)) cand.push(i);
+    }
+    const step = Math.max(1, Math.ceil(cand.length / 5));
+    return cand.filter((_, k) => k % step === 0).map((i) => points[i].date);
+  }, [points, n, range]);
+
+  // Fixed y-domain with headroom so the high / low labels fit inside the plot.
+  const { dLo, dHi, hiIdx, loIdx } = useMemo(() => {
+    let hi = 0, lo = 0;
+    points.forEach((p, i) => { if (p.price > points[hi].price) hi = i; if (p.price < points[lo].price) lo = i; });
+    const find = (d: string | undefined, fb: number) => { const k = d ? points.findIndex((p) => p.date === d) : -1; return k >= 0 ? k : fb; };
+    const max = points[hi].price, min = points[lo].price;
+    const span = max - min || Math.abs(max) * 0.1 || 1;
+    return { dLo: min - span * 0.14, dHi: max + span * 0.16, hiIdx: find(chart.high?.date, hi), loIdx: find(chart.low?.date, lo) };
+  }, [points, chart.high, chart.low]);
+
+  const xPct = (i: number) => (n > 1 ? (i / (n - 1)) * 100 : 0);
+  const yPct = (v: number) => ((dHi - v) / (dHi - dLo)) * 100;
+  const labelPos = (i: number): React.CSSProperties => {
+    const f = xPct(i);
+    return f < 28 ? { left: `${f}%` } : f > 72 ? { left: `${f}%`, transform: "translateX(-100%)" } : { left: `${f}%`, transform: "translateX(-50%)" };
+  };
+
+  const at = (clientX: number) => {
+    const r = plotRef.current?.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    setIdx(Math.round(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * (n - 1)));
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    const cur = idx ?? n - 1;
+    const next = e.key === "ArrowLeft" ? cur - 1 : e.key === "ArrowRight" ? cur + 1 : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : null;
+    if (next == null) return;
+    e.preventDefault();
+    setIdx(Math.min(n - 1, Math.max(0, next)));
+  };
+
+  const sp = idx != null ? points[idx] : null;
+  const sz = sp ? zoneAt(sp) : null;
+  const pastLabel = RANGES.find((r) => r.key === range)?.past ?? "";
+  const hiPrice = chart.high?.price ?? points[hiIdx].price;
+  const loPrice = chart.low?.price ?? points[loIdx].price;
+  const share = chart.zone_share;
+
+  return (
+    <div>
+      {/* Readout: range change at rest, the scrubbed point while touching */}
+      <div className="min-h-[76px] px-1 flex flex-col justify-end" aria-live="off">
+        {sp && sz ? (
+          <>
+            <div className="text-[28px] leading-none font-bold tabular-nums text-txt">${fmtPrice(sp.price)}</div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-dim tabular-nums">
+              <span>{fmtDate(sp.date)}</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-edge2 px-2 py-0.5 text-[11px] text-txt">
+                <span className={`w-2 h-2 rounded-full ${LINE_BG[sz]}`} aria-hidden />
+                {sp.score == null ? "No score" : ZONE_NAME[sz]}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-baseline gap-2 tabular-nums">
+            {chart.change_pct != null && (
+              <span className={`text-[28px] leading-none font-bold ${chart.change_pct >= 0 ? "text-up" : "text-down"}`}>{fmtChange(chart.change_pct)}</span>
+            )}
+            <span className="text-[12px] text-dim">{chart.change_pct != null ? `· ${pastLabel}` : pastLabel}</span>
+          </div>
+        )}
+      </div>
+
+      <div
+        data-noswipe
+        tabIndex={0}
+        role="img"
+        aria-label={`${chart.symbol} price over the ${pastLabel}, coloured by buy, hold and sell zone. Use the arrow keys to move through dates.`}
+        onKeyDown={onKey}
+        onBlur={() => setIdx(null)}
+        className={`relative mt-2 h-[240px] sm:h-[300px] select-none rounded-md outline-none focus-visible:outline-2 focus-visible:outline-cyan motion-safe:transition-opacity motion-safe:duration-200 ${dim ? "opacity-60" : ""}`}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={points} margin={{ top: CHART_TOP, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id={`${gid}-line`} x1="0" y1="0" x2="1" y2="0">
+                {stops.map((s, i) => <stop key={i} offset={s.o} style={{ stopColor: LINE_COLOR[s.z] }} />)}
+              </linearGradient>
+              <linearGradient id={`${gid}-fade`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" style={{ stopColor: "var(--color-txt)", stopOpacity: 0.06 }} />
+                <stop offset="1" style={{ stopColor: "var(--color-txt)", stopOpacity: 0 }} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="date" ticks={ticks} interval={0} height={AXIS_H} tickLine={false} axisLine={false} tickMargin={6}
+                   tick={{ fontSize: 11, fill: "var(--color-faint)" }}
+                   tickFormatter={(d: string) => (range === "1Y" ? MONTHS[Number(d.slice(5, 7)) - 1] : `’${d.slice(2, 4)}`)} />
+            <YAxis hide domain={[dLo, dHi]} />
+            <Area type="monotone" dataKey="price" stroke="none" fill={`url(#${gid}-fade)`} isAnimationActive={false} />
+            <Line type="monotone" dataKey="price" stroke={`url(#${gid}-line)`} strokeWidth={2} dot={false} activeDot={false} isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+
+        {/* Plot-area overlay: markers positioned in % of the exact plot box */}
+        <div ref={plotRef} className="absolute inset-x-0 pointer-events-none" style={{ top: CHART_TOP, bottom: AXIS_H }}>
+          <div className={`absolute inset-0 motion-safe:transition-opacity ${sp ? "opacity-0" : ""}`}>
+            <span className="absolute w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-dim ring-2 ring-panel" style={{ left: `${xPct(hiIdx)}%`, top: `${yPct(hiPrice)}%` }} />
+            <span className="absolute -translate-y-[calc(100%+6px)] whitespace-nowrap text-[10px] text-dim tabular-nums" style={{ ...labelPos(hiIdx), top: `${yPct(hiPrice)}%` }}>
+              High ${fmtPrice(hiPrice)} · {fmtMonYr(chart.high?.date ?? points[hiIdx].date)}
+            </span>
+            {loIdx !== hiIdx && (
+              <>
+                <span className="absolute w-1.5 h-1.5 -ml-[3px] -mt-[3px] rounded-full bg-faint ring-2 ring-panel" style={{ left: `${xPct(loIdx)}%`, top: `${yPct(loPrice)}%` }} />
+                <span className="absolute mt-2 whitespace-nowrap text-[10px] text-faint tabular-nums" style={{ ...labelPos(loIdx), top: `${yPct(loPrice)}%` }}>
+                  Low ${fmtPrice(loPrice)} · {fmtMonYr(chart.low?.date ?? points[loIdx].date)}
+                </span>
+              </>
+            )}
+          </div>
+          {sp && sz && idx != null && (
+            <>
+              <div className="absolute top-0 bottom-0 w-px bg-faint" style={{ left: `${xPct(idx)}%` }} />
+              <span className={`absolute w-2 h-2 -ml-1 -mt-1 rounded-full ring-2 ring-panel ${LINE_BG[sz]}`} style={{ left: `${xPct(idx)}%`, top: `${yPct(sp.price)}%` }} />
+            </>
+          )}
+        </div>
+
+        {/* Interaction layer: mouse hover + finger drag (vertical swipes still scroll the page) */}
+        <div
+          className="absolute inset-0 cursor-crosshair"
+          style={{ touchAction: "pan-y" }}
+          onPointerDown={(e) => { if (e.pointerType !== "mouse") (e.target as HTMLElement).setPointerCapture(e.pointerId); at(e.clientX); }}
+          onPointerMove={(e) => at(e.clientX)}
+          onPointerUp={(e) => { if (e.pointerType !== "mouse") setIdx(null); }}
+          onPointerCancel={() => setIdx(null)}
+          onPointerLeave={(e) => { if (e.pointerType === "mouse") setIdx(null); }}
+        />
+      </div>
+
+      <div className="mt-2 px-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim">
+        {(["buy", "hold", "sell"] as const).map((z) => (
+          <span key={z} className="inline-flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${LINE_BG[z]}`} aria-hidden />{z === "hold" ? "Hold" : ZONE_NAME[z]}
+          </span>
+        ))}
+        {share && (
+          <span className="text-faint tabular-nums">In buy zone {Math.round(share.buy)}% of days, sell zone {Math.round(share.sell)}%</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function BuyZones() {
   const [data, setData] = useState<ZonesResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +288,10 @@ export default function BuyZones() {
   const [sel, setSel] = useState<Sel | null>(null);
   const [chart, setChart] = useState<ZoneChartResponse | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
+  const [range, setRange] = useState<ZoneChartRange>(() => {
+    try { const r = localStorage.getItem(RANGE_KEY); if (isRange(r)) return r; } catch { /* unavailable */ }
+    return "1Y";
+  });
   const heroRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -84,46 +323,34 @@ export default function BuyZones() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* unavailable */ }
   };
 
-  // Chart data
+  const chooseRange = (r: ZoneChartRange) => {
+    haptic();
+    setRange(r);
+    try { localStorage.setItem(RANGE_KEY, r); } catch { /* unavailable */ }
+  };
+
+  // Chart data. The previous chart stays on screen (dimmed) while the next one loads.
   useEffect(() => {
     if (!sel) return;
     let live = true;
     setChartLoading(true);
     api
-      .get<ZoneChartResponse>(`/api/zones/chart/${sel.kind}/${encodeURIComponent(sel.symbol)}`)
+      .get<ZoneChartResponse>(`/api/zones/chart/${sel.kind}/${encodeURIComponent(sel.symbol)}?range=${range}`)
       .then((r) => live && setChart(r))
       .catch(() => live && setChart(null))
       .finally(() => live && setChartLoading(false));
     return () => { live = false; };
-  }, [sel]);
+  }, [sel, range]);
 
   const holding = data?.holdings.find((h) => sel && h.symbol === sel.symbol && h.kind === sel.kind) ?? null;
   const watchItem = data?.watch.find((w) => sel && w.symbol === sel.symbol && w.kind === sel.kind) ?? null;
-  const points = useMemo(() => (chart && sel && chart.symbol === sel.symbol ? chart.points : []), [chart, sel]);
-  const lastPoint = points[points.length - 1];
+  const points = chart?.points ?? [];
+  const lastPoint = chart && sel && chart.symbol === sel.symbol ? points[points.length - 1] : undefined;
 
   const score = holding?.score?.score ?? watchItem?.score ?? lastPoint?.score ?? null;
   const price = holding?.price ?? watchItem?.price ?? lastPoint?.price ?? null;
   const zone = zoneOf(score);
   const label = holding?.score?.label ?? watchItem?.label ?? (score != null ? labelOf(score) : null);
-
-  // Contiguous runs of buy / sell days
-  const bands = useMemo(() => {
-    const out: { x1: string; x2: string; zone: Zone }[] = [];
-    let start = -1;
-    let cur: Zone | null = null;
-    const close = (end: number) => {
-      if (cur && cur !== "hold" && start >= 0) {
-        out.push({ x1: points[start].date, x2: points[Math.min(end + 1, points.length - 1)].date, zone: cur });
-      }
-    };
-    points.forEach((p, i) => {
-      const z = zoneOf(p.score);
-      if (z !== cur) { close(i - 1); cur = z; start = i; }
-    });
-    close(points.length - 1);
-    return out;
-  }, [points]);
 
   const pickFromList = (h: ZoneHolding) => {
     haptic();
@@ -143,41 +370,6 @@ export default function BuyZones() {
   const reduceTip = holding?.score;
 
   const moreValue = sel && !heldKeys.has(`${sel.kind}:${sel.symbol}`) ? `${sel.kind}:${sel.symbol}` : "";
-
-  const Row = ({ h }: { h: ZoneHolding }) => {
-    const z = h.zone ?? zoneOf(h.score?.score);
-    const c = z ? ZONE_COLOR[z] : "var(--color-dim)";
-    return (
-      <button
-        onClick={() => pickFromList(h)}
-        className="w-full min-h-[44px] flex items-center gap-2 px-3 py-2 text-left hover:bg-panel2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyan"
-      >
-        <span className="font-bold text-txt text-sm w-14 shrink-0 truncate">{h.symbol}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-semibold truncate" style={{ color: c }}>
-            {h.score?.label ?? "—"} <span className="tabular-nums text-dim font-normal">· {h.score ? Math.round(h.score.score) : "—"}</span>
-          </span>
-          <span className="block text-[10px] text-faint tabular-nums truncate">
-            {h.weight_pct.toFixed(1)}% of holdings{isHidden() ? "" : ` · ${fmtCents(h.value)}`}
-          </span>
-        </span>
-        {h.gain_pct != null && (
-          <span className={`tabular-nums text-[12px] font-bold shrink-0 ${h.gain_pct >= 0 ? "text-up" : "text-down"}`}>{fmtPnl(h.gain_pct)}</span>
-        )}
-      </button>
-    );
-  };
-
-  const Group = ({ title, rows, empty }: { title: string; rows: ZoneHolding[]; empty: string }) => (
-    <div>
-      <div className="px-3 pt-3 pb-1"><Label>{title}</Label></div>
-      {rows.length === 0 ? (
-        <p className="px-3 pb-2 text-xs text-dim">{empty}</p>
-      ) : (
-        <div className="divide-y divide-edge">{rows.map((h) => <Row key={`${h.kind}-${h.symbol}`} h={h} />)}</div>
-      )}
-    </div>
-  );
 
   return (
     <section className="panel">
@@ -265,7 +457,7 @@ export default function BuyZones() {
                 <div>
                   <div className="relative h-2.5 rounded-full flex overflow-hidden">
                     <div className="h-full bg-down opacity-30" style={{ width: "40%" }} />
-                    <div className="h-full bg-amber opacity-30" style={{ width: "20%" }} />
+                    <div className="h-full bg-dim opacity-30" style={{ width: "20%" }} />
                     <div className="h-full bg-up opacity-30" style={{ width: "40%" }} />
                   </div>
                   {score != null && (
@@ -286,49 +478,23 @@ export default function BuyZones() {
 
               {/* Chart */}
               <div className="px-3 pb-3">
-                {chartLoading && points.length === 0 ? (
-                  <Skeleton className="h-[220px] sm:h-[280px] w-full" />
-                ) : points.length < 2 ? (
-                  <p className="py-10 text-center text-dim text-xs">Not enough price history for this one yet.</p>
-                ) : (
-                  <>
-                    <div className="h-[220px] sm:h-[280px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                          <CartesianGrid stroke="var(--color-edge)" strokeOpacity={0.5} vertical={false} />
-                          {bands.map((b, i) => (
-                            <ReferenceArea key={i} x1={b.x1} x2={b.x2} fill={ZONE_COLOR[b.zone]} fillOpacity={0.12} stroke="none" ifOverflow="visible" />
-                          ))}
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-faint)" }} minTickGap={48} tickLine={false} axisLine={false}
-                                 tickFormatter={(d: string) => d.slice(2, 7)} />
-                          <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "var(--color-faint)" }} width={44} tickLine={false} axisLine={false}
-                                 tickFormatter={(v: number) => fmtPrice(v)} />
-                          <Tooltip
-                            cursor={{ stroke: "var(--color-dim)", strokeWidth: 1 }}
-                            content={({ active, payload }) => {
-                              const p = active ? payload?.[0]?.payload as typeof points[number] | undefined : undefined;
-                              if (!p) return null;
-                              const z = zoneOf(p.score);
-                              return (
-                                <div className="rounded-[10px] border border-edge2 bg-panel2 px-2.5 py-1.5 text-[11px] tabular-nums">
-                                  <div className="text-dim">{p.date}</div>
-                                  <div className="text-txt font-bold">${fmtPrice(p.price)}</div>
-                                  <div className="text-dim">{p.score != null ? `score ${Math.round(p.score)} · ${z ? ZONE_NAME[z] : ""}` : "no score"}</div>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Line type="monotone" dataKey="price" stroke="var(--color-txt)" strokeWidth={2} dot={false} isAnimationActive={false} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim mt-1">
-                      <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-up opacity-40" />Buy zone</span>
-                      <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-down opacity-40" />Sell zone</span>
-                      <span className="text-faint">Unshaded = hold</span>
-                    </div>
-                  </>
-                )}
+                <div role="group" aria-label="Chart range" className="seg flex rounded-lg border border-edge2 text-[12px] [&>button]:flex-1 sm:inline-flex sm:[&>button]:flex-none sm:[&>button]:px-5">
+                  {RANGES.map((r) => (
+                    <button key={r.key} onClick={() => chooseRange(r.key)} aria-pressed={range === r.key}
+                            className={`h-10 px-3 font-bold focus-visible:outline-2 focus-visible:outline-cyan ${range === r.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  {!chart && chartLoading ? (
+                    <Skeleton className="h-[300px] w-full" />
+                  ) : !chart || points.length < 2 ? (
+                    <p className="py-10 text-center text-dim text-xs">Not enough price history for this one yet.</p>
+                  ) : (
+                    <ZoneChart chart={chart} range={chart.range ?? range} dim={chartLoading} />
+                  )}
+                </div>
               </div>
 
               {/* Why */}
@@ -355,8 +521,8 @@ export default function BuyZones() {
               </div>
             ) : (
               <>
-                <Group title="Add more" rows={accumulate} empty="None of your holdings are in the buy zone right now." />
-                <Group title="Time to take profits" rows={sell} empty="Nothing you own is stretched into the sell zone." />
+                <Group title="Add more" rows={accumulate} onPick={pickFromList} empty="None of your holdings are in the buy zone right now." />
+                <Group title="Time to take profits" rows={sell} onPick={pickFromList} empty="Nothing you own is stretched into the sell zone." />
                 {holdCount > 0 && (
                   <p className="px-3 py-2 text-[11px] text-faint">{holdCount} other{holdCount === 1 ? " is" : "s are"} in the hold zone</p>
                 )}

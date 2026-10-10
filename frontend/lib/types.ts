@@ -303,8 +303,17 @@ export interface ZonesResponse {
   watch: ZoneWatch[];
 }
 
+export type ZoneChartRange = "1Y" | "3Y" | "5Y" | "MAX";
+
 export interface ZoneChartResponse {
   symbol: string;
   kind: "stock" | "crypto";
+  range: ZoneChartRange;
+  /** Evenly downsampled (<= 320); always includes the range high and low. */
   points: { date: string; price: number; score: number | null }[];
+  high: { date: string; price: number } | null;
+  low: { date: string; price: number } | null;
+  change_pct: number | null;
+  /** Percent of days spent in each zone over the range. */
+  zone_share: { buy: number; hold: number; sell: number } | null;
 }

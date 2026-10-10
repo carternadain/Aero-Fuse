@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import charts
 import market_data
@@ -20,11 +20,12 @@ BUY_MIN = 60.0
 SELL_MAX = 40.0  # score < SELL_MAX is the sell zone
 MAX_ACCUMULATE = 3
 MAX_SELL = 2
-CHART_DAYS = 365
-CRYPTO_FALLBACK_DAYS = 730  # warm-up so the first charted day already has a mature score
-CACHE_TTL = 30 * 60  # score_series is quadratic, so keep results for 30 minutes
+MAX_POINTS = 320
+SCORE_WINDOW = 400
+RANGE_DAYS = {"1Y": 365, "3Y": 3 * 365, "5Y": 5 * 365, "MAX": None}
+CACHE_TTL = 6 * 3600  # long daily series + its point-in-time scores
 
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: dict[str, tuple[float, list[dict]]] = {}
 
 
 def zone_for(score: float | None) -> str | None:
@@ -32,14 +33,6 @@ def zone_for(score: float | None) -> str | None:
     if score is None:
         return None
     return "buy" if score >= BUY_MIN else "sell" if score < SELL_MAX else "hold"
-
-
-def _coin_id(symbol: str) -> str | None:
-    """CoinGecko id for a ticker among the top coins, if listed."""
-    for c in market_data.crypto_markets(40):
-        if str(c.get("symbol", "")).upper() == symbol:
-            return c.get("id")
-    return None
 
 
 def _aggregate(rows: list[dict]) -> list[dict]:
@@ -111,25 +104,81 @@ def build_zones(valued: dict, assets: list[dict]) -> dict:
     }
 
 
-def zone_chart(kind: str, symbol: str) -> dict:
-    """~1y of price + point-in-time score for one asset. Cached for CACHE_TTL."""
-    sym = symbol.upper()
+def _history(kind: str, sym: str) -> list[dict]:
+    """Daily [{date, price, score}] for the whole available history, cached for CACHE_TTL.
+
+    The score at day i is computed over a bounded trailing window (closes[i-399 : i+1]) so the
+    cost is linear, not quadratic. 400 days covers long_term_score's 200-day average and its
+    last-365 52-week range exactly, and RSI14 (Wilder smoothing) converges well within it, so
+    this matches scoring over the full history.
+    """
     key = f"{kind}:{sym}"
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
-    if kind == "stock":
-        data = market_data.history_with_scores("stock", sym)
-    else:
-        coin = _coin_id(sym)
-        if coin:
-            data = market_data.history_with_scores("crypto", coin)
+    try:
+        if kind == "stock":
+            raw = charts._yahoo(sym, "10y", "1d")
         else:
-            pts = charts.series("crypto", sym, "5Y")[-CRYPTO_FALLBACK_DAYS:]
-            scores = scoring.score_series([p for _, p in pts])
-            data = {"points": [
-                {"date": datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%d"),
-                 "price": p, "score": s} for (t, p), s in zip(pts, scores)]}
-    out = {"symbol": sym, "kind": kind, "points": data["points"][-CHART_DAYS:]}
-    _cache[key] = (time.time(), out)
+            raw = charts._coinbase(sym, 86400, 10 * 365 * 86400)
+    except Exception:
+        return []  # not cached, so the next request retries
+    days: dict[str, float] = {}
+    for t, p in raw:
+        days[datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%d")] = float(p)
+    dates = sorted(days)
+    closes = [days[d] for d in dates]
+    rows = []
+    for i, d in enumerate(dates):
+        sc = scoring.long_term_score(closes[max(0, i - SCORE_WINDOW + 1): i + 1])
+        rows.append({"date": d, "price": closes[i], "score": sc["score"] if sc else None})
+    if rows:
+        _cache[key] = (time.time(), rows)
+    return rows
+
+
+def _downsample(rows: list[dict], keep: list[dict], n: int) -> list[dict]:
+    """Evenly pick <= n rows, always including the `keep` rows (first, last, high, low)."""
+    if len(rows) <= n:
+        return rows
+    must = {r["date"] for r in keep}
+    free = n - len(must)
+    step = len(rows) / max(free, 1)
+    picked = {rows[min(int(i * step), len(rows) - 1)]["date"] for i in range(free)}
+    chosen = must | picked
+    out = [r for r in rows if r["date"] in chosen]
+    while len(out) > n:  # collisions with `must` can overshoot by a few; drop non-required
+        for j in range(1, len(out) - 1):
+            if out[j]["date"] not in must:
+                del out[j]
+                break
+        else:
+            break
+    return out
+
+
+def zone_chart(kind: str, symbol: str, rng: str = "1Y") -> dict:
+    """Price + point-in-time score for one asset over 1Y/3Y/5Y/MAX; stats use the full daily slice."""
+    sym = symbol.upper()
+    out: dict = {"symbol": sym, "kind": kind, "range": rng, "points": [], "high": None,
+                 "low": None, "change_pct": None, "zone_share": None}
+    rows = _history(kind, sym)
+    if not rows:
+        return out
+    days = RANGE_DAYS.get(rng)
+    if days is not None:
+        cutoff = (datetime.fromisoformat(rows[-1]["date"]) - timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = [r for r in rows if r["date"] >= cutoff]
+    if not rows:
+        return out
+    hi = max(rows, key=lambda r: r["price"])
+    lo = min(rows, key=lambda r: r["price"])
+    out["high"] = {"date": hi["date"], "price": hi["price"]}
+    out["low"] = {"date": lo["date"], "price": lo["price"]}
+    first = rows[0]["price"]
+    out["change_pct"] = round((rows[-1]["price"] / first - 1) * 100, 2) if first else None
+    zs = [zone_for(r["score"]) for r in rows if r["score"] is not None]
+    if zs:
+        out["zone_share"] = {z: round(zs.count(z) / len(zs) * 100, 1) for z in ("buy", "hold", "sell")}
+    out["points"] = _downsample(rows, [rows[0], rows[-1], hi, lo], MAX_POINTS)
     return out

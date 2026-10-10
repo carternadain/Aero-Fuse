@@ -1423,10 +1423,12 @@ def get_zones():
 
 
 @app.get("/api/zones/chart/{kind}/{symbol}")
-def get_zones_chart(kind: str, symbol: str):
+def get_zones_chart(kind: str, symbol: str, range: str = "1Y"):
     if kind not in ("crypto", "stock"):
         raise HTTPException(400, "kind must be 'crypto' or 'stock'")
-    return zones.zone_chart(kind, symbol)
+    if range not in ("1Y", "3Y", "5Y", "MAX"):
+        raise HTTPException(400, "range must be one of 1Y, 3Y, 5Y, MAX")
+    return zones.zone_chart(kind, symbol, range)
 
 
 @app.get("/api/signals/edge-report")
