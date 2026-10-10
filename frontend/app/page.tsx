@@ -28,6 +28,7 @@ import Goals from "@/components/Goals";
 import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
+import Panes from "@/components/Panes";
 import Section, { ProHint } from "@/components/Section";
 import { reveal } from "@/lib/prefs";
 import StatsBar from "@/components/StatsBar";
@@ -63,7 +64,15 @@ import OptionsWatch from "@/components/OptionsWatch";
 import EarningsCalendar from "@/components/EarningsCalendar";
 
 // Anchors that live inside another foldable section
-const PARENT: Record<string, string> = { "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-tradecal": "sec-trades" };
+const PARENT: Record<string, string> = {
+  "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth",
+  "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
+  "sec-income": "sec-cashflow", "sec-budget": "sec-cashflow",
+  "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
+  "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
+  "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
+  "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
+};
 
 // Swipe order on phones: Markets' sub-tabs sit in the middle of the sequence.
 const SEQ: { tab: TabKey; sub?: MarketsSub }[] = [
@@ -113,8 +122,8 @@ export default function Dashboard() {
     if (s) setSubState(s);
     history.replaceState(null, "", `#${t}${t === "markets" ? `/${s ?? subRef.current}` : ""}`);
     if (anchor) {
+      if (PARENT[anchor]) reveal(PARENT[anchor]); // parent first so lastRevealed ends as the pane id
       reveal(anchor);
-      if (PARENT[anchor]) reveal(PARENT[anchor]);
       // wait for the tab to render, then scroll to the section
       let tries = 0;
       const tryScroll = () => { if (!scrollToId(anchor) && tries++ < 20) setTimeout(tryScroll, 60); };
@@ -233,26 +242,26 @@ export default function Dashboard() {
               <ExitDesk />
             </Section>
             <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
-              <TradeTracker trades={trades} onChanged={refreshCore} />
-              <div id="sec-tradecal" className="scroll-mt-28"><TradeCalendar trades={trades} /></div>
-            </Section>
-            <Section id="sec-riskdesk" title="Risk" accent="Desk" hint="position sizing" pro>
-              <RiskDesk trades={trades} />
+              <Panes items={[
+                { id: "sec-tradelist", label: "Trades", node: <TradeTracker trades={trades} onChanged={refreshCore} /> },
+                { id: "sec-tradecal", label: "Calendar", node: <TradeCalendar trades={trades} /> },
+              ]} />
             </Section>
             <Section id="sec-signals" title="Signals" accent="& Levels" hint="TradingView alerts · key levels · positions" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                <div className="lg:col-span-5"><SignalLog signals={signals} onChanged={refreshCore} /></div>
-                <div className="lg:col-span-3"><KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /></div>
-                <div className="lg:col-span-4"><Portfolio positions={positions} prices={prices} onChanged={refreshCore} /></div>
-              </div>
+              <Panes grid items={[
+                { id: "sec-signallog", label: "Signals", span: "lg:col-span-5", node: <SignalLog signals={signals} onChanged={refreshCore} /> },
+                { id: "sec-levels", label: "Levels", span: "lg:col-span-3", node: <KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /> },
+                { id: "sec-positions", label: "Positions", span: "lg:col-span-4", node: <Portfolio positions={positions} prices={prices} onChanged={refreshCore} /> },
+              ]} />
             </Section>
-            <Section id="sec-analytics" title="Edge" accent="Analytics" hint="expectancy · paper-trading bot" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <Analytics />
-                <SimBot />
-              </div>
+            <Section id="sec-edge" title="Edge" accent="Desk" hint="position sizing · expectancy · paper bot" pro>
+              <Panes items={[
+                { id: "sec-riskdesk", label: "Sizing", node: <RiskDesk trades={trades} /> },
+                { id: "sec-analytics", label: "Analytics", node: <Analytics /> },
+                { id: "sec-simbot", label: "Sim bot", node: <SimBot /> },
+              ]} />
             </Section>
-            <ProHint what="the risk desk, signals, key levels and edge analytics" />
+            <ProHint what="signals, key levels, position sizing and edge analytics" />
           </>
         )}
 
@@ -305,28 +314,38 @@ export default function Dashboard() {
         {/* ── Wealth ── */}
         {tab === "wealth" && (
           <>
-            <Section id="sec-goals" title="Your" accent="Goals" hint="on pace or behind"><Goals /></Section>
             <Section id="sec-wealth" title="Net Worth" accent="Accounts" hint="tap an account to expand · tap a row to edit">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
                 <div className="lg:col-span-7"><NetWorth /></div>
-                <div className="lg:col-span-5 space-y-3">
-                  <div id="sec-risk" className="scroll-mt-28"><RiskRating /></div>
-                  <div id="sec-plan" className="scroll-mt-28"><SavingsPlan /></div>
+                <div className="lg:col-span-5">
+                  <Panes items={[
+                    { id: "sec-risk", label: "Risk", node: <RiskRating /> },
+                    { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
+                    { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
+                  ]} />
                 </div>
               </div>
             </Section>
-            <Section id="sec-income" title="Dividend" accent="Income" hint="next 12 months"><IncomeTracker /></Section>
-            <Section id="sec-health" title="Health" accent="Check" hint="free money · limits · cushion · expirations"><WealthChecks /></Section>
-            <Section id="sec-moneylab" title="Money" accent="Lab" hint="what your dollars turn into" pro><MoneyLab /></Section>
-            <Section id="sec-stress" title="Stress" accent="Test" hint="what a crash would do to you" pro><StressTest /></Section>
-            <Section id="sec-nwcal" title="Net Worth" accent="Calendar" hint="every day, colored" pro><NetWorthCalendar /></Section>
-            <Section id="sec-fire" title="Plan" accent="Ahead" hint="FIRE · budget" pro>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                <div className="lg:col-span-7"><FireCalc /></div>
-                <div className="lg:col-span-5"><BudgetTracker /></div>
-              </div>
+            <Section id="sec-ontrack" title="On" accent="Track" hint="goals · free money · limits · cushion">
+              <Panes items={[
+                { id: "sec-goals", label: "Goals", node: <Goals /> },
+                { id: "sec-health", label: "Health check", node: <WealthChecks /> },
+              ]} />
             </Section>
-            <ProHint what="Money Lab, the stress test, the net-worth calendar and FIRE/budget" />
+            <Section id="sec-cashflow" title="Cash" accent="Flow" hint="dividends · budget">
+              <Panes items={[
+                { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
+                { id: "sec-budget", label: "Budget", pro: true, node: <BudgetTracker /> },
+              ]} />
+            </Section>
+            <Section id="sec-whatif" title="What" accent="If" hint="money lab · crash test · FIRE" pro>
+              <Panes items={[
+                { id: "sec-moneylab", label: "Money lab", node: <MoneyLab /> },
+                { id: "sec-stress", label: "Stress test", node: <StressTest /> },
+                { id: "sec-fire", label: "FIRE", node: <FireCalc /> },
+              ]} />
+            </Section>
+            <ProHint what="the net-worth calendar, budget, Money Lab, the stress test and FIRE" />
           </>
         )}
 
