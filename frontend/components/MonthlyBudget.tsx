@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { budgetChanged, onBudgetChanged, toast } from "@/lib/bus";
 import { catLabel, errorText } from "@/lib/categories";
+import { alertColor, ordinal, useSpendingAlerts } from "./SpendingAlerts";
 
 interface PlanCat {
   category: string;
@@ -73,6 +74,9 @@ export default function MonthlyBudget() {
   useEffect(() => { setOpen(null); refresh(); }, [month]);
   useEffect(() => onBudgetChanged(() => { refresh(); }), [month]);
 
+  const alertData = useSpendingAlerts(month === curMonth());
+  const alertFor = (cat: string) =>
+    alertData?.month === month ? alertData.alerts.find((a) => a.category === cat) : undefined;
   const cats = plan?.categories ?? [];
   const hasTargets = cats.some((c) => c.target !== null);
   const isQuiet = (c: PlanCat) => c.target === null && c.spent <= 0 && c.suggested === null;
@@ -211,12 +215,21 @@ export default function MonthlyBudget() {
           const fill = !hasT ? 0 : c.pct ?? (c.spent > 0 ? 100 : 0);
           const pace = plan?.is_current && c.target && c.pace != null
             ? Math.min(Math.max((c.pace / (c.target as number)) * 100, 0), 100) : null;
+          const al = alertFor(c.category);
           return (
             <div key={c.category} className="border-t border-edge first:border-t-0">
               <button className="w-full min-h-10 px-3 py-2 text-left hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-up"
                       aria-expanded={isOpen} onClick={() => toggle(c)}>
                 <div className="flex items-baseline justify-between gap-2 text-[12px]">
-                  <span className="text-txt truncate capitalize">{catLabel(c.category)}</span>
+                  <span className="text-txt truncate capitalize min-w-0">
+                    {catLabel(c.category)}
+                    {al && (
+                      <span className={`ml-2 align-middle normal-case rounded border px-1.5 py-0.5 text-[9px] font-bold ${al.level === "high" ? "text-down" : "text-amber"}`}
+                            style={{ borderColor: alertColor(al.level) }}>
+                        {al.level === "high" ? "Over usual month" : "Above normal"}
+                      </span>
+                    )}
+                  </span>
                   <span className={`shrink-0 tabular-nums ${c.status === "over" ? "text-down font-bold" : "text-dim"}`}>
                     {fmtUsd(c.spent)}{hasT ? ` / ${fmtUsd(c.target as number)}` : " · set target"}
                   </span>
@@ -247,6 +260,11 @@ export default function MonthlyBudget() {
               </button>
               {isOpen && (
                 <div className="px-3 pb-3 space-y-2 bg-panel2">
+                  {al && alertData && (
+                    <p className="pt-2 text-[11px] text-dim tabular-nums">
+                      Usually about {fmtUsd(al.typical_to_date)} by the {ordinal(alertData.day)}. {fmtUsd(al.normal_month)} in a normal month.
+                    </p>
+                  )}
                   <input className="field !h-10" inputMode="decimal" placeholder="$ per month"
                          aria-label={`Monthly target for ${catLabel(c.category)}`} autoFocus
                          value={val} onChange={(e) => setVal(e.target.value)}
