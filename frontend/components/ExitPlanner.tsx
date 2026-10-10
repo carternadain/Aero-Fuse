@@ -3,7 +3,7 @@
 import InfoTip from "./InfoTip";
 import Skeleton from "./Skeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, RefreshCw, Target, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, RefreshCw, Target, Trash2 } from "lucide-react";
 import type { ZoneHolding, ZonesResponse } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import { haptic, navigate } from "@/lib/bus";
@@ -40,15 +40,6 @@ const Label = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] font-bold tracking-widest text-faint uppercase">{children}</div>
 );
 
-function Stat({ k, v, tone }: { k: string; v: React.ReactNode; tone?: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[10px] text-faint truncate">{k}</div>
-      <div className={`text-[13px] font-bold tabular-nums truncate ${tone ?? "text-txt"}`}>{v}</div>
-    </div>
-  );
-}
-
 export default function ExitPlanner() {
   const [data, setData] = useState<ZonesResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +50,7 @@ export default function ExitPlanner() {
   const [readyKey, setReadyKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [presetOpen, setPresetOpen] = useState(false);
   const nextId = useRef(1);
 
   const load = () => {
@@ -164,6 +156,7 @@ export default function ExitPlanner() {
   const applyPreset = (steps: [number, number][]) => {
     if (base == null) return;
     haptic();
+    setPresetOpen(false);
     setRows(steps.map(([m, pct]) => ({ id: nextId.current++, price: numStr(base * m), pct: String(pct) })));
     setNote(null);
   };
@@ -290,15 +283,22 @@ export default function ExitPlanner() {
               {/* Presets */}
               {presets.length > 0 && (
                 <div>
-                  <Label>Start from a preset</Label>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {presets.map((ps) => (
-                      <button key={ps.label} onClick={() => applyPreset(ps.build())}
-                              className="min-h-10 px-3 rounded-md border border-edge2 text-[12px] font-semibold text-dim hover:text-txt text-left focus-visible:outline-2 focus-visible:outline-cyan">
-                        {ps.label}
-                      </button>
-                    ))}
-                  </div>
+                  <button className="btn min-h-10" onClick={() => setPresetOpen((o) => !o)} aria-expanded={presetOpen} aria-controls="exit-presets">
+                    Start from a preset
+                    <ChevronDown size={14} className={`motion-safe:transition-transform ${presetOpen ? "rotate-180" : ""}`} aria-hidden />
+                  </button>
+                  {presetOpen && (
+                    <ul id="exit-presets" className="mt-1.5 rounded-xl border border-edge2 bg-panel2/60 divide-y divide-edge overflow-hidden">
+                      {presets.map((ps) => (
+                        <li key={ps.label}>
+                          <button onClick={() => applyPreset(ps.build())}
+                                  className="w-full min-h-11 px-3 py-2 text-left text-[13px] font-semibold text-dim hover:text-txt hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyan">
+                            {ps.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
               {c == null && (
@@ -312,40 +312,38 @@ export default function ExitPlanner() {
               <div className="space-y-2">
                 <Label>Sell ladder</Label>
                 {!hasRows && <p className="text-[12px] text-dim">No sell levels yet. Pick a preset or add your first level.</p>}
+                {hasRows && (
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] gap-2 px-0.5 field-label" aria-hidden>
+                    <span>Target price ($)</span><span>Sell (% of position)</span><span />
+                  </div>
+                )}
                 {rows.map((r, i) => {
                   const l = calc.byId.get(r.id);
                   const clipped = l != null && l.effPct < l.sellPct - EPS;
                   return (
-                    <div key={r.id} className="rounded-xl border border-edge p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[12px] font-bold text-dim">Level {i + 1}</span>
+                    <div key={r.id}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_40px] gap-2 items-center">
+                        <input className="field !h-10 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={r.price} aria-label={`Level ${i + 1} target price in dollars`}
+                               onChange={(e) => setRow(r.id, { price: e.target.value })} />
+                        <input className="field !h-10 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={r.pct} aria-label={`Level ${i + 1} percent of position to sell`}
+                               onChange={(e) => setRow(r.id, { pct: e.target.value })} />
                         <button onClick={() => removeRow(r.id)} aria-label={`Remove level ${i + 1}`}
-                                className="-mr-2 -mt-2 h-10 w-10 inline-flex items-center justify-center rounded-md text-faint hover:text-down focus-visible:outline-2 focus-visible:outline-cyan">
+                                className="h-10 w-10 inline-flex items-center justify-center rounded-md text-faint hover:text-down focus-visible:outline-2 focus-visible:outline-cyan">
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 -mt-1">
-                        <label className="field-wrap"><span className="field-label">Target price ($)</span>
-                          <input className="field !h-10 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={r.price}
-                                 onChange={(e) => setRow(r.id, { price: e.target.value })} /></label>
-                        <label className="field-wrap"><span className="field-label">Sell (% of position)</span>
-                          <input className="field !h-10 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={r.pct}
-                                 onChange={(e) => setRow(r.id, { pct: e.target.value })} /></label>
-                      </div>
-                      {l ? (
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <Stat k="Units sold" v={units(l.units)} />
-                          <Stat k="Proceeds" v={money(l.proceeds)} />
-                          <Stat k="Profit" v={l.profit == null ? "—" : signedMoney(l.profit)} tone={l.profit == null ? "text-dim" : l.profit >= 0 ? "text-up" : "text-down"} />
-                          <div className="col-span-3 text-[11px] text-dim tabular-nums">
-                            {p != null && <>{signedPct((l.target / p - 1) * 100)} from today</>}
-                            {c != null && <>{p != null ? " · " : ""}{mult(l.target / c)} your cost</>}
+                      <p className="mt-1 px-0.5 text-[11px] text-dim tabular-nums leading-snug">
+                        {l ? (
+                          <>
+                            {units(l.units)} {sym} · {money(l.proceeds)}
+                            {l.profit != null && <> · <span className={l.profit >= 0 ? "text-up" : "text-down"}>{signedMoney(l.profit)}</span></>}
+                            {c != null ? <> · {mult(l.target / c)}</> : p != null ? <> · {signedPct((l.target / p - 1) * 100)} vs today</> : null}
                             {clipped && <span className="text-amber"> · only {Number(l.effPct.toFixed(1))}% fits</span>}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-[11px] text-faint">Enter a price and a percent to see the numbers.</p>
-                      )}
+                          </>
+                        ) : (
+                          <span className="text-faint">Enter a price and a percent to see the numbers.</span>
+                        )}
+                      </p>
                     </div>
                   );
                 })}
@@ -356,12 +354,10 @@ export default function ExitPlanner() {
               </div>
 
               {/* Compare with selling everything now */}
-              {allNow != null && hasRows && (
+              {allNow != null && hasRows && diff != null && (
                 <p className="text-[13px] text-dim leading-snug tabular-nums">
-                  Selling everything today at <span className="text-txt font-semibold">${fmtPrice(p)}</span> would give <span className="text-txt font-semibold">{money(allNow)}</span>.
-                  {" "}This plan cashes out <span className="text-txt font-semibold">{money(calc.cashed)}</span>
-                  {calc.kept > EPS && <> and keeps {units(calc.keptUnits)} {sym} (worth {calc.keptValue != null ? money(calc.keptValue) : "—"} at ${fmtPrice(calc.lastTarget)})</>}
-                  {diff != null && <>, <span className={`font-semibold ${diff >= 0 ? "text-up" : "text-down"}`}>{isHidden() ? "" : money(Math.abs(diff)) + " "}{diff >= 0 ? "more" : "less"}</span> than selling now if those targets are reached</>}.
+                  Selling everything today gives <span className="text-txt font-semibold">{money(allNow)}</span>. If every target is reached, this plan is{" "}
+                  <span className={`font-semibold ${diff >= 0 ? "text-up" : "text-down"}`}>{isHidden() ? "" : money(Math.abs(diff)) + " "}{diff >= 0 ? "more" : "less"}</span>.
                 </p>
               )}
 
@@ -376,7 +372,7 @@ export default function ExitPlanner() {
                     ? "Saving needs a cost basis, because Exit Desk levels are measured as a gain on cost. Add one in Wealth."
                     : note ?? (dropped > 0
                       ? `${dropped} level${dropped === 1 ? " is" : "s are"} at or below your cost or past the six-level limit and won't be saved.`
-                      : "Saved levels go to your Exit Desk plan, checked every 10 minutes with a push notification when one is reached. Stop, trail and heat settings stay as they are.")}
+                      : "Saved levels go to your Exit Desk, which notifies you when one is reached.")}
                 </p>
               </div>
             </div>

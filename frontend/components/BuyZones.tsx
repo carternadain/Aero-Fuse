@@ -29,10 +29,10 @@ const RISK_BUY = 30;
 const RISK_SELL = 70;
 
 const HORIZON_KEY = "buyzones:horizon";
-const HORIZONS: { key: ZoneHorizon; label: string; caption: string }[] = [
-  { key: "long", label: "Long term", caption: "Macro cycle: months to years" },
-  { key: "mid", label: "Mid", caption: "Weeks to months" },
-  { key: "short", label: "Short", caption: "Days to two weeks" },
+const HORIZONS: { key: ZoneHorizon; label: string }[] = [
+  { key: "long", label: "Long term" },
+  { key: "mid", label: "Mid" },
+  { key: "short", label: "Short" },
 ];
 const isHorizon = (v: unknown): v is ZoneHorizon => HORIZONS.some((h) => h.key === v);
 
@@ -187,37 +187,10 @@ function ZoneChart({ chart, range, dim }: { chart: ZoneChartResponse; range: Zon
   const sz = sp ? zoneAt(sp) : null;
   const pastLabel = RANGES.find((r) => r.key === range)?.past ?? "";
   const peak = chart.peak ?? (peakIdx >= 0 ? { date: points[peakIdx].date, risk: points[peakIdx].risk as number, price: points[peakIdx].price } : null);
-  const share = chart.zone_share;
-  const nowZone = zoneOf(chart.now.risk);
   const horizonName = chart.horizon === "long" ? "long-term" : chart.horizon === "mid" ? "mid-term" : "short-term";
 
   return (
-    <div>
-      {/* Readout: current risk at rest, the scrubbed point while touching */}
-      <div className="min-h-[76px] px-1 flex flex-col justify-end" aria-live="off">
-        {sp && sz ? (
-          <>
-            <div className="text-[28px] leading-none font-bold tabular-nums text-txt">{sp.risk != null ? fmtRisk(sp.risk) : "—"}</div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-dim tabular-nums">
-              <span>{fmtDate(sp.date)}</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-edge2 px-2 py-0.5 text-[11px] text-txt">
-                <span className="w-2 h-2 rounded-full" style={{ background: colorOf(sz) }} aria-hidden />
-                {sz === "none" ? "No reading" : ZONE_NAME[sz]}
-              </span>
-              <span>{chart.symbol} ${fmtPrice(sp.price)}</span>
-            </div>
-          </>
-        ) : (
-          <div className="tabular-nums">
-            <div className="text-[20px] leading-none font-bold text-txt">
-              Risk {chart.now.risk != null ? fmtRisk(chart.now.risk) : "—"}
-              {chart.now.label && <span style={{ color: nowZone ? ZONE_COLOR[nowZone] : undefined }}> · {chart.now.label}</span>}
-            </div>
-            <div className="mt-1.5 text-[12px] text-faint">{pastLabel}{peak ? ` · peak ${fmtRisk(peak.risk)}` : ""}</div>
-          </div>
-        )}
-      </div>
-
+    <>
       <div
         data-noswipe
         tabIndex={0}
@@ -225,7 +198,7 @@ function ZoneChart({ chart, range, dim }: { chart: ZoneChartResponse; range: Zon
         aria-label={`${chart.symbol} ${horizonName} risk from 0 to 100 over the ${pastLabel}, coloured by buy, hold and sell zone. Use the arrow keys to move through dates.`}
         onKeyDown={onKey}
         onBlur={() => setIdx(null)}
-        className={`relative mt-2 h-[240px] sm:h-[300px] select-none rounded-md outline-none focus-visible:outline-2 focus-visible:outline-cyan motion-safe:transition-opacity motion-safe:duration-200 ${dim ? "opacity-60" : ""}`}
+        className={`relative h-[220px] sm:h-[300px] select-none rounded-md outline-none focus-visible:outline-2 focus-visible:outline-cyan motion-safe:transition-opacity motion-safe:duration-200 ${dim ? "opacity-60" : ""}`}
       >
         {/* Zone bands behind the line */}
         <div className="absolute inset-x-0 pointer-events-none" style={{ top: CHART_TOP, bottom: AXIS_H }} aria-hidden>
@@ -277,6 +250,18 @@ function ZoneChart({ chart, range, dim }: { chart: ZoneChartResponse; range: Zon
           )}
         </div>
 
+        {/* Scrub readout: floats over the plot on the side away from the cursor, so nothing reflows */}
+        {sp && sz && idx != null && (
+          <div className={`absolute top-1.5 z-10 pointer-events-none rounded-lg bg-panel/90 px-2 py-1 text-[12px] leading-tight tabular-nums ${xPct(idx) < 50 ? "right-1.5 text-right" : "left-1.5"}`} aria-hidden>
+            <div className="text-dim"><span className="font-bold text-txt">{fmtDate(sp.date)}</span> · {chart.symbol} ${fmtPrice(sp.price)}</div>
+            <div className={`mt-0.5 flex items-center gap-1.5 ${xPct(idx) < 50 ? "justify-end" : ""}`}>
+              <span className="w-2 h-2 rounded-full" style={{ background: colorOf(sz) }} />
+              <span className="text-txt">{sz === "none" ? "No reading" : ZONE_NAME[sz]}</span>
+              <span className="font-bold text-txt">{sp.risk != null ? fmtRisk(sp.risk) : "—"}</span>
+            </div>
+          </div>
+        )}
+
         {/* Interaction layer: mouse hover + finger drag (vertical swipes still scroll the page) */}
         <div
           className="absolute inset-0 cursor-crosshair"
@@ -289,17 +274,7 @@ function ZoneChart({ chart, range, dim }: { chart: ZoneChartResponse; range: Zon
         />
       </div>
 
-      <div className="mt-2 px-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim">
-        {(["buy", "hold", "sell"] as const).map((z) => (
-          <span key={z} className="inline-flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${LINE_BG[z]}`} aria-hidden />{ZONE_NAME[z]}
-          </span>
-        ))}
-        {share && (
-          <span className="text-faint tabular-nums">In buy zone {Math.round(share.buy)}% of days, sell zone {Math.round(share.sell)}%</span>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -384,7 +359,6 @@ export default function BuyZones() {
   const risk = chartFresh ? chart.now.risk : holding ? riskOf(holding) : null;
   const price = holding?.price ?? (chartFresh ? chart.now.price : null);
   const zone = zoneOf(risk);
-  const label = chartFresh ? chart.now.label : null;
   const signals = chartFresh ? chart.signals : [];
 
   const pickFromList = (h: ZoneHolding) => {
@@ -413,6 +387,7 @@ export default function BuyZones() {
             <p>Risk runs from 0 to 100, and 100 is the most stretched price gets. {horizon === "long"
               ? "Long term: each asset is measured against its own history: how far price sits above its 200-day and 200-week averages, ranked against every other day on record. 100 is the most stretched it has ever been; past crypto bull-market tops mostly read 80–90."
               : "Mid and short term use the same readings as the Exit Desk: RSI, distance from the 20- and 50-day averages in units of the asset's own volatility, Bollinger position and recent moves."}</p>
+            <p>Long term reads months to years, Mid weeks to months, Short days to two weeks.</p>
             <p>Under 30 is the buy zone, 30 to 70 is hold, and 70 and up is the sell zone. It describes how stretched price is, not where it goes next. Not financial advice.</p>
           </InfoTip>
           <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh" aria-label="Refresh zones">
@@ -473,85 +448,70 @@ export default function BuyZones() {
           ) : (
             <>
               {/* Hero */}
-              <div ref={heroRef} className="scroll-mt-28 p-4 space-y-3">
-                <div className="flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-extrabold text-txt text-lg">{sel.symbol}</span>
-                      <span className="tabular-nums text-sm text-dim">{price != null ? `$${fmtPrice(price)}` : "—"}</span>
-                      <StarButton symbol={sel.symbol} kind={sel.kind} size={14} className="self-center" />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
-                      <span className="font-display text-[56px] leading-none font-bold tabular-nums" style={{ color: zone ? ZONE_COLOR[zone] : "var(--color-dim)" }}>
-                        {risk != null ? fmtRisk(risk) : "—"}
-                      </span>
-                      {risk != null && zone && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-bold text-txt" style={{ borderColor: ZONE_COLOR[zone], background: `color-mix(in srgb, ${ZONE_COLOR[zone]} 14%, transparent)` }}>
-                          {verdictOf(risk)}
-                        </span>
-                      )}
-                      <span className="text-[12px] text-faint">{label ?? (risk == null ? "No reading yet" : "")}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-faint shrink-0 pb-1">risk / 100</div>
+              <div ref={heroRef} className="scroll-mt-28 px-4 pt-3 pb-2 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-txt text-lg">{sel.symbol}</span>
+                  <span className="tabular-nums text-sm text-dim">{price != null ? `$${fmtPrice(price)}` : "—"}</span>
+                  <StarButton symbol={sel.symbol} kind={sel.kind} size={14} />
+                </div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="font-display text-[48px] leading-none font-bold tabular-nums" style={{ color: zone ? ZONE_COLOR[zone] : "var(--color-dim)" }}>
+                    {risk != null ? fmtRisk(risk) : "—"}
+                  </span>
+                  {risk != null && zone ? (
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[12px] font-bold text-txt" style={{ borderColor: ZONE_COLOR[zone], background: `color-mix(in srgb, ${ZONE_COLOR[zone]} 14%, transparent)` }}>
+                      {verdictOf(risk)}
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-faint">No reading yet</span>
+                  )}
                 </div>
                 {chartFresh && chart.odds && (
-                  <p className="text-[13px] text-dim leading-snug">
-                    Past times at this level, price was higher 3 months later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.m3)}%</span> of the time and a year later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.y1)}%</span>.
+                  <p className="text-[12px] text-dim leading-snug">
+                    Price was higher 3 months later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.m3)}%</span> of the time at this level, a year later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.y1)}%</span>.
                   </p>
                 )}
-                <div>
-                  <div className="relative h-2.5 rounded-full flex overflow-hidden">
-                    <div className="h-full bg-up opacity-30" style={{ width: `${RISK_BUY}%` }} />
-                    <div className="h-full bg-dim opacity-30" style={{ width: `${RISK_SELL - RISK_BUY}%` }} />
-                    <div className="h-full bg-down opacity-30" style={{ width: `${100 - RISK_SELL}%` }} />
-                  </div>
-                  {risk != null && (
-                    <div className="relative h-0">
-                      <span
-                        className="absolute -top-[13px] -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-bg bg-txt"
-                        style={{ left: `${Math.min(100, Math.max(0, risk))}%` }}
-                      />
-                    </div>
-                  )}
-                  <div className="flex text-[10px] text-faint mt-1">
-                    <span style={{ width: `${RISK_BUY}%` }}>Buy · 0–{RISK_BUY}</span>
-                    <span style={{ width: `${RISK_SELL - RISK_BUY}%` }} className="text-center">Hold</span>
-                    <span style={{ width: `${100 - RISK_SELL}%` }} className="text-right">Sell · {RISK_SELL}–100</span>
-                  </div>
-                </div>
               </div>
 
               {/* Chart */}
-              <div className="px-3 pb-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div role="group" aria-label="Time horizon" className="seg flex rounded-lg border border-edge2 text-[12px] [&>button]:flex-1 sm:inline-flex sm:[&>button]:flex-none sm:[&>button]:px-5">
-                    {HORIZONS.map((hz) => (
-                      <button key={hz.key} onClick={() => chooseHorizon(hz.key)} aria-pressed={horizon === hz.key}
-                              className={`h-10 px-3 font-bold focus-visible:outline-2 focus-visible:outline-cyan ${horizon === hz.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
-                        {hz.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div role="group" aria-label="Chart range" className="seg flex rounded-lg border border-edge2 text-[12px] [&>button]:flex-1 sm:inline-flex sm:[&>button]:flex-none sm:[&>button]:px-5">
-                    {RANGES.map((r) => (
-                      <button key={r.key} onClick={() => chooseRange(r.key)} aria-pressed={range === r.key}
-                              className={`h-10 px-3 font-bold focus-visible:outline-2 focus-visible:outline-cyan ${range === r.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="px-3 pb-2">
+                <div role="group" aria-label="Time horizon" className="seg flex rounded-lg border border-edge2 text-[12px] [&>button]:flex-1 sm:inline-flex sm:[&>button]:flex-none sm:[&>button]:px-5">
+                  {HORIZONS.map((hz) => (
+                    <button key={hz.key} onClick={() => chooseHorizon(hz.key)} aria-pressed={horizon === hz.key}
+                            className={`h-10 px-3 font-bold focus-visible:outline-2 focus-visible:outline-cyan ${horizon === hz.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
+                      {hz.label}
+                    </button>
+                  ))}
                 </div>
-                <p className="mt-1.5 px-1 text-[11px] text-faint">{HORIZONS.find((hz) => hz.key === horizon)?.caption}</p>
                 <div className="mt-2">
                   {!chart && chartLoading ? (
-                    <Skeleton className="h-[300px] w-full" />
+                    <Skeleton className="h-[220px] sm:h-[300px] w-full" />
                   ) : !chart || points.length < 2 ? (
                     <p className="py-10 text-center text-dim text-xs">Not enough price history for this one yet.</p>
                   ) : (
                     <ZoneChart chart={chart} range={chart.range ?? range} dim={chartLoading} />
                   )}
                 </div>
+                <div role="group" aria-label="Chart range" className="mt-0.5 flex justify-center gap-1 text-[12px]">
+                  {RANGES.map((r) => (
+                    <button key={r.key} onClick={() => chooseRange(r.key)} aria-pressed={range === r.key}
+                            className={`h-7 px-3.5 rounded-full font-semibold focus-visible:outline-2 focus-visible:outline-cyan ${range === r.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                {chartFresh && (
+                  <div className="mt-1.5 px-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-dim">
+                    {(["buy", "hold", "sell"] as const).map((z) => (
+                      <span key={z} className="inline-flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${LINE_BG[z]}`} aria-hidden />{ZONE_NAME[z]}
+                      </span>
+                    ))}
+                    {chart.zone_share && (
+                      <span className="text-faint tabular-nums">In buy zone {Math.round(chart.zone_share.buy)}% of days, sell zone {Math.round(chart.zone_share.sell)}%</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Why */}
