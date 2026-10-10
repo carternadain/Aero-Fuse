@@ -34,7 +34,7 @@ export default function EconCalendar() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <CalendarDays size={14} /> Economic Calendar
+          <CalendarDays size={14} /> Macro calendar
           <span className="panel-sub text-[10px] text-faint font-medium ml-1">high-impact US macro</span>
         </span>
         {soonest && (

@@ -80,7 +80,7 @@ export default function NewsFeed({
   return (
     <section className="panel flex flex-col max-h-[640px]">
       <div className="panel-head">
-        <span className="panel-title"><Newspaper size={14} />News &amp; Sentiment</span>
+        <span className="panel-title"><Newspaper size={14} />News for you</span>
         <div className="flex items-center gap-2">
           {news && !news.ai_enabled && (
             <span className="text-[9px] text-down font-semibold">AI off — add key</span>
