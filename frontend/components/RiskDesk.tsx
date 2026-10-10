@@ -72,7 +72,7 @@ export default function RiskDesk({ trades }: { trades: Trade[] }) {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Calculator size={14} /> Risk Desk</span>
+        <span className="panel-title"><Calculator size={14} /> Position Sizing</span>
         <div className="flex items-center gap-2 text-[10px] text-faint">
           <label className="flex items-center gap-1">acct $
             <input className="field !w-20 max-sm:!w-24 !py-0.5 !px-1.5 tabular-nums" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={s.account}

@@ -1,4 +1,4 @@
-"""Exit Desk: how stretched each holding is over three horizons, plus the user's own
+"""Risk score and sell plan: how stretched each holding is over three horizons, plus the user's own
 take-profit / stop rules and option time-decay math.
 
 Nothing here says "sell". Each signal is a plain measurement (RSI, distance from a
@@ -293,11 +293,14 @@ def evaluate(rule: dict, gain_pct: float | None, from_high_pct: float | None, he
     return hits
 
 
-def desk(holdings: list[dict]) -> dict:
+def desk(holdings: list[dict], kind: str | None = None) -> dict:
     """Every position (same symbol across accounts combined) with heat, gain, options math, rules."""
     groups: dict[str, dict] = {}
+    all_total = sum(h["value"] for h in holdings if h.get("value"))  # weights stay relative to everything held
     for h in holdings:
         if not h.get("value"):
+            continue
+        if kind and h["kind"] != kind:
             continue
         k = f"{h['kind']}:{h['symbol']}"
         g = groups.setdefault(k, {"key": k, "kind": h["kind"], "symbol": h["symbol"], "display": h.get("display", h["symbol"]),
@@ -310,7 +313,7 @@ def desk(holdings: list[dict]) -> dict:
         else:
             g["cost_known"] = False
         g["accounts"].append(h.get("label") or "")
-    total = sum(g["value"] for g in groups.values()) or 1
+    total = (all_total if kind else sum(g["value"] for g in groups.values())) or 1
     rs = rules()
     rows = []
     for k, g in groups.items():
@@ -337,6 +340,8 @@ def desk(holdings: list[dict]) -> dict:
                      "from_high_pct": round(from_high, 1) if from_high is not None else None,
                      "rule": rule, "hits": evaluate(rule, gain, from_high, heat["overall"]) if rule else []})
     rows.sort(key=lambda r: (r["heat"]["overall"] is None, -(r["heat"]["overall"] or 0)))
+    if kind:
+        return {"rows": rows, "backdrop": None}  # backdrop costs extra network calls
     btc = asset_heat("crypto", "BTC")
     return {"rows": rows, "backdrop": {
         "fear_greed": fear_greed(), "btc_funding": funding("BTC"),
@@ -356,7 +361,7 @@ def check_rules(holdings: list[dict], notify) -> int:
             hid = f"{r['key']}:{h['id']}"
             now_hits.add(hid)
             if hid not in fired:
-                notify(f"{r['display']}: {h['text']}", "Exit Desk rule — open the app to review", hid)
+                notify(f"{r['display']}: {h['text']}", "Sell plan rule hit — open the app to review", hid)
                 sent += 1
     _jset("exit_fired", sorted(now_hits))
     return sent

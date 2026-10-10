@@ -16,7 +16,7 @@ interface Level { id: number; target: number; sellPct: number; effPct: number; u
 
 const SEL_KEY = "exitplan:sel";
 const draftKey = (s: Sel) => `exitplan:draft:${s.kind}:${s.symbol}`;
-const MAX_LEVELS = 6; // the Exit Desk rule checker stores at most six take-profit levels
+const MAX_LEVELS = 6; // the saved exit rule stores at most six take-profit levels
 const EPS = 1e-9;
 
 /** Plain-number string for an input box. */
@@ -48,6 +48,8 @@ export default function ExitPlanner() {
   const [sel, setSel] = useState<Sel | null>(null);
   const [rows, setRows] = useState<LadderRow[]>([]);
   const [readyKey, setReadyKey] = useState<string | null>(null);
+  const [stop, setStop] = useState("");
+  const [trail, setTrail] = useState("");
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [presetOpen, setPresetOpen] = useState(false);
@@ -81,7 +83,7 @@ export default function ExitPlanner() {
   const base = c ?? p;
   const savedRule = key && rules ? rules[key] ?? null : null;
 
-  // Load the draft for the chosen holding: local draft first, then the saved Exit Desk rule.
+  // Load the draft for the chosen holding: local draft first, then the saved exit rule.
   useEffect(() => {
     if (!sel || !key || !holding || rules == null) return;
     let next: LadderRow[] | null = null;
@@ -94,6 +96,8 @@ export default function ExitPlanner() {
       next = c && tp.length ? tp.map((t) => ({ id: nextId.current++, price: numStr(c * (1 + t.pct / 100)), pct: numStr(t.trim) })) : [];
     }
     setRows(next);
+    setStop(savedRule?.stop != null ? numStr(Math.abs(savedRule.stop)) : "");
+    setTrail(savedRule?.trail != null ? numStr(savedRule.trail) : "");
     setNote(null);
     setReadyKey(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,27 +165,44 @@ export default function ExitPlanner() {
     setNote(null);
   };
 
-  // Save to the Exit Desk rule: tp pct = target / cost − 1 (as %), trim = sell %.
+  // Save to the exit rule: tp pct = target / cost − 1 (as %), trim = sell %; stop is stored negative.
   const tpFromLevels = calc.levels.filter((l) => c != null && l.target > c).slice(0, MAX_LEVELS);
   const dropped = calc.levels.length - tpFromLevels.length;
-  const canSave = !!key && c != null && tpFromLevels.length > 0 && !saving;
-  const save = async () => {
-    if (!key || c == null) return;
+  const stopV = parse(stop);
+  const trailV = parse(trail);
+  const canSave = !!key && c != null && (tpFromLevels.length > 0 || stopV != null || trailV != null) && !saving;
+  const hasSaved = !!savedRule && (!!savedRule.tp?.length || savedRule.stop != null || savedRule.trail != null);
+  const put = async (rule: Rule | null) => {
+    if (!key) return null;
     setSaving(true);
     try {
-      const tp = tpFromLevels.map((l) => ({ pct: Number(((l.target / c - 1) * 100).toFixed(2)), trim: Number(l.effPct.toFixed(2)) }));
-      const rule: Rule = { ...(savedRule ?? {}), tp };
       const res = await api.put<{ rules: Record<string, Rule> }>("/api/exits/rule", { key, rule });
-      setRules(res.rules ?? { ...(rules ?? {}), [key]: rule });
+      setRules(res.rules ?? (() => { const n = { ...(rules ?? {}) }; if (rule) n[key] = rule; else delete n[key]; return n; })());
       haptic();
-      setNote(`Saved ${tp.length} level${tp.length === 1 ? "" : "s"} to the Exit Desk. You'll get a notification when one is reached.`);
+      return true;
     } catch {
-      setNote("Couldn't save the plan. Try again.");
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  const save = async () => {
+    if (!key || c == null) return;
+    const tp = tpFromLevels.map((l) => ({ pct: Number(((l.target / c - 1) * 100).toFixed(2)), trim: Number(l.effPct.toFixed(2)) }));
+    if (!tp.length && stopV == null && trailV == null) return;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { stop: _s, trail: _t, ...rest } = savedRule ?? {};
+    const rule: Rule = { ...rest, tp, ...(stopV != null ? { stop: -Math.abs(stopV) } : {}), ...(trailV != null ? { trail: trailV } : {}) };
+    const ok = await put(rule);
+    const parts = [tp.length ? `${tp.length} sell level${tp.length === 1 ? "" : "s"}` : "", stopV != null ? "a stop loss" : "", trailV != null ? "a trailing stop" : ""].filter(Boolean);
+    setNote(ok ? `Saved ${parts.join(", ").replace(/, ([^,]*)$/, " and $1")}. You'll get a notification when one is reached.` : "Couldn't save the plan. Try again.");
+  };
+  const removePlan = async () => {
+    const ok = await put(null);
+    if (ok) { setRows([]); setStop(""); setTrail(""); setNote("Plan removed."); } else setNote("Couldn't remove the plan. Try again.");
+  };
 
+  const planned = useMemo(() => new Set(Object.entries(rules ?? {}).filter(([, v]) => v && (v.tp?.length || v.stop != null || v.trail != null)).map(([k]) => k)), [rules]);
   const hasRows = rows.length > 0;
   const allNow = p != null ? Q * p : null;
   const planTotal = calc.cashed + (calc.keptValue ?? 0);
@@ -191,11 +212,11 @@ export default function ExitPlanner() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Target size={14} /> Exit Plan</span>
+        <span className="panel-title"><Target size={14} /> Sell Plan</span>
         <div className="flex items-center gap-2">
-          <InfoTip topic="the exit plan">
+          <InfoTip topic="the sell plan">
             <p>Plan your sells like a budget: pick the prices you would sell at and how much of today&apos;s position goes at each one. The totals show what you would cash out and keep.</p>
-            <p>Saving writes the levels to your Exit Desk plan, which is checked every 10 minutes and sends a push notification when a level is reached.</p>
+            <p>Saved plans are checked every 10 minutes and you get a notification when a level is reached. You can also add a stop loss or a trailing stop to protect the downside.</p>
           </InfoTip>
           <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh" aria-label="Refresh holdings">
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -217,6 +238,7 @@ export default function ExitPlanner() {
                   <button key={`${h.kind}-${h.symbol}`} onClick={() => choose({ kind: h.kind, symbol: h.symbol })} aria-pressed={on}
                           className={`shrink-0 h-10 px-3 inline-flex items-center rounded-md border text-[12px] font-semibold focus-visible:outline-2 focus-visible:outline-cyan ${on ? "border-up/50 bg-up/10 text-up" : "border-edge2 text-dim"}`}>
                     {h.symbol}
+                    {planned.has(`${h.kind}:${h.symbol}`) && <><span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-up" aria-hidden /><span className="sr-only"> (has a plan)</span></>}
                   </button>
                 );
               })}
@@ -353,6 +375,18 @@ export default function ExitPlanner() {
                 </div>
               </div>
 
+              {/* Downside protection */}
+              <div className="space-y-2">
+                <Label>Protect the downside</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="field-wrap"><span className="field-label">Stop loss (% below cost)</span>
+                    <input className="field !h-10 tabular-nums w-full" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={stop} onChange={(e) => setStop(e.target.value)} /></label>
+                  <label className="field-wrap"><span className="field-label">Trailing stop (% off high)</span>
+                    <input className="field !h-10 tabular-nums w-full" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={trail} onChange={(e) => setTrail(e.target.value)} /></label>
+                </div>
+                <p className="text-[11px] text-faint leading-snug">Optional. You get a notification if price falls this far below your cost, or this far off its high.</p>
+              </div>
+
               {/* Compare with selling everything now */}
               {allNow != null && hasRows && diff != null && (
                 <p className="text-[13px] text-dim leading-snug tabular-nums">
@@ -364,15 +398,16 @@ export default function ExitPlanner() {
               {/* Save */}
               <div className="border-t border-edge pt-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button className="btn btn-primary min-h-10" onClick={save} disabled={!canSave}>{saving ? "Saving…" : "Save as exit plan"}</button>
-                  {savedRule?.tp?.length ? <span className="text-[11px] text-faint">Saved plan: {savedRule.tp.length} level{savedRule.tp.length === 1 ? "" : "s"}</span> : null}
+                  <button className="btn btn-primary min-h-10" onClick={save} disabled={!canSave}>{saving ? "Saving…" : "Save plan"}</button>
+                  {hasSaved && <button className="btn min-h-10" onClick={removePlan} disabled={saving}>Remove plan</button>}
+                  {savedRule?.tp?.length ? <span className="text-[11px] text-faint tabular-nums">Saved plan: {savedRule.tp.length} level{savedRule.tp.length === 1 ? "" : "s"}</span> : null}
                 </div>
                 <p className="text-[11px] text-faint leading-snug" aria-live="polite">
                   {c == null
-                    ? "Saving needs a cost basis, because Exit Desk levels are measured as a gain on cost. Add one in Wealth."
+                    ? "Saving needs a cost basis, because levels and stops are measured against your cost. Add one in Wealth."
                     : note ?? (dropped > 0
                       ? `${dropped} level${dropped === 1 ? " is" : "s are"} at or below your cost or past the six-level limit and won't be saved.`
-                      : "Saved levels go to your Exit Desk, which notifies you when one is reached.")}
+                      : "Saved plans are checked every 10 minutes and you get a notification when a level is reached.")}
                 </p>
               </div>
             </div>

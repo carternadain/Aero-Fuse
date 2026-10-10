@@ -14,7 +14,7 @@ export const WEALTH_PAGES: WealthPage[] = ["accounts", "goals", "plan", "spendin
 
 export const TABS: { key: TabKey; label: string; short: string; icon: LucideIcon }[] = [
   { key: "home", label: "Home", short: "Home", icon: House },
-  { key: "trading", label: "Trading", short: "Trade", icon: Activity },
+  { key: "trading", label: "Trade", short: "Trade", icon: Activity },
   { key: "markets", label: "Markets", short: "Markets", icon: LineChart },
   { key: "news", label: "News", short: "News", icon: Newspaper },
   { key: "wealth", label: "Wealth", short: "Wealth", icon: Wallet },

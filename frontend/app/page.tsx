@@ -25,7 +25,6 @@ import CompareChart from "@/components/CompareChart";
 import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
 import LiqHeatmap from "@/components/LiqHeatmap";
-import ExitDesk from "@/components/ExitDesk";
 import Panes from "@/components/Panes";
 import Section, { ProHint } from "@/components/Section";
 import { reveal } from "@/lib/prefs";
@@ -40,6 +39,7 @@ import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
 import BuyZones from "@/components/BuyZones";
 import ExitPlanner from "@/components/ExitPlanner";
+import OptionsPlan from "@/components/OptionsPlan";
 import SwingIdeas from "@/components/SwingIdeas";
 import Overview from "@/components/Overview";
 import DialogHost from "@/components/DialogHost";
@@ -63,7 +63,7 @@ const PARENT: Record<string, string> = {
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
   "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
-  "sec-topbuys": "sec-ideas", "sec-exitplan": "sec-ideas", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
+  "sec-topbuys": "sec-exits", "sec-exitplan": "sec-exits", "sec-optplan": "sec-exits", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
   "sec-compare": "sec-research", "sec-screener": "sec-research",
   "sec-coins": "sec-crypto", "sec-narratives": "sec-crypto",
   "sec-earnings": "sec-calendar", "sec-econ": "sec-calendar",
@@ -198,6 +198,12 @@ export default function Dashboard() {
   const [news, setNews] = useState<NewsResponse | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [backendDown, setBackendDown] = useState(false);
+  const [hasOptions, setHasOptions] = useState(false); // show the Options pane only if you hold any
+  useEffect(() => {
+    api.get<{ holdings: { kind: string; value?: number | null }[] }>("/api/holdings")
+      .then((r) => setHasOptions(r.holdings.some((h) => h.kind === "option" && !!h.value)))
+      .catch(() => {});
+  }, []);
 
   const refreshCore = useCallback(async () => {
     try {
@@ -263,8 +269,12 @@ export default function Dashboard() {
         {tab === "trading" && (
           <>
             <StatsBar stats={stats} edge={edge} />
-            <Section id="sec-exits" title="Exit" accent="Desk" hint="how stretched each holding is · your take-profit plan">
-              <ExitDesk />
+            <Section id="sec-exits" title="Buy" accent="& Sell" hint="risk score for what you own · your sell plan">
+              <Panes items={[
+                { id: "sec-topbuys", label: "Risk", node: <BuyZones /> },
+                { id: "sec-exitplan", label: "Sell plan", node: <ExitPlanner /> },
+                ...(hasOptions ? [{ id: "sec-optplan", label: "Options", node: <OptionsPlan /> }] : []),
+              ]} />
             </Section>
             <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
               <Panes items={[
@@ -279,14 +289,14 @@ export default function Dashboard() {
                 { id: "sec-positions", label: "Positions", span: "lg:col-span-4", node: <Portfolio positions={positions} prices={prices} onChanged={refreshCore} /> },
               ]} />
             </Section>
-            <Section id="sec-edge" title="Edge" accent="Desk" hint="position sizing · expectancy · paper bot" pro>
+            <Section id="sec-edge" title="Sizing" accent="& Stats" hint="position sizing · win rate and expectancy · paper trading bot" pro>
               <Panes items={[
                 { id: "sec-riskdesk", label: "Sizing", node: <RiskDesk trades={trades} /> },
-                { id: "sec-analytics", label: "Analytics", node: <Analytics /> },
-                { id: "sec-simbot", label: "Sim bot", node: <SimBot /> },
+                { id: "sec-analytics", label: "Stats", node: <Analytics /> },
+                { id: "sec-simbot", label: "Paper bot", node: <SimBot /> },
               ]} />
             </Section>
-            <ProHint what="signals, key levels, position sizing and edge analytics" />
+            <ProHint what="signals, key levels, position sizing and trading stats" />
           </>
         )}
 
@@ -296,10 +306,8 @@ export default function Dashboard() {
             <SubTabs value={sub} onChange={setSub} />
             <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
             {sub === "ideas" && (
-              <Section id="sec-ideas" title="Buy" accent="Ideas" hint="risk model · exit plan · swing setups · hot themes">
+              <Section id="sec-ideas" title="New" accent="Ideas" hint="swing setups · hot sectors">
                 <Panes items={[
-                  { id: "sec-topbuys", label: "Risk model", node: <BuyZones /> },
-                  { id: "sec-exitplan", label: "Exit plan", node: <ExitPlanner /> },
                   { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
                   { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
                 ]} />

@@ -381,12 +381,12 @@ export default function BuyZones() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Layers size={14} /> Buy &amp; Sell Zones</span>
+        <span className="panel-title"><Layers size={14} /> Risk Score</span>
         <div className="flex items-center gap-2">
           <InfoTip topic="the risk score">
             <p>Risk runs from 0 to 100, and 100 is the most stretched price gets. {horizon === "long"
               ? "Long term: each asset is measured against its own history: how far price sits above its 200-day and 200-week averages, ranked against every other day on record. 100 is the most stretched it has ever been; past crypto bull-market tops mostly read 80–90."
-              : "Mid and short term use the same readings as the Exit Desk: RSI, distance from the 20- and 50-day averages in units of the asset's own volatility, Bollinger position and recent moves."}</p>
+              : "Mid and short term read RSI, distance from the 20- and 50-day averages in units of the asset's own volatility, Bollinger position and recent moves."}</p>
             <p>Long term reads months to years, Mid weeks to months, Short days to two weeks.</p>
             <p>Under 30 is the buy zone, 30 to 70 is hold, and 70 and up is the sell zone. It describes how stretched price is, not where it goes next. Not financial advice.</p>
           </InfoTip>

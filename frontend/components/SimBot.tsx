@@ -41,7 +41,7 @@ export default function SimBot() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <Bot size={14} /> Sim Bot
+          <Bot size={14} /> Paper Bot
           <span className="panel-sub text-[10px] text-faint font-medium ml-1">auto-trades every AI-approved signal (paper)</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">
