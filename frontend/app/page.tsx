@@ -21,8 +21,6 @@ import TickerHost from "@/components/TickerSheet";
 import { ToastHost } from "@/components/AlertsCenter";
 import MonthlyReportHost from "@/components/MonthlyReport";
 import StarredList from "@/components/StarredList";
-import CompareChart from "@/components/CompareChart";
-import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import Panes from "@/components/Panes";
@@ -51,21 +49,20 @@ import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
 import EconCalendar from "@/components/EconCalendar";
 import Narratives from "@/components/Narratives";
-import StockScreener from "@/components/StockScreener";
-import OptionsWatch from "@/components/OptionsWatch";
+import IdeaTools from "@/components/IdeaTools";
 import EarningsCalendar from "@/components/EarningsCalendar";
 import WealthPages, { WEALTH_ANCHOR, type WealthPage } from "@/components/WealthPages";
 
 // Anchors that live inside another foldable section
 const PARENT: Record<string, string> = {
-  "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
-  "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow", "sec-budget": "sec-cashflow",
+  "sec-goals": "sec-ontrack", "sec-plan": "sec-ontrack", "sec-health": "sec-ontrack",
+  "sec-spending": "sec-cashflow", "sec-budget": "sec-cashflow",
   "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
   "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
-  "sec-holdrisk": "sec-exits", "sec-exitplan": "sec-exits", "sec-optplan": "sec-exits", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
-  "sec-compare": "sec-research", "sec-screener": "sec-research",
+  "sec-holdrisk": "sec-exits", "sec-exitplan": "sec-exits", "sec-optplan": "sec-exits", "sec-swing": "sec-ideas",
+  "sec-sectors": "sec-research", "sec-compare": "sec-research", "sec-options": "sec-research", "sec-screener": "sec-research",
   "sec-coins": "sec-crypto", "sec-narratives": "sec-crypto",
   "sec-earnings": "sec-calendar", "sec-econ": "sec-calendar",
 };
@@ -314,7 +311,6 @@ export default function Dashboard() {
         {tab === "markets" && (
           <>
             <SubTabs value={sub} onChange={setSub} />
-            {sub === "ideas" && <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>}
             {sub === "check" && <div id="sec-topbuys" className="scroll-mt-28"><CheckTicker /></div>}
             {sub === "mine" && (
               <div id="sec-exits" className="scroll-mt-28">
@@ -327,20 +323,12 @@ export default function Dashboard() {
             )}
             {sub === "ideas" && (
               <>
-                <Section id="sec-ideas" title="New" accent="Ideas" hint="swing setups · hot sectors">
-                  <Panes items={[
-                    { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
-                    { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
-                  ]} />
-                </Section>
-                <Section id="sec-options" title="Options" accent="Watch" hint="your stocks · live signals"><OptionsWatch /></Section>
-                <Section id="sec-research" title="Stock" accent="Research" hint="compare tickers · tech screener">
-                  <Panes items={[
-                    { id: "sec-compare", label: "Compare", node: <CompareChart /> },
-                    { id: "sec-screener", label: "Screener", pro: true, node: <StockScreener /> },
-                  ]} />
-                </Section>
-                <ProHint what="the tech stock screener" />
+                {/* top buy ideas first, then your starred list, then the rarely used tools behind one list */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+                  <div id="sec-ideas" className="scroll-mt-28 min-w-0"><div id="sec-swing" className="scroll-mt-28"><SwingIdeas /></div></div>
+                  <div id="sec-starred" className="scroll-mt-28 min-w-0"><StarredList /></div>
+                </div>
+                <IdeaTools />
               </>
             )}
             {sub === "crypto" && (

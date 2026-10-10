@@ -2,14 +2,16 @@
 
 // Wealth as an iOS-style "list you tap into": a grouped inset list of areas, each opening a
 // full page with a back button. On desktop (lg+) the list sits left and the page right.
+// Each row shows a live one-line summary so you can see what's inside without tapping.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
-  ChevronLeft, ChevronRight, Coins, Download, FlaskConical, Landmark, PieChart, Receipt,
-  ShieldCheck, Target, WalletCards, type LucideIcon,
+  CalendarClock, ChevronLeft, ChevronRight, Coins, FlaskConical, Landmark, Receipt, Target, WalletCards,
+  type LucideIcon,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { haptic } from "@/lib/bus";
-import { usePrefs } from "@/lib/prefs";
+import { isHidden, MASK } from "@/lib/privacy";
 import Panes from "./Panes";
 import { ProHint } from "./Section";
 import NetWorthHistory from "./NetWorthHistory";
@@ -27,7 +29,6 @@ import SavingsPlan from "./SavingsPlan";
 import MoneyLab from "./MoneyLab";
 import StressTest from "./StressTest";
 import FireCalc from "./FireCalc";
-import BackupPanel from "./BackupPanel";
 
 import type { WealthPage } from "./TabNav";
 export type { WealthPage };
@@ -38,38 +39,77 @@ const TINT: Record<Tint, string> = {
   down: "bg-down/15 text-down", warn: "bg-warn/15 text-warn",
 };
 
-const META: Record<WealthPage, { title: string; sub: string; icon: LucideIcon; tint: Tint; pro?: boolean }> = {
-  accounts: { title: "Accounts", sub: "Balances by account", icon: Landmark, tint: "up" },
-  goals: { title: "Goals & health", sub: "Targets, free money, cushion", icon: Target, tint: "amber" },
-  plan: { title: "Risk & savings plan", sub: "Leverage and contributions", icon: ShieldCheck, tint: "cyan" },
-  spending: { title: "Spending & bills", sub: "Import statements or screenshots, subscriptions", icon: WalletCards, tint: "down" },
-  budget: { title: "Budget", sub: "Monthly targets and pace", icon: PieChart, tint: "warn" },
+/** `sub` is the fallback line; once data loads each row shows a live summary instead. */
+const META: Record<WealthPage, { title: string; sub: string; icon: LucideIcon; tint: Tint }> = {
+  accounts: { title: "Accounts", sub: "Balances and risk", icon: Landmark, tint: "up" },
+  budget: { title: "Budget & spending", sub: "Import statements, set limits", icon: WalletCards, tint: "down" },
+  bills: { title: "Bills", sub: "Subscriptions and what's due", icon: CalendarClock, tint: "warn" },
   dividends: { title: "Dividends", sub: "Payouts and yield", icon: Coins, tint: "up" },
   taxes: { title: "Taxes", sub: "Gains, harvesting, wash sales", icon: Receipt, tint: "amber" },
-  whatif: { title: "What if", sub: "Money lab, crash test, FIRE", icon: FlaskConical, tint: "cyan", pro: true },
-  backup: { title: "Backup & export", sub: "Your data, downloadable", icon: Download, tint: "warn" },
+  goals: { title: "Goals & plans", sub: "Targets, savings plan, free money", icon: Target, tint: "amber" },
+  whatif: { title: "What if", sub: "Crash test, FIRE, time machine", icon: FlaskConical, tint: "cyan" },
 };
 
 const GROUPS: WealthPage[][] = [
-  ["accounts", "goals", "plan"],
-  ["spending", "budget", "dividends", "taxes"],
-  ["whatif"],
-  ["backup"],
+  ["accounts"],
+  ["budget", "bills", "dividends", "taxes"],
+  ["goals", "whatif"],
 ];
 
 /** Which Wealth page owns each in-page anchor (null = the net worth hero on the list itself). */
 export const WEALTH_ANCHOR: Record<string, WealthPage | null> = {
   "sec-nwhistory": null,
-  "sec-wealth": "accounts", "sec-nwcal": "accounts",
-  "sec-ontrack": "goals", "sec-goals": "goals", "sec-health": "goals",
-  "sec-risk": "plan", "sec-plan": "plan",
-  "sec-cashflow": "spending", "sec-spending": "spending",
-  "sec-budget": "budget",
+  "sec-wealth": "accounts", "sec-risk": "accounts", "sec-nwcal": "accounts",
+  "sec-cashflow": "budget", "sec-spending": "budget", "sec-budget": "budget",
+  "sec-bills": "bills",
   "sec-income": "dividends",
   "sec-taxes": "taxes",
+  "sec-ontrack": "goals", "sec-goals": "goals", "sec-plan": "goals", "sec-health": "goals",
   "sec-whatif": "whatif", "sec-moneylab": "whatif", "sec-stress": "whatif", "sec-fire": "whatif",
-  "sec-backup": "backup",
 };
+
+// ── one-line summaries ──
+const usd = (n: number) => (isHidden() ? MASK : `${n < 0 ? "−" : ""}$${Math.round(Math.abs(n)).toLocaleString("en-US")}`);
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+async function loadSummaries(): Promise<Partial<Record<WealthPage, string>>> {
+  const get = <T,>(u: string) => api.get<T>(u).catch(() => null);
+  const [acc, risk, plan, bills, inc, tax, goals] = await Promise.all([
+    get<{ accounts: unknown[] }>("/api/accounts"),
+    get<{ label?: string }>("/api/networth/risk"),
+    get<{ totals: { target: number; spent: number; left: number } }>("/api/budget/plan"),
+    get<{ totals: { monthly: number; count: number; upcoming_count: number } }>("/api/recurring"),
+    get<{ annual: number }>("/api/income"),
+    get<{ summary: { est_tax: number }; harvest_total?: { est_saved: number } }>("/api/taxes"),
+    get<{ goals: { name: string; pct: number }[] }>("/api/goals"),
+  ]);
+  const out: Partial<Record<WealthPage, string>> = {};
+  if (acc?.accounts) {
+    const n = acc.accounts.length;
+    out.accounts = n ? [plural(n, "account"), risk?.label ? `${risk.label} risk` : ""].filter(Boolean).join(" · ") : "Add your first account";
+  }
+  if (plan?.totals) {
+    const t = plan.totals;
+    out.budget = `${usd(t.spent)} spent this month` + (t.target > 0 ? ` · ${t.left >= 0 ? `${usd(t.left)} left` : `${usd(-t.left)} over`}` : "");
+  }
+  if (bills?.totals) {
+    const t = bills.totals;
+    out.bills = t.count
+      ? `${plural(t.count, "bill")} · ${usd(t.monthly)} a month${t.upcoming_count ? ` · ${t.upcoming_count} due soon` : ""}`
+      : "None found yet. Import a few months to spot them";
+  }
+  if (inc) out.dividends = inc.annual > 0 ? `${usd(inc.annual)} a year, about ${usd(inc.annual / 12)} a month` : "No dividends in the past year";
+  if (tax?.summary) {
+    const saved = tax.harvest_total?.est_saved ?? 0;
+    out.taxes = saved > 0 ? `Harvesting losses could save ${usd(saved)}`
+      : tax.summary.est_tax > 0 ? `About ${usd(tax.summary.est_tax)} owed on gains so far` : "No tax owed on gains so far";
+  }
+  if (goals?.goals) {
+    const g = goals.goals;
+    out.goals = g.length ? `${g[0].name}: ${Math.round(g[0].pct)}%${g.length > 1 ? ` · ${g.length - 1} more` : ""}` : "Set a target, check free money";
+  }
+  return out;
+}
 
 const lgQuery = "(min-width: 1024px)";
 function useIsDesktop() {
@@ -80,65 +120,65 @@ function useIsDesktop() {
   );
 }
 
+// At most one switcher per page, and every pane is named the way you'd look for it.
 function PageBody({ page }: { page: WealthPage }) {
   switch (page) {
     case "accounts":
       return (
-        <div id="sec-wealth" className="scroll-mt-28 space-y-3">
-          <NetWorth />
-          <Panes items={[{ id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> }]} />
+        <div className="space-y-3">
+          <Panes items={[
+            { id: "sec-wealth", label: "Accounts", node: <NetWorth /> },
+            { id: "sec-risk", label: "Risk", node: <RiskRating /> },
+            { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
+          ]} />
+          <ProHint what="the net worth calendar" />
         </div>
       );
+    case "budget":
+      return (
+        <div id="sec-cashflow" className="scroll-mt-28">
+          <Panes items={[
+            { id: "sec-spending", label: "Spending", node: <BudgetTracker /> },
+            { id: "sec-budget", label: "Budget", node: <MonthlyBudget /> },
+          ]} />
+        </div>
+      );
+    case "bills": return <div id="sec-bills" className="scroll-mt-28"><RecurringBills /></div>;
+    case "dividends": return <div id="sec-income" className="scroll-mt-28"><IncomeTracker /></div>;
+    case "taxes": return <div id="sec-taxes" className="scroll-mt-28"><TaxCenter /></div>;
     case "goals":
       return (
         <div id="sec-ontrack" className="scroll-mt-28">
           <Panes items={[
             { id: "sec-goals", label: "Goals", node: <Goals /> },
-            { id: "sec-health", label: "Health check", node: <WealthChecks /> },
+            { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
+            { id: "sec-health", label: "Free money", node: <WealthChecks /> },
           ]} />
         </div>
       );
-    case "plan":
-      return (
-        <Panes items={[
-          { id: "sec-risk", label: "Risk", node: <RiskRating /> },
-          { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
-        ]} />
-      );
-    case "spending":
-      return (
-        <div id="sec-cashflow" className="scroll-mt-28">
-          <div id="sec-spending" className="scroll-mt-28 grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-            <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
-            <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
-          </div>
-        </div>
-      );
-    case "budget": return <div id="sec-budget" className="scroll-mt-28"><MonthlyBudget /></div>;
-    case "dividends": return <div id="sec-income" className="scroll-mt-28"><IncomeTracker /></div>;
-    case "taxes": return <div id="sec-taxes" className="scroll-mt-28"><TaxCenter /></div>;
     case "whatif":
       return (
         <div id="sec-whatif" className="scroll-mt-28">
           <Panes items={[
             { id: "sec-moneylab", label: "Money lab", node: <MoneyLab /> },
-            { id: "sec-stress", label: "Stress test", node: <StressTest /> },
+            { id: "sec-stress", label: "Crash test", node: <StressTest /> },
             { id: "sec-fire", label: "FIRE", node: <FireCalc /> },
           ]} />
         </div>
       );
-    case "backup": return <div id="sec-backup" className="scroll-mt-28"><BackupPanel /></div>;
   }
 }
 
-function Row({ page, active, onOpen }: { page: WealthPage; active: boolean; onOpen: (p: WealthPage) => void }) {
+function Row({ page, sub, active, onOpen }: {
+  page: WealthPage; sub?: string; active: boolean; onOpen: (p: WealthPage) => void;
+}) {
   const m = META[page];
   const Icon = m.icon;
   return (
     <button
       onClick={() => { haptic(); onOpen(page); }}
       aria-current={active ? "page" : undefined}
-      className={`wp-row relative w-full min-h-[52px] flex items-center gap-3 pl-3.5 pr-3 py-2 text-left transition-colors
+      className={`wp-row relative w-full min-h-[56px] flex items-center gap-3 pl-3.5 pr-3 py-2 text-left transition-colors
                   focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-up
                   ${active ? "lg:bg-panel2" : "active:bg-panel2 lg:hover:bg-panel2/60"}`}
     >
@@ -147,9 +187,8 @@ function Row({ page, active, onOpen }: { page: WealthPage; active: boolean; onOp
       </span>
       <span className="flex-1 min-w-0">
         <span className="block text-[15px] font-semibold text-txt leading-tight truncate">{m.title}</span>
-        <span className="block text-[12px] text-faint leading-tight mt-0.5 truncate">{m.sub}</span>
+        <span className="block text-[12px] text-dim leading-tight mt-1 truncate tabular-nums">{sub ?? m.sub}</span>
       </span>
-      {m.pro && <span className="text-[9px] font-bold tracking-widest text-faint border border-edge2 rounded px-1 py-px">PRO</span>}
       <ChevronRight size={16} className="shrink-0 text-faint" />
     </button>
   );
@@ -160,10 +199,11 @@ export default function WealthPages({ page, onOpen, onClose }: {
   onOpen: (p: WealthPage) => void;
   onClose: () => void;
 }) {
-  const p = usePrefs();
   const desktop = useIsDesktop();
   const showing: WealthPage | null = page ?? (desktop ? "accounts" : null);
   const [scrolled, setScrolled] = useState(false);
+  const [subs, setSubs] = useState<Partial<Record<WealthPage, string>>>({});
+  const listShown = !page || desktop;
 
   useEffect(() => {
     if (!page) { setScrolled(false); return; }
@@ -173,9 +213,14 @@ export default function WealthPages({ page, onOpen, onClose }: {
     return () => window.removeEventListener("scroll", f);
   }, [page]);
 
-  const groups = GROUPS
-    .map((g) => g.filter((k) => !META[k].pro || p.mode === "pro" || p.revealed.has("sec-whatif") || page === k))
-    .filter((g) => g.length);
+  // Refresh the row summaries whenever the list comes (back) into view, so edits made on a page show up.
+  useEffect(() => {
+    if (!listShown) return;
+    let alive = true;
+    loadSummaries().then((s) => { if (alive) setSubs(s); });
+    return () => { alive = false; };
+  }, [listShown, page]);
+
   const m = showing ? META[showing] : null;
 
   return (
@@ -184,14 +229,13 @@ export default function WealthPages({ page, onOpen, onClose }: {
       <div className={page && !desktop ? "hidden" : ""}><div id="sec-nwhistory" className="scroll-mt-28"><NetWorthHistory /></div></div>
 
       <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4 lg:items-start">
-        {(!page || desktop) && (
+        {listShown && (
           <nav aria-label="Wealth" className={`space-y-4 lg:sticky lg:top-[calc(var(--header-h,49px)+57px)] ${page ? "" : "wp-pop"}`}>
-            {groups.map((g, i) => (
+            {GROUPS.map((g, i) => (
               <div key={i} className="rounded-2xl border border-edge bg-panel overflow-hidden divide-y divide-edge">
-                {g.map((k) => <Row key={k} page={k} active={showing === k} onOpen={onOpen} />)}
+                {g.map((k) => <Row key={k} page={k} sub={subs[k]} active={showing === k} onOpen={onOpen} />)}
               </div>
             ))}
-            <ProHint what="the net-worth calendar, Money Lab, the stress test and FIRE" />
           </nav>
         )}
 
