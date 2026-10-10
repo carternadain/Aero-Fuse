@@ -47,6 +47,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Edge analytics", "trading", undefined, "sec-analytics", "expectancy"],
   ["Goals", "wealth", undefined, "sec-goals", "target progress"],
   ["Net worth by account", "wealth", undefined, "sec-wealth", "edit balances"],
+  ["Net worth over time", "wealth", undefined, "sec-nwhistory", "history chart daily snapshots debts cash property"],
   ["Risk rating", "wealth", undefined, "sec-risk", "leverage"],
   ["Savings plan", "wealth", undefined, "sec-plan", "contributions 401k roth"],
   ["Dividend income", "wealth", undefined, "sec-income", "dividends payouts yield"],
