@@ -6,11 +6,13 @@ import { FlaskConical, Hourglass, Rocket, Sprout, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { isHidden } from "@/lib/privacy";
+import { useAge } from "@/lib/profile";
 
-// Shares assumptions with the FIRE calculator (same localStorage key) so the
-// two panels never disagree. Everything is in today's dollars (real returns).
-interface FireInputs { age: number; returnPct: number; inflationPct: number; annualSpend: number; swrPct: number }
-const FIRE_DEFAULTS: FireInputs = { age: 25, returnPct: 8, inflationPct: 3, annualSpend: 50000, swrPct: 4 };
+// Shares assumptions with the FIRE calculator (same localStorage key, and the same
+// age from lib/profile) so the two panels never disagree. Everything is in today's
+// dollars (real returns).
+interface FireInputs { returnPct: number; inflationPct: number; annualSpend: number; swrPct: number }
+const FIRE_DEFAULTS: FireInputs = { returnPct: 8, inflationPct: 3, annualSpend: 50000, swrPct: 4 };
 const FIRE_KEY = "fire-inputs-v1";
 
 function readFire(): FireInputs {
@@ -71,6 +73,7 @@ export default function MoneyLab() {
   const [nw, setNw] = useState(0);
   const [monthly, setMonthly] = useState(0);
   const [fire, setFire] = useState<FireInputs>(FIRE_DEFAULTS);
+  const age = useAge();
   const [amount, setAmount] = useState("1");
   const [extra, setExtra] = useState(200);
 
@@ -103,7 +106,7 @@ export default function MoneyLab() {
   }, [nw, monthly, extra, real, fireNumber, HORIZON]);
 
   const dollars = parseFloat(amount.replace(/[$,]/g, "")) || 0;
-  const ages = [40, 50, 65].filter((a) => a > fire.age);
+  const ages = [40, 50, 65].filter((a) => a > age);
   const grow = (yrs: number) => dollars * Math.pow(1 + real, yrs);
   const growthNow = nw * calc.r;
   const nextMilestones = MILESTONES.filter((m) => m > nw).slice(0, 4);
@@ -121,15 +124,15 @@ export default function MoneyLab() {
                    value={amount} onChange={(e) => setAmount(e.target.value)} />
           </span>
           <span className="text-xs text-dim">
-            today, at age <span className="text-txt font-bold">{fire.age}</span>…
+            today, at age <span className="text-txt font-bold">{age}</span>…
           </span>
         </div>
         <div className="grid grid-cols-3 gap-2">
           {ages.map((a) => (
             <div key={a} className="rounded-lg bg-panel2/60 p-2.5 text-center">
               <div className="text-[10px] text-faint">at {a}</div>
-              <div className="font-display text-[26px] leading-tight text-txt">{money(grow(a - fire.age))}</div>
-              <div className="text-[10px] text-cyan tabular-nums">{(grow(a - fire.age) / (dollars || 1)).toFixed(1)}×</div>
+              <div className="font-display text-[26px] leading-tight text-txt">{money(grow(a - age))}</div>
+              <div className="text-[10px] text-cyan tabular-nums">{(grow(a - age) / (dollars || 1)).toFixed(1)}×</div>
             </div>
           ))}
         </div>
@@ -143,7 +146,7 @@ export default function MoneyLab() {
         </div>
         <p className="text-[11px] text-dim leading-snug">
           A {money(dollars)} purchase today really costs future-you about{" "}
-          <span className="text-txt font-bold">{money(grow(65 - fire.age))}</span> at 65.
+          <span className="text-txt font-bold">{money(grow(65 - age))}</span> at 65.
         </p>
       </Card>
 
@@ -158,7 +161,7 @@ export default function MoneyLab() {
             return (
               <div key={y}>
                 <div className="flex justify-between text-[10px] mb-0.5">
-                  <span className="text-faint">in {y} yrs (age {fire.age + y})</span>
+                  <span className="text-faint">in {y} yrs (age {age + y})</span>
                   <span className="tabular-nums text-up font-bold">+{fmtUsd(x - b)}</span>
                 </div>
                 <div className="relative h-2.5 rounded-full bg-edge overflow-hidden">
@@ -198,12 +201,12 @@ export default function MoneyLab() {
           {nextMilestones.map((m) => (
             <li key={m} className="flex items-center justify-between py-1.5 text-xs">
               <span className="font-bold text-txt tabular-nums">{fmtUsd(m)}</span>
-              <span className="text-dim tabular-nums">{fmtWhen(monthsUntil(calc.base, m), fire.age)}</span>
+              <span className="text-dim tabular-nums">{fmtWhen(monthsUntil(calc.base, m), age)}</span>
             </li>
           ))}
           <li className="flex items-center justify-between py-1.5 text-xs">
             <span className="font-bold text-amber">FIRE · {fmtUsd(fireNumber)}</span>
-            <span className="text-dim tabular-nums">{fmtWhen(calc.fireBase, fire.age)}</span>
+            <span className="text-dim tabular-nums">{fmtWhen(calc.fireBase, age)}</span>
           </li>
         </ul>
       </Card>
@@ -230,7 +233,7 @@ export default function MoneyLab() {
             ? <>Your investments already earn more each month than you add. Compounding is doing the heavy lifting now.</>
             : calc.crossover > 0
             ? <>Your investments earn {Math.round((growthNow / monthly) * 100)}% of what you add each month. Around{" "}
-                <span className="text-txt font-bold">age {Math.round(fire.age + calc.crossover / 12)}</span>
+                <span className="text-txt font-bold">age {Math.round(age + calc.crossover / 12)}</span>
                 {" "}({(calc.crossover / 12).toFixed(1)} yrs) they start earning more than you put in, and growth snowballs from there.</>
             : "Not within 40 years at this pace."}
         </p>
@@ -238,9 +241,9 @@ export default function MoneyLab() {
 
       <p className="lg:col-span-2 text-[10px] text-faint flex items-center gap-1.5">
         <FlaskConical size={11} />
-        Today&apos;s dollars, {(real * 100).toFixed(1)}%/yr after inflation, age {fire.age}.
+        Today&apos;s dollars, {(real * 100).toFixed(1)}%/yr after inflation, age {age}.
         <InfoTip topic="these assumptions" title="Assumptions">
-          <p>Today&apos;s dollars: {(real * 100).toFixed(1)}%/yr after inflation ({fire.returnPct}% return − {fire.inflationPct}% inflation), age {fire.age}.</p>
+          <p>Today&apos;s dollars: {(real * 100).toFixed(1)}%/yr after inflation ({fire.returnPct}% return − {fire.inflationPct}% inflation), age {age}.</p>
           <p>Change these in the FIRE calculator below. These are averages, and real markets swing year to year.</p>
         </InfoTip>
       </p>
