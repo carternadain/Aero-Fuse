@@ -129,8 +129,8 @@ Available credit $4,500.00
 Statement balance $300.00
 See all
 -----
-Today
 Mystery Merchant
+Today
 Starbucks $5.45
 $9.99
 """)
@@ -211,3 +211,50 @@ def test_endpoint(tmpdb):
            "kind": "expense", "category": "transport", "hash": None}
     assert c.post("/api/import/commit", json={"rows": [row]}).json() == {"inserted": 1, "duplicates": 0}
     assert c.post("/api/import/commit", json={"rows": [row]}).json() == {"inserted": 0, "duplicates": 1}
+
+
+# ── real tesseract output (dark-mode Robinhood-style screenshot) ──
+
+OCR_FIXTURE = """9:41 87%
+Transactions
+Pending
+Starbucks
+Restaurants $6.45
+Yesterday
+Shell Oil 57442
+Gas $48.12
+Amazon.com $1129.99
+Shopping
+October 7
+Chipotle
+Restaurants $14.80
+Target Refund
+Shopping +$22.50
+Payment
+Thank you +$500.00
+October 5
+Netflix
+Entertainment $15.49
+"""
+
+
+def test_real_ocr_subtitle_line_holds_amount():
+    rows = parse(OCR_FIXTURE)
+    assert pairs(rows) == [
+        ("2026-10-10", -6.45, "Starbucks"),
+        ("2026-10-09", -48.12, "Shell Oil 57442"),
+        ("2026-10-09", -1129.99, "Amazon.com"),
+        ("2026-10-07", -14.80, "Chipotle"),
+        ("2026-10-07", 22.50, "Target Refund"),
+        ("2026-10-07", 500.00, "Payment received"),
+        ("2026-10-05", -15.49, "Netflix"),
+    ]
+    prev = importer.build_preview(rows, [])
+    assert [(r["refund"], r["transfer"]) for r in prev] == [
+        (False, False)] * 4 + [(True, False), (False, True), (False, False)]
+
+
+def test_subtitle_after_row_not_stolen_by_next_inline_row():
+    # "Whatever" is an unknown subtitle after a finished row; next row has its merchant inline
+    rows = parse("Today\nAmazon $10.00\nWhatever\nChipotle $14.80\nLyft\nTransportation $9.00")
+    assert [r["description"] for r in rows] == ["Amazon", "Chipotle", "Lyft"]

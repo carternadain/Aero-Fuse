@@ -309,12 +309,17 @@ def parse_screenshot_text(text: str, today: date) -> list[dict]:
     undated: list[dict] = []
     section = today
     candidate: str | None = None   # last merchant-looking line, used when the amount is on its own line
+    cand_after_row = False         # candidate came right after a finished row (maybe that row's subtitle)
+    prev = None                    # previous significant item kind ("time" lines are transparent)
     for kind, val in items:
+        if kind == "time":
+            continue
         if kind == "noise":
             candidate = None
         elif kind == "text":
-            candidate = val
+            candidate, cand_after_row = val, prev == "amount"
         elif kind == "date":
+            candidate = None   # a date line separates a dangling merchant from the next row
             if row_mode:
                 for r in undated:
                     r["date"] = val.isoformat()
@@ -322,8 +327,15 @@ def parse_screenshot_text(text: str, today: date) -> list[dict]:
             else:
                 section = val
         elif kind == "amount":
-            merchant, value, plus = val
-            merchant = merchant or candidate or ""
+            prefix, value, plus = val
+            # "Starbucks" / "Restaurants $6.45": the amount sits on the subtitle line, so the
+            # pending line above is the merchant. But a pending line right after a finished row
+            # may just be that row's subtitle ("Shopping"), so an inline merchant wins unless the
+            # inline text itself looks like a subtitle.
+            if prefix and candidate and not (cand_after_row and not _SHOT_CATEGORY.match(prefix)):
+                merchant = candidate
+            else:
+                merchant = prefix or candidate or ""
             candidate = None
             # drop leading icon glyphs OCR picks up from the merchant avatar
             merchant = re.sub(r"^[^\w$]+", "", merchant).strip(" -:\u2022\u00b7")
@@ -338,6 +350,7 @@ def parse_screenshot_text(text: str, today: date) -> list[dict]:
             rows.append(row)
             if row_mode:
                 undated.append(row)
+        prev = kind
     for r in undated:   # no date line found for these: assume today
         r["date"] = today.isoformat()
     return rows
