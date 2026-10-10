@@ -21,8 +21,6 @@ import BackupPanel from "./BackupPanel";
 
 /** Invest/News panels you can switch on or off. `pro` = hidden by default in Simple view. */
 const PANELS: { id: string; label: string; pro: boolean; group: string }[] = [
-  { id: "sec-options", label: "Options watch", pro: false, group: "Invest · Ideas" },
-  { id: "sec-screener", label: "Tech stock screener", pro: true, group: "Invest · Ideas" },
   { id: "sec-liqmap", label: "BTC liquidation heatmap", pro: false, group: "Invest · Crypto" },
   { id: "sec-narratives", label: "Crypto narratives", pro: true, group: "Invest · Crypto" },
   { id: "sec-earnings", label: "Earnings calendar", pro: false, group: "News" },

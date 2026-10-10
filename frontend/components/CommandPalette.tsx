@@ -55,10 +55,11 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Dividend income", "wealth", undefined, "sec-income", "dividends payouts yield"],
   ["Money lab", "wealth", undefined, "sec-moneylab", "time machine milestones"],
   ["Stress test", "wealth", undefined, "sec-stress", "crash black swan"],
-  ["Health check", "wealth", undefined, "sec-health", "free money irs limits emergency fund"],
+  ["Free money", "wealth", undefined, "sec-health", "health check irs limits emergency fund match"],
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
   ["Monthly budget", "wealth", undefined, "sec-budget", "monthly budget targets limits category spending left per day pace over"],
-  ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules subscriptions bills recurring"],
+  ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules"],
+  ["Bills & subscriptions", "wealth", undefined, "sec-bills", "bills recurring subscriptions monthly charges"],
   ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
 ];
 
