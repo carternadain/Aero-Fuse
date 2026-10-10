@@ -49,6 +49,7 @@ import brief
 import market_data
 import news
 import nw_history
+import nw_backfill
 import risk
 import scoring
 import taxes
@@ -1121,11 +1122,25 @@ def _backfill_once():
         print(f"[networth] backfill {nw_history.backfill(price_at)}")
     except Exception as e:
         print(f"[networth] backfill error: {e}")
+    _nw_estimate(db.list_snapshots())  # warm the estimate so the first chart load is quick
+
+
+def _nw_estimate(snaps: list[dict]) -> list[dict]:
+    """Estimated rows before the first snapshot; [] when prices can't be had."""
+    try:
+        hv = valued_holdings()
+        return nw_backfill.build(hv["holdings"], snaps, db.networth_breakdown(hv["value"]))
+    except Exception as e:  # noqa: BLE001 - the chart falls back to recorded days
+        print(f"[networth] estimate error: {e}")
+        return []
 
 
 @app.get("/api/networth/history")
-def get_networth_history():
-    return db.list_snapshots()
+def get_networth_history(estimate: bool = False):
+    """Recorded daily snapshots. With estimate=true, days before the first one are
+    prepended, estimated from today's holdings at each day's close (source='estimate')."""
+    snaps = db.list_snapshots()
+    return (_nw_estimate(snaps) + snaps) if estimate else snaps
 
 
 # ── Budget ────────────────────────────────────────────────

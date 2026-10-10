@@ -106,14 +106,19 @@ export default function AlertsCenter() {
 
   return (
     <>
-      <button className="icon-btn relative !text-dim hover:!text-txt" title="Price alerts" onClick={() => setOpen(true)}>
-        {unseen ? <BellRing size={15} className="text-amber" /> : <Bell size={15} />}
-        {unseen > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-1 rounded-full bg-amber text-bg text-[9px] font-extrabold flex items-center justify-center">
-            {unseen}
-          </span>
-        )}
-      </button>
+      {/* Phones keep the header to search + settings: the bell only shows there once an alert has fired
+          (alerts are always reachable from Settings and search). */}
+      <span className={unseen ? "contents" : "hidden sm:contents"}>
+        <button className="icon-btn relative !text-dim hover:!text-txt" title="Price alerts"
+                aria-label={unseen ? `Price alerts, ${unseen} new` : "Price alerts"} onClick={() => setOpen(true)}>
+          {unseen ? <BellRing size={17} className="text-amber" /> : <Bell size={17} />}
+          {unseen > 0 && (
+            <span aria-hidden className="absolute top-1 right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-amber text-bg text-[9px] font-extrabold flex items-center justify-center">
+              {unseen}
+            </span>
+          )}
+        </button>
+      </span>
 
       {open && (
         <div className="fixed inset-0 z-[86] bg-black/60 flex items-end sm:items-center justify-center"
@@ -122,7 +127,7 @@ export default function AlertsCenter() {
                           pb-[max(16px,env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <h2 className="text-lg font-extrabold text-txt flex items-center gap-2"><Bell size={17} className="text-amber" /> Price alerts</h2>
-              <button className="p-2 -mr-2 rounded-full hover:bg-panel2 text-dim" onClick={() => setOpen(false)} aria-label="Close"><X size={18} /></button>
+              <button className="w-10 h-10 -mr-2 flex items-center justify-center rounded-full hover:bg-panel2 text-dim focus-visible:outline-2 focus-visible:outline-cyan" onClick={() => setOpen(false)} aria-label="Close alerts"><X size={18} /></button>
             </div>
 
             {/* Phone notifications */}

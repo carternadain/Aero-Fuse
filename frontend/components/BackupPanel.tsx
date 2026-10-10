@@ -26,7 +26,8 @@ const DL = [
   { href: "/api/export/db", label: "Database file (.db)", Icon: Database },
 ];
 
-export default function BackupPanel() {
+/** `bare` drops the card chrome, for use inside Settings (which supplies its own title). */
+export default function BackupPanel({ bare = false }: { bare?: boolean }) {
   const [st, setSt] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -41,13 +42,9 @@ export default function BackupPanel() {
     setBusy(false);
   }
 
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-up" /> Your data, yours to keep</span>
-      </div>
-      <div className="p-3 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+  const body = (
+      <div className={bare ? "space-y-3" : "p-3 space-y-3"}>
+        <div className={`grid grid-cols-1 gap-2 ${bare ? "" : "sm:grid-cols-3"}`}>
           {DL.map(({ href, label, Icon }) => (
             <a key={href} href={href} download className="btn min-h-[44px] text-[13px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-up">
               <Icon size={15} /> {label}
@@ -67,8 +64,16 @@ export default function BackupPanel() {
             {busy ? "Backing up…" : "Back up now"}
           </button>
         </div>
-        {err && <p className="text-[12px] text-down">{err}</p>}
+        {err && <p role="alert" className="text-[12px] text-down">{err}</p>}
       </div>
+  );
+  if (bare) return body;
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-up" /> Your data, yours to keep</span>
+      </div>
+      {body}
     </div>
   );
 }

@@ -9,9 +9,10 @@ import { usePrefs } from "@/lib/prefs";
 export type TabKey = "home" | "trading" | "markets" | "news" | "wealth";
 export type MarketsSub = "check" | "mine" | "ideas" | "crypto";
 /** Pages inside the Wealth tab, addressed as #wealth/<page>. */
-export type WealthPage =
-  | "accounts" | "goals" | "plan" | "spending" | "budget" | "dividends" | "taxes" | "whatif" | "backup";
-export const WEALTH_PAGES: WealthPage[] = ["accounts", "goals", "plan", "spending", "budget", "dividends", "taxes", "whatif", "backup"];
+export type WealthPage = "accounts" | "budget" | "bills" | "dividends" | "taxes" | "goals" | "whatif";
+export const WEALTH_PAGES: WealthPage[] = ["accounts", "budget", "bills", "dividends", "taxes", "goals", "whatif"];
+/** Pages that were renamed or merged, so old links and home-screen relaunches still land. */
+const WEALTH_ALIAS: Record<string, WealthPage> = { spending: "budget", plan: "goals" };
 
 export const TABS: { key: TabKey; label: string; short: string; icon: LucideIcon }[] = [
   { key: "home", label: "Home", short: "Home", icon: House },
@@ -36,7 +37,7 @@ export function parseHash(h: string): { tab: TabKey; sub?: MarketsSub; page?: We
   if (t === "markets" && s === "stocks") return { tab: "markets", sub: "ideas" };
   if (!TABS.some((x) => x.key === t)) return null;
   const sub = t === "markets" && MARKET_SUBS.some((x) => x.key === s) ? (s as MarketsSub) : undefined;
-  const page = t === "wealth" && WEALTH_PAGES.includes(s as WealthPage) ? (s as WealthPage) : undefined;
+  const page = t !== "wealth" ? undefined : WEALTH_PAGES.includes(s as WealthPage) ? (s as WealthPage) : WEALTH_ALIAS[s];
   return { tab: t as TabKey, sub, page };
 }
 
@@ -71,9 +72,6 @@ export default function TabNav({
               </button>
             );
           })}
-          <span className="ml-auto text-[10px] text-faint hidden md:inline">
-            <kbd className="px-1.5 py-0.5 rounded border border-edge2 text-dim">Ctrl K</kbd> to search
-          </span>
         </div>
       </nav>
 

@@ -128,9 +128,9 @@ export default function HomePortfolio({ only = null, onClearFilter }: { only?: S
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-widest text-faint">
           YOUR ACCOUNTS
-          {only && <button className="ml-2 normal-case tracking-normal text-up" onClick={onClearFilter}>· {SECTION_META[only].title} only · show all</button>}
+          {only && <button className="ml-1 min-h-10 px-1 normal-case tracking-normal text-up rounded focus-visible:outline-2 focus-visible:outline-up" onClick={onClearFilter}>· {SECTION_META[only].title} only · show all</button>}
         </span>
-        <button onClick={cyclePill} className="text-[11px] font-semibold text-dim hover:text-txt px-2 py-1 rounded-md border border-edge2">
+        <button onClick={cyclePill} className="min-h-10 text-[11px] font-semibold text-dim hover:text-txt px-3 rounded-md border border-edge2 focus-visible:outline-2 focus-visible:outline-up">
           Showing: <span className="text-txt">{pill === "price" ? "Price" : pill === "change" ? "Today %" : "Equity"}</span>
         </button>
       </div>

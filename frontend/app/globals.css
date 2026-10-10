@@ -175,7 +175,7 @@ input, select, textarea {
   padding-top: max(12px, env(safe-area-inset-top));
 }
 
-/* ── Palettes (header ● button). Calm is the default, defined in @theme above. ── */
+/* ── Palettes (Settings › Gain and loss colors). Calm is the default, defined in @theme above. ── */
 :root[data-palette="classic"] {
   --color-up: #2ae79c;
   --color-down: #ff7a6f;
@@ -191,6 +191,24 @@ input, select, textarea {
   --color-on-up: #1a1814;
   --color-cyan: #d9d2c6;
 }
+
+/* Palette preview dots in Settings: each shows its own palette, whatever is active */
+.swatch-calm-up { background: #6cb4ff; }
+.swatch-calm-down { background: #f4a261; }
+.swatch-mono-up { background: #f2ede4; }
+.swatch-mono-down { background: #a59c8e; }
+.swatch-classic-up { background: #2ae79c; }
+.swatch-classic-down { background: #ff7a6f; }
+
+/* Header icon buttons: a real hit area at every width (phones get 40px from the block below) */
+@media (min-width: 640px) {
+  .header-tools .icon-btn { width: 36px; height: 36px; justify-content: center; border-radius: 8px; }
+  .header-tools .icon-btn:hover { background: var(--color-panel2); }
+}
+.header-tools .icon-btn:focus-visible { outline: 2px solid var(--color-cyan); outline-offset: 1px; border-radius: 8px; }
+
+/* Search fields draw their own close button; hide the browser's clear (x) so there aren't two */
+.no-search-cancel::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 /* Phones: nudge the smallest text sizes up, since 9px is hard to read on a phone */
 @media (max-width: 639px) {

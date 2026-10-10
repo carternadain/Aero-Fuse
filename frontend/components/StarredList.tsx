@@ -20,17 +20,16 @@ export default function StarredList({ compact = false }: { compact?: boolean }) 
         <span className="panel-title"><Star size={14} />Starred</span>
         <div className="flex items-center gap-1">
           {items.length > 0 && !compact && (
-            <button className={`icon-btn ${edit ? "!text-up" : ""}`} onClick={() => setEdit(!edit)} title="Edit"><Pencil size={13} /></button>
+            <button className={`icon-btn ${edit ? "!text-up" : ""}`} onClick={() => setEdit(!edit)} title={edit ? "Done" : "Edit"} aria-label={edit ? "Done editing" : "Edit starred"} aria-pressed={edit}><Pencil size={13} /></button>
           )}
-          <button className="icon-btn" onClick={openSearch} title="Find a ticker to star"><Search size={13} /></button>
+          <button className="icon-btn" onClick={openSearch} title="Find a ticker to star" aria-label="Find a ticker to star"><Search size={13} /></button>
         </div>
       </div>
       {!loaded ? (
         <div className="p-3 space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10" />)}</div>
       ) : !items.length ? (
-        <p className="px-4 py-5 text-[12px] text-dim leading-relaxed">
-          Tap <Star size={11} className="inline text-amber" /> on any ticker (search, Swing Ideas, Risk Score, a chart) to pin it here
-          with a live price and how it&apos;s done since you starred it.
+        <p className="px-4 py-5 text-[13px] text-dim">
+          Tap <Star size={12} className="inline align-[-1px] text-amber" aria-label="star" /> on any ticker to keep it here.
         </p>
       ) : (
         <div>
@@ -39,8 +38,9 @@ export default function StarredList({ compact = false }: { compact?: boolean }) 
             return (
               <div key={`${s.kind}:${s.symbol}`} role="button" tabIndex={0}
                    onClick={() => !edit && openTicker({ symbol: s.symbol, kind: s.kind })}
-                   onKeyDown={(e) => e.key === "Enter" && openTicker({ symbol: s.symbol, kind: s.kind })}
-                   className="flex items-center gap-3 px-4 py-2.5 border-t border-edge/50 first:border-t-0 hover:bg-panel2/60 cursor-pointer">
+                   onKeyDown={(e) => { if (!edit && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openTicker({ symbol: s.symbol, kind: s.kind }); } }}
+                   className="flex items-center gap-3 px-4 min-h-[56px] py-2 border-t border-edge/50 first:border-t-0 hover:bg-panel2/60 cursor-pointer
+                              focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan">
                 <div className="min-w-0 w-[30%]">
                   <div className="text-[14px] font-bold text-txt truncate">{s.symbol}</div>
                   <div className="text-[10.5px] text-faint truncate">
@@ -58,7 +58,7 @@ export default function StarredList({ compact = false }: { compact?: boolean }) 
                   </div>
                 </div>
                 {edit && (
-                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggleStar(s.symbol, s.kind); }} title="Unstar">
+                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); toggleStar(s.symbol, s.kind); }} title="Unstar" aria-label={`Unstar ${s.symbol}`}>
                     <X size={14} />
                   </button>
                 )}
@@ -66,7 +66,7 @@ export default function StarredList({ compact = false }: { compact?: boolean }) 
             );
           })}
           {compact && items.length > rows.length && (
-            <div className="px-4 py-2 text-[11px] text-faint border-t border-edge/50">+{items.length - rows.length} more in Markets</div>
+            <div className="px-4 py-2 text-[11px] text-faint border-t border-edge/50">+{items.length - rows.length} more in Invest › Ideas</div>
           )}
         </div>
       )}
