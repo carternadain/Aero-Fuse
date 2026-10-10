@@ -31,7 +31,7 @@ export default function Narratives() {
     <section className="panel flex flex-col">
       <div className="panel-head">
         <span className="panel-title">
-          <Flame size={14} /> Top Narratives
+          <Flame size={14} /> Top narratives
           <span className="panel-sub text-[10px] text-faint font-medium ml-1">what&apos;s moving (24h)</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">

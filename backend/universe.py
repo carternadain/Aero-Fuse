@@ -82,3 +82,38 @@ SECTORS: dict[str, list[tuple[str, str]]] = {
 
 def all_tickers() -> list[str]:
     return list(dict.fromkeys(t for names in SECTORS.values() for t, _ in names))
+
+
+# Coins that are always searchable in Check and get a risk read, even outside CoinGecko's
+# top-15 feed: (symbol, name, CoinGecko id, Yahoo symbol or None). Price history comes from
+# Coinbase first, then Yahoo, then CoinGecko (about a year on the free tier).
+COINS: list[tuple[str, str, str, str | None]] = [
+    ("BTC", "Bitcoin", "bitcoin", "BTC-USD"),
+    ("ETH", "Ethereum", "ethereum", "ETH-USD"),
+    ("SOL", "Solana", "solana", "SOL-USD"),
+    ("XRP", "XRP", "ripple", "XRP-USD"),
+    ("ADA", "Cardano", "cardano", "ADA-USD"),
+    # Midnight: the privacy chain from Input Output (Charles Hoskinson, Cardano's founder);
+    # NIGHT launched Dec 2025. CoinGecko slug "midnight-3"; the Yahoo symbol is unverified.
+    ("NIGHT", "Midnight", "midnight-3", "NIGHT-USD"),
+    ("DOGE", "Dogecoin", "dogecoin", "DOGE-USD"),
+    ("AVAX", "Avalanche", "avalanche-2", "AVAX-USD"),
+    ("LINK", "Chainlink", "chainlink", "LINK-USD"),
+    ("DOT", "Polkadot", "polkadot", "DOT-USD"),
+    ("SUI", "Sui", "sui", "SUI20947-USD"),
+    ("HBAR", "Hedera", "hedera-hashgraph", "HBAR-USD"),
+    ("XLM", "Stellar", "stellar", "XLM-USD"),
+    ("LTC", "Litecoin", "litecoin", "LTC-USD"),
+    ("ONDO", "Ondo", "ondo-finance", "ONDO-USD"),
+    ("HYPE", "Hyperliquid", "hyperliquid", None),
+    ("TAO", "Bittensor", "bittensor", "TAO22974-USD"),
+    ("RENDER", "Render", "render-token", "RENDER-USD"),
+    ("AAVE", "Aave", "aave", "AAVE-USD"),
+    ("NEAR", "NEAR Protocol", "near", "NEAR-USD"),
+]
+COIN_BY_SYMBOL = {s: {"symbol": s, "name": n, "id": cg, "yahoo": y} for s, n, cg, y in COINS}
+
+
+def coin(sym: str | None) -> dict | None:
+    """Registry entry for a coin symbol (case-insensitive), or None."""
+    return COIN_BY_SYMBOL.get((sym or "").upper())

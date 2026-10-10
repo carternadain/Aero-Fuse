@@ -474,6 +474,25 @@ def spot_price(symbol: str) -> float | None:
     return price
 
 
+def _coingecko_quote(sym: str) -> tuple[float | None, float | None]:
+    """(price, price 24h ago) for a coin in universe.COINS, from CoinGecko's free simple-price."""
+    import universe  # local import: keeps this module free of app imports at load time
+    c = universe.coin(sym)
+    if not c:
+        return None, None
+    try:
+        r = requests.get(f"{CG_BASE}/simple/price", params={"ids": c["id"], "vs_currencies": "usd",
+                         "include_24hr_change": "true"}, headers=UA, timeout=8)
+        if r.ok:
+            j = r.json().get(c["id"]) or {}
+            p, ch = j.get("usd"), j.get("usd_24h_change")
+            if p:
+                return float(p), (float(p) / (1 + ch / 100) if ch is not None else None)
+    except Exception as e:
+        print(f"[market_data] coingecko quote {sym} error: {e}")
+    return None, None
+
+
 def live_quote(symbol: str, kind: str) -> dict:
     """Live price + 24h/1D % change for a holding. Cached 3 min (kept warm in the background).
 
@@ -496,7 +515,9 @@ def live_quote(symbol: str, kind: str) -> dict:
                 price, prev = float(j["last"]), float(j["open"])
         except Exception as e:
             print(f"[market_data] live_quote {sym} error: {e}")
-        if price is None:  # not on Coinbase — fall back to the generic spot lookup
+        if price is None:  # not on Coinbase (e.g. NIGHT): CoinGecko by id, then generic spot
+            price, prev = _coingecko_quote(sym)
+        if price is None:
             price = spot_price(sym)
     elif kind == "option":
         # OCC symbol (e.g. AMZN271217C00260000) — per-share premium; caller applies the x100.

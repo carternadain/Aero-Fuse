@@ -5,13 +5,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { haptic } from "@/lib/bus";
-import { getLastRevealed, usePrefs } from "@/lib/prefs";
+import { getLastRevealed, isShown, usePrefs } from "@/lib/prefs";
 
 export interface Pane { id: string; label: string; pro?: boolean; span?: string; node: React.ReactNode }
 
-export default function Panes({ items, grid }: { items: Pane[]; grid?: boolean }) {
+export default function Panes({ items, grid, label }: { items: Pane[]; grid?: boolean; label?: string }) {
   const p = usePrefs();
-  const vis = items.filter((i) => !(i.pro && p.mode === "simple" && !p.revealed.has(i.id)));
+  const vis = items.filter((i) => isShown(i.id, !!i.pro, p));
   const ids = vis.map((i) => i.id);
   const [active, setActive] = useState<string>(() => {
     const l = getLastRevealed();
@@ -33,12 +33,12 @@ export default function Panes({ items, grid }: { items: Pane[]; grid?: boolean }
 
   return (
     <div className="space-y-3">
-      <div role="tablist" data-noswipe
+      <div role="tablist" aria-label={label} data-noswipe
            className={`flex p-1 rounded-xl border border-edge bg-panel overflow-x-auto max-w-full w-fit sm:max-w-xl ${grid ? "lg:hidden" : ""}`}>
         {vis.map((i) => (
           <button key={i.id} role="tab" aria-selected={cur === i.id}
                   onClick={() => { if (cur !== i.id) haptic(); setActive(i.id); }}
-                  className={`flex-1 whitespace-nowrap px-3 py-2 rounded-lg text-[12px] font-bold transition-colors ${
+                  className={`flex-1 whitespace-nowrap min-h-10 px-3 py-2 rounded-lg text-[12px] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-cyan ${
                     cur === i.id ? "bg-panel2 text-up shadow-sm" : "text-dim hover:text-txt"
                   }`}>
             {i.label}

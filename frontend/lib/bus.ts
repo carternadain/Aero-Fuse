@@ -25,6 +25,9 @@ export const toast = (msg: string, action?: ToastAction) =>
   emit<ToastPayload>("app:toast", action ? { msg, action, ms: 5500 } : { msg });
 export const openSearch = () => emit("app:search", null);
 export const openAlerts = (prefill?: { symbol: string; kind?: Kind; price?: number }) => emit("app:alerts", prefill ?? null);
+/** Open Settings, optionally straight on one of its pages. */
+export type SettingsPage = "root" | "home" | "panels" | "backup";
+export const openSettings = (page: SettingsPage = "root") => emit("app:settings", page);
 export const openReport = (month?: string) => emit("app:report", month ?? null);
 
 /** Transactions were added, removed, re-filed or imported: panels built on them should reload. */

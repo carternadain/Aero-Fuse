@@ -6,7 +6,7 @@ import type { Position } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import { askText } from "./DialogHost";
 import SwipeRow, { deferDelete } from "./SwipeRow";
-import { isHidden, MASK } from "@/lib/privacy";
+import { fmtQty, isHidden, MASK } from "@/lib/privacy";
 
 function pnl(p: Position, livePrice?: number): { pct: number | null; usd: number | null } {
   const mark = p.kind === "crypto" && livePrice ? livePrice : p.current;
@@ -78,10 +78,10 @@ export default function Portfolio({
         <span className="font-bold text-cyan w-12">{p.asset}</span>
         {p.kind === "leap" ? (
           <span className="text-dim text-[10px]">
-            {p.qty}× ${fmtPrice(p.strike)}C {p.expiry ?? ""}
+            {fmtQty(p.qty)}× ${fmtPrice(p.strike)}C {p.expiry ?? ""}
           </span>
         ) : (
-          <span className="text-dim text-[10px]">{p.qty} @ {fmtPrice(p.entry)}</span>
+          <span className="text-dim text-[10px]">{fmtQty(p.qty)} @ {fmtPrice(p.entry)}</span>
         )}
         <span className={`ml-auto font-bold tabular-nums ${tone}`}>
           {pct != null ? `${pct > 0 ? "+" : ""}${pct}%` : "set mark"}

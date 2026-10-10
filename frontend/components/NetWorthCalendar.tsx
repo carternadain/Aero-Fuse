@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
@@ -14,8 +14,11 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+const short = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString([], { month: "short", day: "numeric", timeZone: "UTC" });
+
 export default function NetWorthCalendar() {
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
+  const grid = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get<Snapshot[]>("/api/networth/history").then(setSnaps).catch(() => {});
@@ -42,6 +45,12 @@ export default function NetWorthCalendar() {
     return { cells, change, best, worst, tracked: snaps.length };
   }, [snaps]);
 
+  // On a phone the 6 months don't fit: start scrolled to this week, not to six months ago.
+  useEffect(() => {
+    const el = grid.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [cells]);
+
   const color = (pct: number) => {
     const a = Math.min(1, 0.25 + Math.abs(pct) / 3); // ±3% day = full strength
     return `color-mix(in srgb, ${pct >= 0 ? "var(--color-up)" : "var(--color-down)"} ${Math.round(a * 100)}%, transparent)`;
@@ -54,13 +63,13 @@ export default function NetWorthCalendar() {
         <span className="text-[10px] text-faint">each square is a day · last 6 months</span>
       </div>
       <div className="p-4 space-y-3">
-        <div className="overflow-x-auto">
+        <div ref={grid} className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="grid grid-flow-col gap-[3px] w-max" style={{ gridTemplateRows: "repeat(7, 11px)" }}>
             {cells.map((c) => {
               const ch = change.get(c.date);
               return (
                 <div key={c.date}
-                     title={ch ? `${c.date}: ${ch.usd >= 0 ? "+" : "−"}${fmtUsd(Math.abs(ch.usd))} (${ch.pct.toFixed(2)}%) → ${fmtUsd(ch.nw)}` : c.date}
+                     title={ch ? `${short(c.date)}: ${ch.usd >= 0 ? "+" : "−"}${fmtUsd(Math.abs(ch.usd))} (${ch.pct.toFixed(2)}%) → ${fmtUsd(ch.nw)}` : short(c.date)}
                      className="w-[11px] h-[11px] rounded-[2px]"
                      style={{ background: c.future ? "transparent" : ch ? color(ch.pct) : "var(--color-edge)" }} />
               );
@@ -68,15 +77,12 @@ export default function NetWorthCalendar() {
           </div>
         </div>
         {tracked < 2 ? (
-          <p className="text-[11px] text-dim">
-            Fills in on its own: the backend saves your net worth every hour, so a new square lights up each day.
-            Come back in a week and you&apos;ll see your up and down days.
-          </p>
+          <p className="text-[11px] text-dim">A square lights up each day your net worth is saved.</p>
         ) : (
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-dim">
             <span>{tracked} days tracked</span>
-            {best && <span>Best day: <span className="text-up font-bold">+{fmtUsd(best[1].usd)}</span> ({best[0]})</span>}
-            {worst && worst[1].usd < 0 && <span>Worst day: <span className="text-down font-bold">−{fmtUsd(Math.abs(worst[1].usd))}</span> ({worst[0]})</span>}
+            {best && <span>Best day: <span className="text-up font-bold">+{fmtUsd(best[1].usd)}</span> ({short(best[0])})</span>}
+            {worst && worst[1].usd < 0 && <span>Worst day: <span className="text-down font-bold">−{fmtUsd(Math.abs(worst[1].usd))}</span> ({short(worst[0])})</span>}
           </div>
         )}
       </div>

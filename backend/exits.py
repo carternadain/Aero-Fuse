@@ -216,6 +216,17 @@ def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
         return round(sum(v) / len(v), 1) if v else None
 
     s, m, l = avg(short), avg(mid), avg(long_)
+    if kind == "crypto":
+        # Crypto's long term is the cycle-aware read from zones (ATH distance, halving clock,
+        # strength vs BTC), so the sell plan, alerts and Check agree. Falls back to the above.
+        try:
+            import zones  # local import: zones imports this module
+            rows = zones.risk_series("crypto", sym)
+            if rows and rows[-1]["long"] is not None:
+                l = rows[-1]["long"]
+                long_ = [_sig(x["name"], x["value"], None, x["note"]) for x in zones._signals("crypto", "long", rows)]
+        except Exception as e:
+            print(f"[exits] cycle read {sym} error: {e}")
     parts = [(s, 0.3), (m, 0.35), (l, 0.35)]
     tw = sum(w for v, w in parts if v is not None)
     overall = round(sum(v * w for v, w in parts if v is not None) / tw, 1) if tw else None

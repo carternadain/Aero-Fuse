@@ -55,11 +55,12 @@ export default function DialogHost() {
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/55 p-3"
          onMouseDown={(e) => { if (e.target === e.currentTarget) close(false); }}>
       <form
+        role="alertdialog" aria-modal="true" aria-labelledby="dialog-msg"
         className="panel w-full max-w-sm p-4 space-y-3 mb-[env(safe-area-inset-bottom)]"
         onSubmit={(e) => { e.preventDefault(); close(true); }}
         onKeyDown={(e) => { if (e.key === "Escape") close(false); }}
       >
-        <p className="text-sm text-txt leading-snug">{req.message}</p>
+        <p id="dialog-msg" className="text-sm text-txt leading-snug">{req.message}</p>
         {req.kind === "text" && (
           <input ref={inputRef} className="field !py-2.5 sm:!text-sm" value={text} inputMode="decimal" enterKeyHint="done" autoComplete="off"
                  onChange={(e) => setText(e.target.value)} />

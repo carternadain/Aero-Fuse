@@ -1,15 +1,21 @@
 "use client";
 
-// Per-device view preferences: Simple/Pro mode, folded sections, which Home cards show.
+// Per-device view preferences: Simple/Pro mode, which Home cards and Invest/News panels show.
 // These are conveniences only (they live in this browser), never data.
 
 import { useSyncExternalStore } from "react";
 
 export type Mode = "simple" | "pro";
-interface Prefs { mode: Mode; collapsed: string[]; home: Record<string, boolean>; botTools: boolean }
+interface Prefs {
+  mode: Mode;
+  collapsed: string[]; // legacy: sections used to fold; kept so old saved prefs still parse
+  home: Record<string, boolean>;
+  panels: Record<string, boolean>; // explicit on/off for Invest/News panels (beats the Simple/Pro default)
+  botTools: boolean;
+}
 
 const KEY = "view-prefs-v1";
-const DEFAULT: Prefs = { mode: "simple", collapsed: [], home: {}, botTools: false };
+const DEFAULT: Prefs = { mode: "simple", collapsed: [], home: {}, panels: {}, botTools: false };
 
 let prefs: Prefs = DEFAULT;
 let loaded = false;
@@ -68,4 +74,22 @@ export function setHomeCard(id: string, on: boolean | null) {
   const home = { ...prefs.home };
   if (on === null) delete home[id]; else home[id] = on;
   save({ ...prefs, home });
+}
+
+/** Invest/News panels: an explicit on/off from Settings beats the Simple/Pro default. */
+export function setPanel(id: string, on: boolean | null) {
+  load();
+  const panels = { ...prefs.panels };
+  if (on === null) delete panels[id]; else panels[id] = on;
+  save({ ...prefs, panels });
+}
+
+/**
+ * Should a panel/section show? Settings' explicit choice first, then the Simple/Pro default
+ * (`pro` items are hidden in Simple). Search and links always reveal it for the session.
+ */
+export function isShown(id: string, pro: boolean, p: Prefs & { revealed: Set<string> }): boolean {
+  if (p.revealed.has(id)) return true;
+  if (id in (p.panels ?? {})) return p.panels[id];
+  return !(pro && p.mode === "simple");
 }

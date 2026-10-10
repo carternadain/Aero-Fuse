@@ -2,7 +2,7 @@
 
 import InfoTip from "./InfoTip";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Flame, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import Skeleton from "./Skeleton";
 
@@ -192,11 +192,14 @@ export default function LiqHeatmap() {
   return (
     <section className="panel">
       <div className="panel-head flex-wrap gap-2">
-        <span className="flex items-center gap-1 text-[11px] text-dim">Bitcoin, leveraged positions
+        <span className="panel-title">
+          <Flame size={14} /> BTC liquidation heatmap
+          <span className="panel-sub text-[10px] text-faint font-medium ml-1 inline-flex items-center gap-1">where leveraged positions get wiped
           <InfoTip topic="the liquidation heatmap" title="How this is estimated">
             <p>{d ? `Estimated from ${d.source} open interest, candles and taker buy/sell volume` : "Estimated from open interest, candles and taker buy/sell volume"}: new positions are spread over 5–100× leverage and removed once price trades through their liquidation price. Like every public heatmap it&apos;s a model of one exchange, not actual orders.</p>
             {d && <p>Updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.</p>}
           </InfoTip>
+          </span>
         </span>
         <div className="flex items-center gap-2">
           <div className="seg flex rounded-lg border border-edge2 text-[11px]">

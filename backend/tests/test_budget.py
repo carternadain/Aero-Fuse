@@ -17,8 +17,8 @@ def cat(p, name):
     return next(c for c in p["categories"] if c["category"] == name)
 
 
-def mk(spending=None, active=(), targets=None, month="2026-10", today=TODAY):
-    return budget.build_plan(month, today, spending or {}, set(active), targets or {}, CATS)
+def mk(spending=None, active=(), targets=None, month="2026-10", today=TODAY, lump=None):
+    return budget.build_plan(month, today, spending or {}, set(active), targets or {}, CATS, lump)
 
 
 def test_pace_and_projection_mid_month():
@@ -148,3 +148,11 @@ def test_bulk_endpoint(env):
         main.put_budgets_bulk(main.BudgetBulkIn(targets=[{"category": "income", "monthly_limit": 1}]))
     with pytest.raises(HTTPException):
         main.put_budget(main.BudgetIn(category="food", monthly_limit=-1))
+
+
+def test_monthly_bills_and_moved_statements_not_extrapolated():
+    p = mk({"2026-10": {"rent": 1500, "food": 300}})
+    assert cat(p, "rent")["projected"] == 1500.0           # a bill paid once, no history
+    assert cat(p, "food")["projected"] == round(300 * 31 / 9, 2)
+    p = mk({"2026-10": {"food": 300}}, lump={"food": 210})  # a September statement counted in October
+    assert cat(p, "food")["projected"] == round(210 + 90 * 31 / 9, 2)

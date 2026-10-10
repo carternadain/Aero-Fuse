@@ -7,11 +7,16 @@ import type { Zone, ZoneHolding, ZoneHorizon, ZonesResponse } from "@/lib/types"
 import { api, fmtPnl } from "@/lib/api";
 import { haptic, navigate } from "@/lib/bus";
 import { fmtCents, isHidden } from "@/lib/privacy";
-import { HORIZONS, HORIZON_KEY, SEL_KEY, ZONE_COLOR, ZONE_NAME, fmtRisk, isHorizon, zoneOf } from "./CheckTicker";
+import { HORIZONS, HORIZON_KEY, SEL_KEY, ZONE_COLOR, ZONE_NAME, fmtRisk, isHorizon, zoneOf, type ZoneHoldingX } from "./CheckTicker";
 
-function Row({ h, risk, onPick }: { h: ZoneHolding; risk: number | null; onPick: (h: ZoneHolding) => void }) {
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function Row({ h, risk, horizon, onPick }: { h: ZoneHoldingX; risk: number | null; horizon: ZoneHorizon; onPick: (h: ZoneHolding) => void }) {
   const z = zoneOf(risk);
   const c = z ? ZONE_COLOR[z] : "var(--color-dim)";
+  // Crypto long term gets its cycle read ("Room to run (62% below its high)"); elsewhere the zone says it.
+  const read = h.kind === "crypto" && horizon === "long"
+    ? h.read?.long ?? (risk == null && h.risk ? "needs about a year of history" : null) : null;
   return (
     <button
       onClick={() => onPick(h)}
@@ -22,13 +27,20 @@ function Row({ h, risk, onPick }: { h: ZoneHolding; risk: number | null; onPick:
         <span className="block text-[12px] font-semibold truncate" style={{ color: c }}>
           <span className="tabular-nums">Risk {risk != null ? fmtRisk(risk) : "—"}</span>{z && <> · {ZONE_NAME[z]}</>}
         </span>
-        <span className="block text-[10px] text-faint tabular-nums truncate">
-          {h.weight_pct.toFixed(1)}% of holdings{isHidden() ? "" : ` · ${fmtCents(h.value)}`}
-        </span>
+        {read ? (
+          <span className="block text-[11px] text-dim truncate">{cap(read)}</span>
+        ) : (
+          <span className="block text-[10px] text-faint tabular-nums truncate">
+            {h.weight_pct.toFixed(1)}% of holdings{isHidden() ? "" : ` · ${fmtCents(h.value)}`}
+          </span>
+        )}
       </span>
-      {h.gain_pct != null && (
-        <span className={`tabular-nums text-[12px] font-bold shrink-0 ${h.gain_pct >= 0 ? "text-up" : "text-down"}`}>{fmtPnl(h.gain_pct)}</span>
-      )}
+      <span className="shrink-0 text-right">
+        {h.gain_pct != null && (
+          <span className={`block tabular-nums text-[12px] font-bold ${h.gain_pct >= 0 ? "text-up" : "text-down"}`}>{fmtPnl(h.gain_pct)}</span>
+        )}
+        {read && <span className="block text-[10px] text-faint tabular-nums">{h.weight_pct.toFixed(1)}%<span className="sr-only"> of holdings</span></span>}
+      </span>
     </button>
   );
 }
@@ -110,7 +122,7 @@ export default function HoldingsRisk() {
             ))}
           </p>
           <div className="divide-y divide-edge">
-            {rows.map(({ h, r }) => <Row key={`${h.kind}-${h.symbol}`} h={h} risk={r} onPick={pick} />)}
+            {rows.map(({ h, r }) => <Row key={`${h.kind}-${h.symbol}`} h={h} risk={r} horizon={horizon} onPick={pick} />)}
           </div>
           <p className="px-3 py-3 text-[10.5px] text-faint border-t border-edge">Tap a holding to check it.</p>
         </>

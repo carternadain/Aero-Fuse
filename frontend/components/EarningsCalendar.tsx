@@ -46,7 +46,7 @@ export default function EarningsCalendar() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          <CalendarClock size={14} /> Earnings &amp; Projections
+          <CalendarClock size={14} /> Earnings
           <span className="panel-sub text-[10px] text-faint font-medium ml-1">next calls · analyst bias</span>
         </span>
         <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">

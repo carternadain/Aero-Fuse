@@ -19,7 +19,17 @@ export default function SwipeRow({ children, onDelete, label = "Delete", classNa
   const [x, setX] = useState(0);
   const [drag, setDrag] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const st = useRef({ id: -1, sx: 0, sy: 0, base: 0, swiping: false, moved: false, w: 320 });
+  const st = useRef({ id: -1, sx: 0, sy: 0, base: 0, swiping: false, moved: false, wasOpen: false, w: 320 });
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+
+  // After a delete the row usually unmounts. If it stays (delete failed, or the list keeps it),
+  // slide it back instead of leaving it stuck open.
+  const deleted = () => {
+    haptic(12);
+    onDelete();
+    setTimeout(() => { if (alive.current) setX(0); }, 400);
+  };
 
   // Tapping anywhere else closes an open row.
   useEffect(() => {
@@ -33,6 +43,7 @@ export default function SwipeRow({ children, onDelete, label = "Delete", classNa
     if (e.pointerType === "mouse") return;
     const s = st.current;
     s.id = e.pointerId; s.sx = e.clientX; s.sy = e.clientY; s.base = x; s.swiping = false; s.moved = false;
+    s.wasOpen = x !== 0; // a tap on an open row closes it instead of opening whatever was tapped
     s.w = root.current?.offsetWidth ?? 320;
   };
   const move = (e: React.PointerEvent) => {
@@ -53,7 +64,7 @@ export default function SwipeRow({ children, onDelete, label = "Delete", classNa
     s.id = -1;
     if (!s.swiping) return;
     setDrag(false);
-    if (-x > s.w * FULL_AT) { haptic(12); setX(-s.w); onDelete(); return; }
+    if (-x > s.w * FULL_AT) { setX(-s.w); deleted(); return; }
     setX(-x > OPEN_AT ? -ACTION_W : 0);
   };
 
@@ -62,14 +73,21 @@ export default function SwipeRow({ children, onDelete, label = "Delete", classNa
     <div ref={root} data-noswipe className="relative overflow-hidden group/swipe">
       <button type="button" tabIndex={open ? 0 : -1} aria-hidden={!open}
               className="absolute inset-y-0 right-0 flex items-center justify-center gap-1.5 bg-down text-on-up text-[12px] font-bold focus-visible:outline-2 focus-visible:outline-txt"
-              style={{ width: ACTION_W }} onClick={() => { haptic(12); onDelete(); }}>
-        <Trash2 size={14} />{label}
+              style={{ width: ACTION_W }} aria-label={label} onClick={deleted}>
+        <Trash2 size={14} aria-hidden />Delete
       </button>
       <div
         className={`relative bg-panel touch-pan-y ${drag ? "" : "transition-transform duration-200 ease-out motion-reduce:transition-none"} ${className}`}
         style={{ transform: x ? `translateX(${x}px)` : undefined }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-        onClickCapture={(e) => { if (st.current.moved) { e.preventDefault(); e.stopPropagation(); st.current.moved = false; } }}>
+        onClickCapture={(e) => {
+          const s = st.current;
+          if (s.moved || s.wasOpen) {
+            e.preventDefault(); e.stopPropagation();
+            if (s.wasOpen && !s.moved) setX(0);
+            s.moved = false; s.wasOpen = false;
+          }
+        }}>
         {children}
         <button type="button" aria-label={label} onClick={onDelete}
                 className="icon-btn shrink-0 h-10 w-10 justify-center focus-visible:outline-2 focus-visible:outline-up

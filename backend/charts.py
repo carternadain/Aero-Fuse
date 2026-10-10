@@ -78,6 +78,37 @@ def _yahoo(sym: str, period: str, interval: str) -> Series:
     return [(ts.timestamp(), float(p)) for ts, p in hist["Close"].dropna().items()]
 
 
+def crypto_daily_fallback(sym: str, span_days: int) -> Series:
+    """Daily closes for a coin Coinbase doesn't list (e.g. NIGHT): Yahoo, then CoinGecko.
+
+    CoinGecko's free tier only serves about a year of history, so Yahoo goes first for depth.
+    """
+    import universe  # local import keeps this module's import graph unchanged
+    c = universe.coin(sym) or {}
+    ysym = c["yahoo"] if c else f"{sym.upper()}-USD"
+    if ysym:
+        period = "max" if span_days > 1825 else "5y" if span_days > 730 else "2y" if span_days > 365 else "1y"
+        try:
+            s = _yahoo(ysym, period, "1d")
+            cutoff = time.time() - span_days * 86_400
+            s = [pt for pt in s if pt[0] >= cutoff]
+            if len(s) >= 30:
+                return s
+        except Exception as e:
+            print(f"[charts] yahoo fallback {ysym} error: {e}")
+    cg = c.get("id")
+    if cg:
+        try:
+            r = requests.get(f"{market_data.CG_BASE}/coins/{cg}/market_chart",
+                             params={"vs_currency": "usd", "days": min(365, span_days), "interval": "daily"},
+                             headers=UA, timeout=15)
+            if r.ok:
+                return [(ms / 1000, float(p)) for ms, p in r.json().get("prices", []) if p]
+        except Exception as e:
+            print(f"[charts] coingecko fallback {cg} error: {e}")
+    return []
+
+
 def series(kind: str, sym: str, rng: str) -> Series:
     """Cached price series for one asset."""
     if rng not in RANGES or kind == "option":
@@ -89,6 +120,8 @@ def series(kind: str, sym: str, rng: str) -> Series:
         return hit  # type: ignore[return-value]
     try:
         s = _coinbase(sym, gran, span) if kind == "crypto" else _yahoo(sym, period, interval)
+        if kind == "crypto" and not s and gran >= 86_400:  # not on Coinbase: daily bars elsewhere
+            s = crypto_daily_fallback(sym, span // 86_400)
         if rng == "LIVE":  # Yahoo returns the whole session at 1m; keep the last hour
             cutoff = time.time() - span
             s = [pt for pt in s if pt[0] >= cutoff]

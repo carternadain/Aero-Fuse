@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, SlidersHorizontal } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { riskColor, type RiskReport } from "./RiskRating";
@@ -19,18 +19,19 @@ import { ReportBanner } from "./MonthlyReport";
 import type { Section } from "@/lib/live";
 import TodayBrief from "./TodayBrief";
 import Panes, { type Pane } from "./Panes";
-import { setHomeCard, usePrefs, type Mode } from "@/lib/prefs";
+import { usePrefs, type Mode } from "@/lib/prefs";
+import { openSettings } from "@/lib/bus";
 
 // Home cards, in order. `simple` = shown by default in Simple mode (Pro shows all).
 export const HOME_CARDS: { id: string; label: string; simple: boolean; group: string }[] = [
-  { id: "brief", label: "Today's Brief", simple: true, group: "Top" },
+  { id: "brief", label: "Today's brief", simple: true, group: "Top" },
   { id: "chart", label: "Net worth chart", simple: true, group: "Your money" },
-  { id: "heatmap", label: "Today's Map (heatmap)", simple: false, group: "Your money" },
+  { id: "heatmap", label: "Today's map (heatmap)", simple: false, group: "Your money" },
   { id: "allocation", label: "Allocation donut", simple: true, group: "Your money" },
   { id: "cards", label: "Account cards", simple: true, group: "Accounts" },
   { id: "accounts", label: "Accounts & holdings", simple: true, group: "Accounts" },
   { id: "goals", label: "Goals", simple: true, group: "Progress" },
-  { id: "week", label: "Your Week", simple: false, group: "Progress" },
+  { id: "week", label: "Your week", simple: false, group: "Progress" },
   { id: "starred", label: "Starred", simple: false, group: "Progress" },
   { id: "snapshot", label: "Risk + saving snapshot", simple: false, group: "Shortcuts" },
   { id: "guide", label: "Where to go", simple: false, group: "Shortcuts" },
@@ -39,45 +40,6 @@ export const HOME_CARDS: { id: string; label: string; simple: boolean; group: st
 export function cardOn(id: string, mode: Mode, custom: Record<string, boolean>) {
   if (id in custom) return custom[id];
   return mode === "pro" || !!HOME_CARDS.find((c) => c.id === id)?.simple;
-}
-
-function Customize({ onClose }: { onClose: () => void }) {
-  const p = usePrefs();
-  return (
-    <div className="fixed inset-0 z-[86] bg-black/60 flex items-end sm:items-center justify-center"
-         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-bg sm:bg-panel w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-edge tab-enter pb-[max(16px,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-between px-4 pt-4 pb-1">
-          <h2 className="text-lg font-extrabold text-txt">Customize Home</h2>
-          <button className="p-2 -mr-2 rounded-full hover:bg-panel2 text-dim" onClick={onClose} aria-label="Close"><X size={18} /></button>
-        </div>
-        <p className="px-4 text-[11.5px] text-dim">Pick what shows on Home. Everything else is still one search away.</p>
-        <div className="px-2 py-2 max-h-[60vh] overflow-y-auto">
-          {HOME_CARDS.map((c, i) => {
-            const on = cardOn(c.id, p.mode, p.home);
-            return (
-              <div key={c.id}>
-                {(i === 0 || HOME_CARDS[i - 1].group !== c.group) && (
-                  <div className="px-2 pt-2 pb-1 text-[10px] font-bold tracking-widest text-faint uppercase">{c.group}</div>
-                )}
-                <button onClick={() => setHomeCard(c.id, !on)}
-                        className="w-full flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-panel2/60 text-left">
-                  <span className="flex-1 text-[13.5px] text-txt">{c.label}</span>
-                  <span className={`w-10 h-6 rounded-full relative transition-colors ${on ? "bg-up" : "bg-edge2"}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-bg transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
-                  </span>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="px-4 flex justify-between items-center">
-          <span className="text-[10.5px] text-faint">Defaults follow {p.mode === "simple" ? "Simple" : "Pro"} mode</span>
-          <button className="btn" onClick={() => HOME_CARDS.forEach((c) => setHomeCard(c.id, null))}>Reset</button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
@@ -112,7 +74,6 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
   const [risk, setRisk] = useState<RiskReport | null>(null);
   const [plan, setPlan] = useState<{ monthly_you: number; monthly_match: number } | null>(null);
   const [only, setOnly] = useState<Section | null>(null);
-  const [customize, setCustomize] = useState(false);
   const prefs = usePrefs();
   // a card hidden by default still appears when search or the brief jumps to it
   const ANCHOR: Record<string, string> = { heatmap: "sec-heatmap", allocation: "sec-allocation", week: "sec-week", accounts: "sec-accounts", chart: "sec-networth" };
@@ -210,14 +171,9 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="font-display text-[28px] sm:text-[40px] leading-none text-txt">
-            {holiday ? <span className="holiday-greeting">{greeting()}</span> : greeting()}<em className="text-amber">.</em>
-          </h2>
-          <button className="icon-btn !text-dim hover:!text-txt" onClick={() => setCustomize(true)} title="Customize Home">
-            <SlidersHorizontal size={16} />
-          </button>
-        </div>
+        <h2 className="font-display text-[28px] sm:text-[40px] leading-none text-txt">
+          {holiday ? <span className="holiday-greeting">{greeting()}</span> : greeting()}<em className="text-amber">.</em>
+        </h2>
         <p className="text-xs text-dim mt-1.5">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · here&apos;s where things stand.
         </p>
@@ -225,7 +181,6 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       </div>
 
       <ReportBanner />
-      {customize && <Customize onClose={() => setCustomize(false)} />}
 
       {on("brief") && <TodayBrief />}
 
@@ -242,6 +197,14 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       <Panes grid items={progressItems} />
 
       <Panes grid items={shortcutItems} />
+
+      {/* Home's layout lives in Settings; this is the shortcut to it */}
+      <div className="flex justify-center pt-1">
+        <button onClick={() => openSettings("home")}
+                className="flex items-center gap-2 min-h-10 px-4 rounded-full text-[13px] font-semibold text-dim hover:text-txt hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-cyan">
+          <SlidersHorizontal size={14} aria-hidden /> Edit Home
+        </button>
+      </div>
     </div>
   );
 }

@@ -27,22 +27,34 @@ def _r(x):
     return None if x is None else round(x, 2)
 
 
-def _project(spent: float, avg: float | None, elapsed: int, dim: int) -> float | None:
+# Bills paid once a month: without history, assume what's paid is the month's total.
+FIXED_CATEGORIES = {"rent", "subscriptions"}
+
+
+def _project(spent: float, avg: float | None, elapsed: int, dim: int,
+             fixed: bool = False, lump: float = 0.0) -> float | None:
     """Where a category likely ends the month.
 
     Straight-line extrapolation wildly overshoots lump sums like rent paid on the 1st,
     so with history we assume the month ends at the usual total, or at what's already
-    gone out if that's more. Without history, extrapolate once a week has passed.
+    gone out if that's more. Without history, extrapolate once a week has passed, but
+    never a monthly bill, nor a card statement moved into this month (`lump`).
     """
     if avg is not None:
         return max(spent, avg)
     if elapsed >= 7:
-        return spent * dim / elapsed
+        if fixed:
+            return spent
+        rest = spent - lump
+        return lump + rest * dim / elapsed
     return None
 
 
 def build_plan(month: str, today: date, spending: dict[str, dict[str, float]],
-               active: set[str], targets: dict[str, float], categories: list[str]) -> dict:
+               active: set[str], targets: dict[str, float], categories: list[str],
+               lump: dict[str, float] | None = None) -> dict:
+    """`lump`: per-category spending moved into `month` from earlier purchases (a card
+    statement counted in the month it's paid). It is already final, so never extrapolated."""
     y, m = int(month[:4]), int(month[5:7])
     dim = calendar.monthrange(y, m)[1]
     this = today.strftime("%Y-%m")
@@ -69,7 +81,7 @@ def build_plan(month: str, today: date, spending: dict[str, dict[str, float]],
         if is_current:
             if target is not None:
                 pace = target * elapsed / dim
-            proj = _project(spent, avg, elapsed, dim)
+            proj = _project(spent, avg, elapsed, dim, cat in FIXED_CATEGORIES, (lump or {}).get(cat, 0.0))
         suggested = math.ceil(round(avg, 6) / 10) * 10 if avg else None
         if target is None:
             status = "none"
@@ -122,4 +134,4 @@ def plan(month: str, today: date | None = None) -> dict:
     today = today or date.today()
     months = [month] + _prev_months(month, HISTORY)
     return build_plan(month, today, db.spending_by_month(months), db.active_months(months),
-                      db.get_budgets(), importer.EXPENSE_CATEGORIES)
+                      db.get_budgets(), importer.EXPENSE_CATEGORIES, db.moved_spending(month))
