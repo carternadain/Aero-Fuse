@@ -274,3 +274,48 @@ export interface SwingIdea {
   chg_3m: number | null;
   off_high: number | null;
 }
+
+export type Zone = "buy" | "hold" | "sell";
+export type ZoneHorizon = "long" | "mid" | "short";
+
+export interface ZoneHolding {
+  kind: "stock" | "crypto";
+  symbol: string;
+  value: number;
+  weight_pct: number;
+  gain_pct: number | null;
+  price: number | null;
+  /** Units held and average cost per unit (null when no cost basis is on file). */
+  qty: number;
+  cost_basis: number | null;
+  risk: { short: number | null; mid: number | null; long: number | null } | null;
+}
+
+export interface ZoneWatch {
+  kind: "stock" | "crypto";
+  symbol: string;
+}
+
+export interface ZonesResponse {
+  holdings: ZoneHolding[];
+  watch: ZoneWatch[];
+}
+
+export type ZoneChartRange = "1Y" | "3Y" | "5Y" | "MAX";
+
+export interface ZoneChartResponse {
+  symbol: string;
+  kind: "stock" | "crypto";
+  range: ZoneChartRange;
+  horizon: ZoneHorizon;
+  /** Evenly downsampled (<= 320). risk is 0-100, null where there is not enough history. */
+  points: { date: string; price: number; risk: number | null }[];
+  now: { risk: number | null; label: string | null; price: number | null; date: string };
+  peak: { date: string; risk: number; price: number } | null;
+  trough: { date: string; risk: number; price: number } | null;
+  /** Percent of days spent in each zone over the range. */
+  zone_share: { buy: number; hold: number; sell: number } | null;
+  /** How often price was higher 3 months / 1 year later, from days at a similar risk level (n days). */
+  odds: { m3: number; y1: number; n: number } | null;
+  signals: { name: string; value: string | number; note: string }[];
+}

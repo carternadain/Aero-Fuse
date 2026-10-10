@@ -53,6 +53,7 @@ import risk
 import scoring
 import taxes
 import universe
+import zones
 
 WATCHLIST_FILE = Path(__file__).parent / "watchlist.json"
 DEFAULT_WATCHLIST = ["BTC", "SOL", "SOFI", "MSFT", "RDW"]
@@ -1508,6 +1509,23 @@ def markets_history(kind: str, key_id: str):
     return market_data.history_with_scores(kind, key_id)
 
 
+@app.get("/api/zones")
+def get_zones():
+    """Risk zones: held assets with 0-100 risk per horizon (long/mid/short), plus a watchlist."""
+    return zones.build_zones(valued_holdings(), gather_scored_assets())
+
+
+@app.get("/api/zones/chart/{kind}/{symbol}")
+def get_zones_chart(kind: str, symbol: str, range: str = "1Y", horizon: str = "long"):
+    if kind not in ("crypto", "stock"):
+        raise HTTPException(400, "kind must be 'crypto' or 'stock'")
+    if range not in ("1Y", "3Y", "5Y", "MAX"):
+        raise HTTPException(400, "range must be one of 1Y, 3Y, 5Y, MAX")
+    if horizon not in zones.HORIZONS:
+        raise HTTPException(400, "horizon must be one of long, mid, short")
+    return zones.zone_chart(kind, symbol, range, horizon)
+
+
 @app.get("/api/signals/edge-report")
 def signals_edge_report():
     return db.edge_report()
@@ -1812,6 +1830,11 @@ class ExitRuleIn(BaseModel):
 @app.get("/api/exits")
 def get_exit_desk():
     return exits.desk(valued_holdings()["holdings"])
+
+
+@app.get("/api/exits/rules")
+def get_exit_rules():
+    return {"rules": exits.rules()}
 
 
 @app.put("/api/exits/rule")

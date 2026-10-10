@@ -83,7 +83,7 @@ function Customize({ onClose }: { onClose: () => void }) {
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
 const GUIDE: Record<Exclude<TabKey, "home">, { what: string; when: string }> = {
   trading: { what: "Exit Desk (how overheated each holding is + your take-profit plan), trade log, P&L calendar, signals.", when: "When you're about to enter or exit a trade" },
-  markets: { what: "Ideas (top buys, sector map, 115 swing names), Stocks (options watch, compare) and Crypto (liquidation heatmap, coins).", when: "Looking for your next contract" },
+  markets: { what: "Ideas (buy & sell zones, sector map, 115 swing names), Stocks (options watch, compare) and Crypto (liquidation heatmap, coins).", when: "Looking for your next contract" },
   news: { what: "Headlines for what you own, upcoming earnings and the macro calendar.", when: "Before earnings or a big move" },
   wealth: { what: "Goals, net worth by account, risk, savings plan, dividends, stress test, FIRE and budget.", when: "Weekly check-in on the big picture" },
 };
