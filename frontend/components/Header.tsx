@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, LogOut, MoreHorizontal, Search } from "lucide-react";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { api, fmtPrice } from "@/lib/api";
+import AeroMark from "./AeroMark";
 import PalettePicker from "./PalettePicker";
 import AlertsCenter from "./AlertsCenter";
 import { openSearch } from "@/lib/bus";
@@ -79,9 +80,9 @@ export default function Header() {
   return (
     <header ref={ref} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 sm:gap-x-4 lg:gap-x-6 gap-y-1 px-4 py-2 sm:py-3 safe-top border-b border-edge bg-panel sticky top-0 z-40">
       <div className="flex items-center gap-2.5 shrink-0">
-        <span className="live-dot inline-block w-2 h-2 rounded-full bg-up" />
+        <AeroMark size={22} className="text-txt" />
         <h1 className="font-display text-[20px] sm:text-[22px] leading-none text-txt whitespace-nowrap">
-          Aero-Fuse
+          Aero
         </h1>
       </div>
 

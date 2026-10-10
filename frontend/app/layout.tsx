@@ -6,12 +6,15 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Aero-Fuse",
+  title: "Aero",
   description: "Personal money and trading app",
-  applicationName: "Aero-Fuse",
-  appleWebApp: { capable: true, title: "Aero-Fuse", statusBarStyle: "black-translucent" },
+  applicationName: "Aero",
+  appleWebApp: { capable: true, title: "Aero", statusBarStyle: "black-translucent" },
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", sizes: "64x64", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 };

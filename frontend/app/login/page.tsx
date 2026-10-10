@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Lock } from "lucide-react";
+import AeroMark from "@/components/AeroMark";
 
 export default function Login() {
   const [password, setPassword] = useState("");
@@ -36,11 +37,12 @@ export default function Login() {
     <main className="min-h-screen flex items-center justify-center p-4">
       <form onSubmit={submit} className="panel w-full max-w-sm p-6 space-y-5">
         <div>
-          <h1 className="font-display text-[34px] leading-none text-txt">
-            Swing <em className="text-up">Terminal</em>
+          <h1 className="flex items-center gap-3 font-display text-[34px] leading-none text-txt">
+            <AeroMark size={32} className="text-txt" />
+            Aero
           </h1>
           <p className="text-[11px] text-faint mt-2 flex items-center gap-1.5">
-            <Lock size={11} className="text-amber" /> Private terminal: sign in to continue
+            <Lock size={11} className="text-amber" /> Private: sign in to continue
           </p>
         </div>
         <input

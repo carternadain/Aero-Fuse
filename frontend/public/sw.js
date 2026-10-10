@@ -1,4 +1,4 @@
-// Service worker: only shows push notifications for price alerts.
+// Service worker (v2, Aero icons): only shows push notifications for price alerts.
 // No fetch caching on purpose — the app is live data and should never serve stale pages.
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -7,7 +7,7 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.title || "Swing Terminal", {
+  e.waitUntil(self.registration.showNotification(d.title || "Aero", {
     body: d.body || "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
