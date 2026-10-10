@@ -139,7 +139,7 @@ function Sheet({ initial, onClose }: { initial: string; onClose: () => void }) {
 
             <p className="text-[10px] text-faint text-center mt-3">
               {r.estimated ? "Start/end values estimated from what you hold now (no snapshot those days). " : ""}
-              Aero-Fuse · {r.complete ? "final" : "so far"}
+              Aero · {r.complete ? "final" : "so far"}
             </p>
           </div>
         )}
