@@ -2,6 +2,8 @@
 // Formatting helpers read this flag at render time; toggling it fires an event
 // that the page listens for to re-render everything at once.
 
+import { useSyncExternalStore } from "react";
+
 const KEY = "hide-balances";
 export const MASK = "$•••••";
 let hidden = false;
@@ -16,6 +18,16 @@ export function setHidden(v: boolean): void {
   hidden = v;
   try { localStorage.setItem(KEY, v ? "1" : "0"); } catch { /* private mode */ }
   window.dispatchEvent(new Event("privacy"));
+}
+
+const subscribe = (cb: () => void) => {
+  window.addEventListener("privacy", cb);
+  return () => window.removeEventListener("privacy", cb);
+};
+
+/** The flag as React state, so a component re-renders the moment it flips. */
+export function usePrivacy(): boolean {
+  return useSyncExternalStore(subscribe, () => hidden, () => false);
 }
 
 /** Quantity of a holding: hidden too, since shares × price reveals the balance. */
