@@ -58,15 +58,15 @@ function Sheet({ initial, onClose }: { initial: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[86] bg-black/70 flex items-end sm:items-center justify-center"
          onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full sm:max-w-md max-h-[94dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-edge2 tab-enter
+      <div role="dialog" aria-modal="true" aria-label="Monthly report" className="w-full sm:max-w-md max-h-[94dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-edge2 tab-enter
                       bg-gradient-to-b from-panel2 via-panel to-bg pb-[max(16px,env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-1 px-3 pt-3">
-          <button className="icon-btn" disabled={i >= months.length - 1} onClick={() => setMonth(months[i + 1])}><ChevronLeft size={18} /></button>
+          <button className="icon-btn" aria-label="Previous month" disabled={i >= months.length - 1} onClick={() => setMonth(months[i + 1])}><ChevronLeft size={18} /></button>
           <div className="flex-1 text-center">
             <div className="text-[10px] font-bold tracking-[0.2em] text-faint">MONTHLY REPORT</div>
             <div className="font-display text-[26px] leading-tight text-txt">{r?.label ?? new Date(month + "-15").toLocaleDateString([], { month: "long", year: "numeric" })}</div>
           </div>
-          <button className="icon-btn" disabled={i <= 0} onClick={() => setMonth(months[i - 1])}><ChevronRight size={18} /></button>
+          <button className="icon-btn" aria-label="Next month" disabled={i <= 0} onClick={() => setMonth(months[i - 1])}><ChevronRight size={18} /></button>
           <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </div>
 

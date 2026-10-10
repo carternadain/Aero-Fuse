@@ -123,7 +123,7 @@ export default function AlertsCenter() {
       {open && (
         <div className="fixed inset-0 z-[86] bg-black/60 flex items-end sm:items-center justify-center"
              onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
-          <div className="bg-bg sm:bg-panel w-full sm:max-w-lg max-h-[92dvh] rounded-t-2xl sm:rounded-2xl border border-edge overflow-y-auto tab-enter
+          <div role="dialog" aria-modal="true" aria-label="Price alerts" className="bg-bg sm:bg-panel w-full sm:max-w-lg max-h-[92dvh] rounded-t-2xl sm:rounded-2xl border border-edge overflow-y-auto tab-enter
                           pb-[max(16px,env(safe-area-inset-bottom))]">
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <h2 className="text-lg font-extrabold text-txt flex items-center gap-2"><Bell size={17} className="text-amber" /> Price alerts</h2>
