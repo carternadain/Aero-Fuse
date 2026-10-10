@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
 import { budgetChanged, onBudgetChanged, toast } from "@/lib/bus";
 import { catLabel, errorText } from "@/lib/categories";
 import { alertColor, ordinal, useSpendingAlerts } from "./SpendingAlerts";
+import { enablePush, pushState, pushSupport } from "@/lib/push";
 
 interface PlanCat {
   category: string;
@@ -41,6 +42,8 @@ interface Plan {
   categories: PlanCat[];
 }
 
+const cap = (n: string) => n.charAt(0).toUpperCase() + n.slice(1);
+
 const curMonth = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -74,6 +77,12 @@ export default function MonthlyBudget() {
   useEffect(() => { setOpen(null); refresh(); }, [month]);
   useEffect(() => onBudgetChanged(() => { refresh(); }), [month]);
 
+  const [pushOff, setPushOff] = useState(false);
+  useEffect(() => {
+    if (pushSupport() !== "ok") return;
+    pushState().then((st) => setPushOff(st === "off")).catch(() => {});
+  }, []);
+
   const alertData = useSpendingAlerts(month === curMonth());
   const alertFor = (cat: string) =>
     alertData?.month === month ? alertData.alerts.find((a) => a.category === cat) : undefined;
@@ -90,6 +99,26 @@ export default function MonthlyBudget() {
     const start = c.target ?? c.suggested;
     setVal(start !== null ? String(Math.round(start)) : "");
   };
+
+  const alerts = plan?.is_current && alertData?.month === month ? alertData.alerts : [];
+  const anyHigh = alerts.some((a) => a.level === "high");
+  const hue = anyHigh ? "var(--color-down)" : "var(--color-amber)";
+  const goTo = (cat: string) => {
+    const c = cats.find((x) => x.category === cat);
+    if (!c) return;
+    if (open !== cat) toggle(c);
+    setTimeout(() => {
+      document.getElementById(`bud-cat-${cat}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 60);
+  };
+  const enableNotify = async () => {
+    const r = await enablePush();
+    if (r === "on") { setPushOff(false); toast("Done. I'll let you know when spending runs high."); }
+    else if (r === "denied") { setPushOff(false); toast("Notifications are blocked for this site. You can allow them in your browser settings."); }
+    else toast("Couldn't turn notifications on. Try again in a bit.");
+  };
+  const names = alerts.map((a, i) => { const n = catLabel(a.category).toLowerCase(); return i ? n : cap(n); });
+  const nameList = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
 
   const done = (msg: string) => { toast(msg); setOpen(null); refresh(); budgetChanged(); };
 
@@ -167,6 +196,57 @@ export default function MonthlyBudget() {
         </div>
       </div>
 
+      {alerts.length > 0 && alertData && (
+        <div className="m-3 rounded-xl p-3" role="region" aria-label="Spending above normal"
+             style={{ background: `color-mix(in srgb, ${hue} 10%, transparent)` }}>
+          <div className="flex items-start gap-3">
+            <span className="shrink-0 size-8 rounded-full grid place-items-center"
+                  style={{ background: `color-mix(in srgb, ${hue} 16%, transparent)`, color: hue }} aria-hidden>
+              <TrendingUp size={16} />
+            </span>
+            {alerts.length === 1 ? (
+              <button className="flex-1 min-w-0 min-h-10 text-left rounded focus-visible:outline-2 focus-visible:outline-up"
+                      onClick={() => goTo(alerts[0].category)}>
+                <div className="text-[13px] font-semibold text-txt">{nameList} is up this month</div>
+                <div className="text-[12px] text-dim tabular-nums">
+                  {alerts[0].level === "high"
+                    ? `${fmtUsd(alerts[0].spent)} so far, more than a usual month.`
+                    : `${fmtUsd(alerts[0].spent)} so far. Usually about ${fmtUsd(alerts[0].typical_to_date)} by the ${ordinal(alertData.day)}.`}
+                </div>
+              </button>
+            ) : (
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-txt">Spending is up in {alerts.length} categories</div>
+                <div className="text-[12px] text-dim">Ahead of your usual pace this month.</div>
+              </div>
+            )}
+          </div>
+          {alerts.length > 1 && (
+            <ul className="mt-2 ml-11 divide-y" style={{ borderColor: "color-mix(in srgb, var(--color-txt) 8%, transparent)" }}>
+              {alerts.map((a) => (
+                <li key={a.category} style={{ borderColor: "color-mix(in srgb, var(--color-txt) 8%, transparent)" }}>
+                  <button className="w-full min-h-10 flex items-center justify-between gap-2 text-left text-[12px] rounded focus-visible:outline-2 focus-visible:outline-up"
+                          onClick={() => goTo(a.category)}>
+                    <span className="text-txt truncate capitalize">{catLabel(a.category)}</span>
+                    <span className="shrink-0 flex items-center gap-1 tabular-nums" style={{ color: alertColor(a.level) }}>
+                      +{fmtUsd(a.over_amount)}
+                      <ChevronRight size={14} className="text-faint" aria-hidden />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {pushOff && (
+            <div className="ml-11">
+              <button className="min-h-10 text-[12px] text-up rounded focus-visible:outline-2 focus-visible:outline-up" onClick={enableNotify}>
+                Notify me
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {plan && hasTargets && plan.is_current && (
         <div className="px-3 py-2 border-b border-edge text-[11px] text-dim space-y-0.5">
           {left < 0 ? (
@@ -217,18 +297,17 @@ export default function MonthlyBudget() {
             ? Math.min(Math.max((c.pace / (c.target as number)) * 100, 0), 100) : null;
           const al = alertFor(c.category);
           return (
-            <div key={c.category} className="border-t border-edge first:border-t-0">
+            <div key={c.category} id={`bud-cat-${c.category}`} className="scroll-mt-28 border-t border-edge first:border-t-0">
               <button className="w-full min-h-10 px-3 py-2 text-left hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-up"
                       aria-expanded={isOpen} onClick={() => toggle(c)}>
                 <div className="flex items-baseline justify-between gap-2 text-[12px]">
-                  <span className="text-txt truncate capitalize min-w-0">
-                    {catLabel(c.category)}
+                  <span className="text-txt truncate capitalize min-w-0 inline-flex items-center gap-2">
                     {al && (
-                      <span className={`ml-2 align-middle normal-case rounded border px-1.5 py-0.5 text-[9px] font-bold ${al.level === "high" ? "text-down" : "text-amber"}`}
-                            style={{ borderColor: alertColor(al.level) }}>
-                        {al.level === "high" ? "Over usual month" : "Above normal"}
+                      <span className="shrink-0 size-1.5 rounded-full" style={{ background: alertColor(al.level) }}>
+                        <span className="sr-only">Running higher than usual</span>
                       </span>
                     )}
+                    <span className="truncate">{catLabel(c.category)}</span>
                   </span>
                   <span className={`shrink-0 tabular-nums ${c.status === "over" ? "text-down font-bold" : "text-dim"}`}>
                     {fmtUsd(c.spent)}{hasT ? ` / ${fmtUsd(c.target as number)}` : " · set target"}
@@ -250,11 +329,16 @@ export default function MonthlyBudget() {
                           ? `${fmtUsd(-c.left)} over`
                           : `${fmtUsd(c.left ?? 0)} left`}
                       </span>
-                      {!!c.avg_3m && <span className="tabular-nums">avg {fmtUsd(c.avg_3m)}</span>}
+                      {!!c.avg_3m && !al && <span className="tabular-nums">avg {fmtUsd(c.avg_3m)}</span>}
                     </div>
                   </>
                 )}
-                {!hasT && !!c.avg_3m && (
+                {al && (
+                  <div className="mt-0.5 text-[11px] tabular-nums" style={{ color: alertColor(al.level) }}>
+                    {al.level === "high" ? "More than a usual month" : `${fmtUsd(al.over_amount)} more than usual by now`}
+                  </div>
+                )}
+                {!hasT && !al && !!c.avg_3m && (
                   <div className="mt-0.5 text-[10px] text-faint tabular-nums">avg {fmtUsd(c.avg_3m)}</div>
                 )}
               </button>

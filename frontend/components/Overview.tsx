@@ -18,14 +18,12 @@ import Goals from "./Goals";
 import { ReportBanner } from "./MonthlyReport";
 import type { Section } from "@/lib/live";
 import TodayBrief from "./TodayBrief";
-import SpendingAlerts from "./SpendingAlerts";
 import Panes, { type Pane } from "./Panes";
 import { setHomeCard, usePrefs, type Mode } from "@/lib/prefs";
 
 // Home cards, in order. `simple` = shown by default in Simple mode (Pro shows all).
 export const HOME_CARDS: { id: string; label: string; simple: boolean; group: string }[] = [
   { id: "brief", label: "Today's Brief", simple: true, group: "Top" },
-  { id: "spending", label: "Spending alerts", simple: true, group: "Top" },
   { id: "chart", label: "Net worth chart", simple: true, group: "Your money" },
   { id: "heatmap", label: "Today's Map (heatmap)", simple: false, group: "Your money" },
   { id: "allocation", label: "Allocation donut", simple: true, group: "Your money" },
@@ -215,8 +213,6 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       {customize && <Customize onClose={() => setCustomize(false)} />}
 
       {on("brief") && <TodayBrief />}
-
-      {on("spending") && <SpendingAlerts />}
 
       <Panes grid items={moneyItems} />
 
