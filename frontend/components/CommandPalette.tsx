@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Bot, Layers, CornerDownLeft, Eye, FileBarChart, Hash, Search, Star, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Bot, Download, Layers, LayoutGrid, CornerDownLeft, Eye, FileBarChart, Hash, Search, Settings as Gear, Star, Wallet, X, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
-import { haptic, navigate, on, openAlerts, openReport, openTicker, type Kind } from "@/lib/bus";
+import { haptic, navigate, on, openAlerts, openReport, openSettings, openTicker, type Kind } from "@/lib/bus";
 import { accountAnchor } from "@/lib/live";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { useStars } from "@/lib/stars";
@@ -37,7 +37,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Narratives", "markets", "crypto", "sec-narratives", "categories"],
   ["News for my holdings", "news", undefined, "sec-news", "headlines"],
   ["Earnings calendar", "news", undefined, "sec-earnings", ""],
-  ["Economic calendar", "news", undefined, "sec-econ", "fed cpi fomc jobs"],
+  ["Macro calendar", "news", undefined, "sec-econ", "economic fed cpi fomc jobs"],
   ["Options you hold", "markets", "mine", "sec-optplan", "options decay expiry exit desk take profit"],
   ["Trade log", "trading", undefined, "sec-trades", "journal"],
   ["Trading calendar & streaks", "trading", undefined, "sec-tradecal", "p&l pnl win rate"],
@@ -60,7 +60,6 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Monthly budget", "wealth", undefined, "sec-budget", "monthly budget targets limits category spending left per day pace over"],
   ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules subscriptions bills recurring"],
   ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
-  ["Backup & export", "wealth", undefined, "sec-backup", "download csv json database restore"],
 ];
 
 
@@ -102,6 +101,17 @@ export default function CommandPalette() {
     const off = on("app:search", () => setOpen(true));
     return () => { window.removeEventListener("keydown", k); off(); };
   }, []);
+
+  // Phones: fit the sheet above the on-screen keyboard so the last results aren't hidden under it
+  const [vh, setVh] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!open || !vv) return;
+    const fit = () => setVh(vv.height);
+    fit();
+    vv.addEventListener("resize", fit);
+    return () => vv.removeEventListener("resize", fit);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -147,6 +157,14 @@ export default function CommandPalette() {
           setBotTools(!botTools);
           if (botTools && window.location.hash.startsWith("#trading")) navigate({ tab: "home" });
         } },
+      { id: "x:settings", group: "Actions", label: "Settings", icon: Gear, keywords: "preferences options colors palette theme holiday view simple pro log out sign out logout",
+        run: () => openSettings() },
+      { id: "x:home", group: "Actions", label: "Customize Home", icon: LayoutGrid, keywords: "home cards edit show hide layout settings",
+        run: () => openSettings("home") },
+      { id: "x:panels", group: "Actions", label: "Choose Invest and News panels", icon: LayoutGrid, keywords: "panels show hide settings narratives macro screener heatmap",
+        run: () => openSettings("panels") },
+      { id: "x:backup", group: "Actions", label: "Backup and export", icon: Download, keywords: "download csv json database restore backup export settings",
+        run: () => openSettings("backup") },
       { id: "x:alert", group: "Actions", label: "New price alert", icon: Bell, keywords: "notify ping", run: () => openAlerts() },
       { id: "x:report", group: "Actions", label: "Monthly report", icon: FileBarChart, keywords: "recap summary month", run: () => openReport() },
     );
@@ -190,22 +208,31 @@ export default function CommandPalette() {
     <div className="fixed inset-0 z-[88] bg-black/60 flex items-start justify-center sm:pt-[12vh]"
          onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="w-full sm:max-w-xl bg-panel sm:rounded-2xl border-b sm:border border-edge2 shadow-2xl overflow-hidden tab-enter
-                      pt-[env(safe-area-inset-top)] max-h-[100dvh] sm:max-h-[70vh] flex flex-col">
-        <div className="flex items-center gap-2 px-4 border-b border-edge">
+                      pt-[env(safe-area-inset-top)] max-h-[100dvh] sm:max-h-[70vh] flex flex-col"
+           role="dialog" aria-modal="true" aria-label="Search" style={vh ? { maxHeight: `min(${vh}px, 100dvh)` } : undefined}>
+        <div className="flex items-center gap-2 pl-4 pr-2 border-b border-edge">
           <Search size={16} className="text-faint shrink-0" />
           <input ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false} value={q} onChange={(e) => setQ(e.target.value)}
-                 placeholder="Search tickers, accounts, sections…"
-                 className="flex-1 bg-transparent py-4 text-base sm:text-[15px] text-txt placeholder:text-faint outline-none"
+                 placeholder="Search tickers, accounts, sections…" aria-label="Search"
+                 className="no-search-cancel flex-1 min-w-0 bg-transparent py-4 text-base sm:text-[15px] text-txt placeholder:text-faint outline-none"
                  onKeyDown={(e) => {
                    if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(results.length - 1, s + 1)); }
                    else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
                    else if (e.key === "Enter" && results[sel]) { e.preventDefault(); pick(results[sel]); }
                    else if (e.key === "Escape") close();
                  }} />
-          <button className="text-[11px] text-dim px-2 py-1 rounded-md border border-edge2" onClick={close}>Esc</button>
+          <button onClick={close} aria-label="Close search" title="Close (Esc)"
+                  className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full text-dim hover:text-txt hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-cyan">
+            <X size={20} aria-hidden />
+          </button>
         </div>
         <div ref={list} className="overflow-y-auto py-1 flex-1">
-          {results.length === 0 && <p className="px-4 py-6 text-center text-xs text-dim">Nothing matches “{q}”.</p>}
+          {results.length === 0 && (
+            <div className="px-6 py-10 text-center">
+              <p className="text-[14px] font-semibold text-txt">No matches for “{q.trim()}”</p>
+              <p className="mt-1 text-[12px] text-dim">Try a ticker like AAPL, an account name, or a section like budget.</p>
+            </div>
+          )}
           {results.map((r, idx) => {
             const head = r.group !== lastGroup ? (lastGroup = r.group) : null;
             const Icon = r.icon;
@@ -214,7 +241,7 @@ export default function CommandPalette() {
                 {head && <div className="px-4 pt-3 pb-1 text-[10px] font-bold tracking-widest text-faint uppercase">{head}</div>}
                 <button data-idx={idx} onMouseEnter={() => setSel(idx)} onClick={() => pick(r)}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-left ${idx === sel ? "bg-panel2" : ""}`}>
-                  <span className={`rounded-lg p-1.5 shrink-0 ${r.group === "Tickers" ? "bg-up/10 text-up" : "bg-panel2 text-amber"}`}>
+                  <span className={`rounded-lg p-1.5 shrink-0 ${r.group === "Tickers" ? "bg-up/10 text-up" : "bg-bg/60 text-amber"}`}>
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">

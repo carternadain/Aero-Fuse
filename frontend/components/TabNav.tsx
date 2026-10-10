@@ -71,9 +71,6 @@ export default function TabNav({
               </button>
             );
           })}
-          <span className="ml-auto text-[10px] text-faint hidden md:inline">
-            <kbd className="px-1.5 py-0.5 rounded border border-edge2 text-dim">Ctrl K</kbd> to search
-          </span>
         </div>
       </nav>
 
