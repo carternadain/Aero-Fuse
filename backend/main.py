@@ -14,6 +14,8 @@ import json
 import os
 import threading
 from datetime import date as _date
+from datetime import datetime as _dt
+import secrets as _secrets
 import contextvars
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -656,11 +658,14 @@ class AccountPatch(BaseModel):
 
 
 class TransactionIn(BaseModel):
-    date: str | None = None
+    date: str | None = None          # YYYY-MM-DD, the browser's local day; defaults to today
     category: str
     amount: float
     kind: str = "expense"
     note: str = ""
+    merchant: str = ""
+    refund: bool = False             # money back from a store: lowers spending in `category`
+    budget_month: str | None = None  # YYYY-MM to count it in another month than its date
 
 
 class BudgetIn(BaseModel):
@@ -679,8 +684,9 @@ class BudgetBulkIn(BaseModel):
 
 class ImportPreviewIn(BaseModel):
     filename: str = ""
-    content: str
-    flip_sign: bool = False
+    content: str                 # file text; base64 for a .pdf
+    flip_sign: bool | None = None  # None: guess from the file (card statements list charges as positive)
+    today: str | None = None     # YYYY-MM-DD from the browser, for dates printed without a year
 
 
 class ScreenshotPreviewIn(BaseModel):
@@ -708,6 +714,15 @@ class RuleIn(BaseModel):
 class ImportCommitIn(BaseModel):
     rows: list[ImportRowIn]
     remember: list[RuleIn] = []
+    budget_month: str | None = None  # YYYY-MM: count the whole import in this month (card paid later)
+
+
+class TransactionsBulkIn(BaseModel):
+    action: str                      # "delete" or "move"
+    ids: list[int] | None = None
+    month: str | None = None         # every transaction counted in this YYYY-MM
+    batch: str | None = None         # one import
+    budget_month: str | None = None  # move target; None = back to each one's own date
 
 
 class RecurringIn(BaseModel):
@@ -715,10 +730,15 @@ class RecurringIn(BaseModel):
 
 
 class TransactionPatch(BaseModel):
-    category: str
+    category: str | None = None
     kind: str | None = None
     remember: bool = False
     apply_to_existing: bool = False
+    date: str | None = None
+    amount: float | None = None
+    merchant: str | None = None
+    note: str | None = None
+    budget_month: str | None = None  # send null to count it in the month of its date again
 
 
 # ── Trades ────────────────────────────────────────────────
@@ -1155,9 +1175,54 @@ def get_budget_plan(month: str | None = None):
     return budget.plan(month)
 
 
+def _check_month(m: str | None, field: str = "month"):
+    if m is None:
+        return
+    try:
+        _dt.strptime(m, "%Y-%m")
+    except (ValueError, TypeError):
+        raise HTTPException(400, f"{field} must look like 2026-10")
+
+
+def _check_day(d: str | None, field: str = "date"):
+    if d is None:
+        return
+    try:
+        _date.fromisoformat(d)
+    except (ValueError, TypeError):
+        raise HTTPException(400, f"{field} must look like 2026-10-08")
+
+
 @app.post("/api/transactions")
 def post_transaction(tx: TransactionIn):
-    return db.create_transaction(tx.model_dump())
+    _check_day(tx.date)
+    _check_month(tx.budget_month, "budget_month")
+    if tx.kind not in ("income", "expense"):
+        raise HTTPException(400, "kind must be income or expense")
+    if not (tx.amount > 0):
+        raise HTTPException(400, "Enter an amount above zero")
+    category = "income" if tx.kind == "income" else tx.category
+    _check_category(category, tx.kind)
+    if tx.kind == "expense" and category == "income":
+        raise HTTPException(400, "Pick a spending category")
+    data = tx.model_dump()
+    data["category"] = category
+    data["amount"] = round(-tx.amount if (tx.refund and tx.kind == "expense") else tx.amount, 2)
+    return db.create_transaction(data)
+
+
+@app.post("/api/transactions/bulk")
+def bulk_transactions(body: TransactionsBulkIn):
+    """Delete or move many at once: explicit ids, every transaction in a budget month, or one import."""
+    _check_month(body.month)
+    _check_month(body.budget_month, "budget_month")
+    if not (body.ids or body.month or body.batch):
+        raise HTTPException(400, "Say which transactions: ids, a month or an import batch.")
+    if body.action == "delete":
+        return {"deleted": db.delete_transactions(body.ids, body.month, body.batch)}
+    if body.action == "move":
+        return {"moved": db.move_transactions(body.budget_month, body.ids, body.month, body.batch)}
+    raise HTTPException(400, "action must be delete or move")
 
 
 def _check_category(category: str, kind: str | None):
@@ -1177,25 +1242,22 @@ def import_preview(body: ImportPreviewIn):
     if len(body.content) > IMPORT_MAX_BYTES:
         raise HTTPException(413, "That file is too big (5 MB max). Try exporting a shorter date range.")
     try:
-        parsed = importer.parse(body.filename, body.content)
+        today = _date.fromisoformat(body.today) if body.today else _date.today()
+    except ValueError:
+        raise HTTPException(400, "today must look like 2026-10-08")
+    try:
+        parsed = importer.parse(body.filename, body.content, today)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if len(parsed) > IMPORT_MAX_ROWS:
         raise HTTPException(413, f"That file has more than {IMPORT_MAX_ROWS} transactions. "
                                  "Try exporting a shorter date range.")
-    rows = importer.build_preview(parsed, db.list_rules(), body.flip_sign)
+    flip = importer.suggest_flip(parsed) if body.flip_sign is None else body.flip_sign
+    rows = importer.build_preview(parsed, db.list_rules(), flip)
     dupes = db.existing_import_hashes([r["hash"] for r in rows])
     for r in rows:
         r["duplicate"] = r["hash"] in dupes
-    return {
-        "rows": rows,
-        "counts": {
-            "total": len(rows),
-            "new": sum(1 for r in rows if not r["duplicate"] and not r["transfer"]),
-            "duplicates": sum(1 for r in rows if r["duplicate"]),
-            "transfers": sum(1 for r in rows if r["transfer"] and not r["duplicate"]),
-        },
-    }
+    return {**_preview_response(rows), "flip_sign": flip}
 
 
 SCREENSHOT_MAX_BYTES = 200 * 1024
@@ -1237,7 +1299,9 @@ def import_screenshot_preview(body: ScreenshotPreviewIn):
 def import_commit(body: ImportCommitIn):
     if len(body.rows) > IMPORT_MAX_ROWS:
         raise HTTPException(413, "Too many rows in one import.")
+    _check_month(body.budget_month, "budget_month")
     for r in body.rows:
+        _check_day(r.date)
         _check_category(r.category, r.kind)
         if r.amount <= 0:
             raise HTTPException(400, "Amounts must be positive")
@@ -1261,8 +1325,9 @@ def import_commit(body: ImportCommitIn):
         # A refund is negative spending: store it signed so every Out total nets it off.
         amount = -r.amount if (refund and kind == "expense" and r.category != "income") else r.amount
         rows.append({"date": r.date, "merchant": r.merchant, "note": r.description, "amount": amount,
-                     "kind": kind, "category": r.category, "hash": r.hash})
-    return db.insert_imported_transactions(rows)
+                     "kind": kind, "category": r.category, "hash": r.hash,
+                     "budget_month": body.budget_month})
+    return db.insert_imported_transactions(rows, batch=_secrets.token_hex(6))
 
 
 @app.get("/api/rules")
@@ -1287,10 +1352,25 @@ def remove_rule(rule_id: int):
 
 @app.patch("/api/transactions/{tx_id}")
 def patch_transaction(tx_id: int, body: TransactionPatch):
-    _check_category(body.category, body.kind)
-    tx = db.update_transaction_category(tx_id, body.category, body.kind)
+    sent = body.model_fields_set
+    _check_day(body.date)
+    _check_month(body.budget_month, "budget_month")
+    if body.amount is not None and body.amount == 0:
+        raise HTTPException(400, "Amount can't be zero")
+    fields = {k: getattr(body, k) for k in ("date", "amount", "merchant", "note", "budget_month")
+              if k in sent and (getattr(body, k) is not None or k == "budget_month")}
+    tx = db.get_transaction(tx_id)
     if not tx:
         raise HTTPException(404, "Transaction not found")
+    if "amount" in fields:
+        # keep the stored sign convention: a refund (negative expense) stays negative
+        fields["amount"] = round(-abs(fields["amount"]) if tx["amount"] < 0 else abs(fields["amount"]), 2)
+    if fields:
+        tx = db.update_transaction(tx_id, fields)
+    if body.category is None:
+        return {"transaction": tx, "rule": None, "updated": 0}
+    _check_category(body.category, body.kind)
+    tx = db.update_transaction_category(tx_id, body.category, body.kind)
     updated = 0
     rule = None
     if body.remember and tx.get("merchant"):

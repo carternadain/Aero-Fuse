@@ -10,6 +10,8 @@ import io
 import re
 from datetime import date, datetime, timedelta
 
+_date_today = date.today
+
 EXPENSE_CATEGORIES = ["rent", "food", "transport", "subscriptions", "fun",
                       "trading_fees", "health", "shopping", "other"]
 
@@ -99,7 +101,7 @@ def _sniff_delimiter(sample: str) -> str:
     return best
 
 
-def _parse_csv(text: str) -> list[dict]:
+def _parse_csv(text: str, today: date | None = None) -> list[dict]:
     delim = _sniff_delimiter(text)
     rows = list(csv.reader(io.StringIO(text), delimiter=delim))
     header_idx = None
@@ -129,7 +131,12 @@ def _parse_csv(text: str) -> list[dict]:
             continue
         date = parse_date(row[di])
         if not date:
-            continue  # blank lines, totals, footers
+            # "09/14" or "Sep 14" with no year: the most recent such day
+            m = _DATE_TOKEN.fullmatch(row[di].strip().strip('"'))
+            d = _token_date(m, today or _date_today())[0] if m and not m.group("rel") else None
+            if not d:
+                continue  # blank lines, totals, footers
+            date = d.isoformat()
         amount = None
         if ai is not None and ai < len(row):
             amount = parse_amount(row[ai])
@@ -175,17 +182,35 @@ def _parse_ofx(text: str) -> list[dict]:
     return out
 
 
-def parse(filename: str, content: str) -> list[dict]:
-    """Return [{date 'YYYY-MM-DD', description, amount}] with negative = money out."""
+def parse(filename: str, content: str, today: date | None = None) -> list[dict]:
+    """Return [{date 'YYYY-MM-DD', description, amount}] in the file's own signs (for a bank
+    file, negative = money out). PDFs arrive base64-encoded; .txt/.pdf use the text parser,
+    and a CSV with no recognisable header falls back to it too."""
     text = (content or "").lstrip("\ufeff")
     if not text.strip():
         raise ValueError("That file looks empty.")
     name = (filename or "").lower()
+    if name.endswith(".pdf"):
+        rows = parse_statement_text(_pdf_text(text), today)
+        if not rows:
+            raise ValueError("I read the PDF but found no transactions in it. "
+                             "If it is a scanned statement, try a screenshot instead.")
+        return rows
+    if name.endswith(".txt"):
+        rows = parse_statement_text(text, today)
+        if not rows:
+            raise ValueError("I couldn't find any transactions in that text. Each line needs a date "
+                             "at the start and an amount at the end.")
+        return rows
     is_ofx = name.endswith((".ofx", ".qfx")) or re.search(r"<OFX>|OFXHEADER", text[:2000], re.I)
     try:
-        rows = _parse_ofx(text) if is_ofx else _parse_csv(text)
+        rows = _parse_ofx(text) if is_ofx else _parse_csv(text, today)
     except ValueError:
-        raise
+        if is_ofx:
+            raise
+        rows = parse_statement_text(text, today)  # pasted / exported statement text
+        if not rows:
+            raise
     except Exception:
         raise ValueError("I couldn't read that file. Try a CSV, OFX or QFX export from your bank.")
     if not rows:
@@ -201,7 +226,8 @@ _WEEKDAY = r"(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+"
 
 # Header / balance lines of a card app. Matched as a prefix, so "Available credit $4,500.00" is dropped too.
 _SHOT_NOISE = re.compile(
-    r"^(?:transactions?|recent activity|activity|see all|view all|balance|available credit|"
+    r"^(?:transactions?|recent (?:activity|transactions?|purchases?)|(?:posted|pending|all) transactions?|"
+    r"activity|see all|view all|show more|load more|balance|available credit|"
     r"statement balance|current balance|pending balance|credit limit|payment due|minimum payment|"
     r"due date|card ending|gold card|robinhood|search|filter|all activity|home|cash back|rewards?)\b", re.I)
 _SHOT_TIME = re.compile(r"^\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?$", re.I)      # status bar clock or a time line
@@ -217,7 +243,7 @@ _SHOT_PAYMENT = re.compile(r"\b(?:payment received|auto-?\s?pay|thank you)\b|^pa
 # trailing minus. The part before it must end in whitespace (or be empty).
 _SHOT_AMOUNT = re.compile(
     r"(?:^|(?<=\s))(?P<sign>[+\-\u2212\u2013]?)\s*(?P<cur>\$|S(?=\d))?\s*"
-    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+[.,]\d{2}|\d+)\s*(?P<trail>[-\u2212\u2013]?)\s*$")
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d{1,3}(?: \d{3})+\.\d{2}|\d+[.,]\d{2}|\d+)\s*(?P<trail>[-\u2212\u2013]?)\s*$")
 
 
 def _shot_amount(line: str) -> tuple[str, float, bool] | None:
@@ -228,6 +254,10 @@ def _shot_amount(line: str) -> tuple[str, float, bool] | None:
     num = m.group("num")
     if not m.group("cur") and not re.search(r"[.,]\d{2}$", num):
         return None  # a bare integer without $ is not safely an amount ("Store 42")
+    if " " in num:
+        if not m.group("cur"):
+            return None  # "Store 123 456.00": only "$1 850.00" (OCR dropped the comma) is one amount
+        num = num.replace(" ", ",")
     if re.search(r",\d{2}$", num):          # "5,45" comma decimal
         num = num[:-3].replace(",", "").replace(".", "") + "." + num[-2:]
     else:
@@ -239,50 +269,106 @@ def _shot_amount(line: str) -> tuple[str, float, bool] | None:
     return line[:m.start()].strip(), value, plus
 
 
-def _shot_date(line: str, today: date) -> date | None:
-    """Parse a date/status line ('Oct 8', '10/08', 'Pending', 'Yesterday', '2 days ago')."""
-    s = line.lower().strip()
-    s = re.sub(r"[\u2022\u00b7|]", " ", s)
-    s = re.sub(r"[,\s]*\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?$", "", s)   # trailing time of day
-    s = re.sub(r"\b(?:pending|posted|on)\b", " ", s) if re.search(r"[a-z]{3}\w*\s+\d|\d/\d", s) else s
-    s = re.sub(r"\s+", " ", s).strip(" ,.")
-    if s in ("pending", "today", "posted today", "just now"):
-        return today
-    if s == "yesterday":
-        return today - timedelta(days=1)
-    m = re.fullmatch(r"(\d{1,2}) days? ago", s)
-    if m:
-        return today - timedelta(days=int(m.group(1)))
-    s = re.sub(rf"^{_WEEKDAY}", "", s)
-    month = day = year = None
-    m = re.fullmatch(r"([a-z]{3,9})\.? (\d{1,2})(?:st|nd|rd|th)?(?:,? (\d{4}))?", s)
-    if m and m.group(1)[:3] in _MONTHS:
-        month, day, year = _MONTHS[m.group(1)[:3]], int(m.group(2)), m.group(3)
-    else:
-        m = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?", s)
-        if m:
-            month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
-    if month is None:
-        return None
+
+# One date anywhere in a line: "Today", "Yesterday", "3 days ago", "Sep 14", "Sept 14th, 2026",
+# "14 Sep", "2026-09-14", "9/14", "09/14/26". Month names are spelled out exactly so a merchant
+# like "Decathlon 12" is not read as Dec 12.
+_MONTH_WORD = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+               r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?")
+_DATE_TOKEN = re.compile(
+    r"(?<![\w/])(?:"
+    r"(?P<rel>today|yesterday|(?P<ago>\d{1,2}) days? ago)"
+    rf"|(?P<mon>{_MONTH_WORD})\s+(?P<md>\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(?P<my>\d{{4}}))?"
+    rf"|(?P<dm>\d{{1,2}})\s+(?P<mon2>{_MONTH_WORD})(?:,?\s+(?P<my2>\d{{4}}))?"
+    r"|(?P<y4>\d{4})-(?P<m4>\d{1,2})-(?P<d4>\d{1,2})"
+    r"|(?P<n1>\d{1,2})/(?P<n2>\d{1,2})(?:/(?P<ny>\d{4}|\d{2}))?"
+    r")(?![\w/])", re.I)
+
+
+def resolve_date(month: int, day: int, year: int | None, ref: date) -> date | None:
+    """A calendar date. With no year, the most recent one on or before `ref` (2 days of slack
+    for time zones and pending charges), so "Dec 30" read on Jan 2 is last December."""
     try:
-        if year:
-            y = int(year)
-            return date(y + 2000 if y < 100 else y, month, day)
-        d = date(today.year, month, day)
-        if d > today + timedelta(days=2):  # no year shown: a far-future date means last year
-            d = date(today.year - 1, month, day)
+        if year is not None:
+            return date(year + 2000 if year < 100 else year, month, day)
+        d = date(ref.year, month, day)
+        if d > ref + timedelta(days=2):
+            d = date(ref.year - 1, month, day)
         return d
     except ValueError:
         return None
 
 
+def _token_date(m: re.Match, ref: date) -> tuple[date | None, bool]:
+    """(date, had_year) for a _DATE_TOKEN match."""
+    g = m.groupdict()
+    if g["rel"]:
+        r = g["rel"].lower()
+        if r == "today":
+            return ref, True
+        if r == "yesterday":
+            return ref - timedelta(days=1), True
+        return ref - timedelta(days=int(g["ago"])), True
+    if g["mon"]:
+        y = g["my"]
+        return resolve_date(_MONTHS[g["mon"][:3].lower()], int(g["md"]), int(y) if y else None, ref), bool(y)
+    if g["mon2"]:
+        y = g["my2"]
+        return resolve_date(_MONTHS[g["mon2"][:3].lower()], int(g["dm"]), int(y) if y else None, ref), bool(y)
+    if g["y4"]:
+        return resolve_date(int(g["m4"]), int(g["d4"]), int(g["y4"]), ref), True
+    y = g["ny"]
+    return resolve_date(int(g["n1"]), int(g["n2"]), int(y) if y else None, ref), bool(y)
+
+
+def find_date(text: str, ref: date, where: str = "any") -> tuple[date, str] | None:
+    """Find a date in `text` and return (date, text without it). `where` = "start", "end" or "any"."""
+    for m in _DATE_TOKEN.finditer(text or ""):
+        if where == "start" and text[:m.start()].strip(" ,-•·|"):
+            break
+        if where == "end" and text[m.end():].strip(" ,.-•·|"):
+            continue
+        d, _ = _token_date(m, ref)
+        if d is None:
+            continue
+        rest = (text[:m.start()] + " " + text[m.end():])
+        return d, re.sub(r"\s+", " ", rest).strip(" ,-•·|")
+    return None
+
+
+# Words that can sit next to a date on a card app's date/status line without making it a row.
+_DATE_FILLER = re.compile(r"^(?:pending|posted|on|at|authorized|processing|declined)$", re.I)
+
+
+def _shot_date(line: str, today: date) -> date | None:
+    """Parse a date/status line ('Oct 8', '10/08', 'Pending', 'Yesterday', '2 days ago',
+    'Restaurants · Sep 14', 'Mon, Oct 6 at 8:42 PM'). None if the line holds anything else."""
+    s = re.sub(r"[•·|]", " ", line or "").strip()
+    s = re.sub(r"(?:,|\bat)?\s*\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?\s*$", "", s, flags=re.I)   # time of day
+    s = re.sub(r"\s+", " ", s).strip(" ,.")
+    low = s.lower()
+    if low in ("pending", "today", "posted today", "just now", "processing"):
+        return today
+    s = re.sub(rf"^{_WEEKDAY}", "", s, flags=re.I)
+    hit = find_date(s, today)
+    if not hit:
+        return None
+    d, rest = hit
+    words = [w for w in re.split(r"[\s,]+", rest) if w]
+    if all(_DATE_FILLER.match(w) for w in words) or (rest and _SHOT_CATEGORY.match(rest)):
+        return d
+    return None
+
+
 def parse_screenshot_text(text: str, today: date) -> list[dict]:
     """Turn OCR text from a card-app screenshot into rows shaped like parse():
-    {date 'YYYY-MM-DD', amount (charges negative, refunds/payments positive), description}.
+    {date 'YYYY-MM-DD', amount (charges negative, refunds/payments positive), description,
+    date_guessed}. `date_guessed` is True when no date was found for the row and today was used.
 
-    Two layouts are handled: date *section headers* above their rows, and a date/status line
-    *below* each row. Which one applies is decided by whether the first amount comes before
-    the first date line."""
+    Three layouts are handled: date *section headers* above their rows, a date/status line
+    *below* each row, and a date on the row's own line ("Starbucks  Sep 14  $5.45" or a
+    subtitle like "Sep 14  $5.45"). Headers vs. lines below is decided by whether the first
+    amount comes before the first date line."""
     # Pass 1: classify every line.
     items: list[tuple[str, object]] = []
     for raw in (text or "").splitlines():
@@ -300,34 +386,51 @@ def parse_screenshot_text(text: str, today: date) -> list[dict]:
         elif not re.search(r"[A-Za-z]", line) or _SHOT_CATEGORY.match(line):
             items.append(("time", None))
         else:
-            items.append(("text", line))
+            # "Starbucks · Sep 14": a merchant with its date beside it
+            hit = find_date(line, today, "end") or find_date(line, today, "start")
+            if hit and re.search(r"[A-Za-z]", hit[1]):
+                items.append(("text", hit[1]))
+                items.append(("rowdate", hit[0]))
+            else:
+                items.append(("text", line))
 
     kinds = [k for k, _ in items]
     row_mode = "amount" in kinds and ("date" not in kinds or kinds.index("amount") < kinds.index("date"))
 
     rows: list[dict] = []
     undated: list[dict] = []
-    section = today
+    section: date | None = None
     candidate: str | None = None   # last merchant-looking line, used when the amount is on its own line
+    cand_date: date | None = None  # a date that sat on the candidate's line
     cand_after_row = False         # candidate came right after a finished row (maybe that row's subtitle)
     prev = None                    # previous significant item kind ("time" lines are transparent)
     for kind, val in items:
         if kind == "time":
             continue
         if kind == "noise":
-            candidate = None
+            candidate, cand_date = None, None
         elif kind == "text":
-            candidate, cand_after_row = val, prev == "amount"
+            candidate, cand_date, cand_after_row = val, None, prev == "amount"
+        elif kind == "rowdate":
+            cand_date = val
+            continue
         elif kind == "date":
-            candidate = None   # a date line separates a dangling merchant from the next row
+            candidate, cand_date = None, None   # a date line separates a dangling merchant from the next row
             if row_mode:
                 for r in undated:
                     r["date"] = val.isoformat()
+                    r["date_guessed"] = False
                 undated = []
             else:
                 section = val
         elif kind == "amount":
             prefix, value, plus = val
+            # A date inside the amount line itself ("Sep 14 $5.45", "Starbucks 9/14 $5.45").
+            inline: date | None = None
+            if prefix:
+                hit = find_date(prefix, today, "end") or find_date(prefix, today, "start")
+                if hit:
+                    inline, prefix = hit
             # "Starbucks" / "Restaurants $6.45": the amount sits on the subtitle line, so the
             # pending line above is the merchant. But a pending line right after a finished row
             # may just be that row's subtitle ("Shopping"), so an inline merchant wins unless the
@@ -336,24 +439,117 @@ def parse_screenshot_text(text: str, today: date) -> list[dict]:
                 merchant = candidate
             else:
                 merchant = prefix or candidate or ""
-            candidate = None
+            row_date = inline or (cand_date if merchant == candidate else None)
+            candidate, cand_date = None, None
             # drop leading icon glyphs OCR picks up from the merchant avatar
             merchant = re.sub(r"^[^\w$]+", "", merchant).strip(" -:\u2022\u00b7")
             if not re.search(r"[A-Za-z]", merchant):
+                prev = kind
                 continue
             is_payment = bool(_SHOT_PAYMENT.search(merchant))
             positive = plus or is_payment
             if is_payment and not _TRANSFER.search(merchant):
                 merchant = "Payment received"  # so categorize() files a bare "Payment" as a transfer
-            row = {"date": None if row_mode else section.isoformat(),
-                   "amount": round(value if positive else -value, 2), "description": merchant}
-            rows.append(row)
-            if row_mode:
+            row = {"amount": round(value if positive else -value, 2), "description": merchant}
+            if row_date is not None:
+                row["date"], row["date_guessed"] = row_date.isoformat(), False
+            elif row_mode:
+                row["date"], row["date_guessed"] = None, True
                 undated.append(row)
+            else:
+                row["date"] = (section or today).isoformat()
+                row["date_guessed"] = section is None
+            rows.append(row)
         prev = kind
-    for r in undated:   # no date line found for these: assume today
+    for r in undated:   # no date line found for these: assume today, and say so in the review
         r["date"] = today.isoformat()
     return rows
+
+
+# ── Text / PDF statements ─────────────────────────────────
+
+# A statement amount: cents required. "$1,234.56", "-$300.00", "(12.00)", "300.00-", "300.00 CR".
+_STMT_AMOUNT = re.compile(
+    r"(?:^|(?<=\s))(?P<open>\()?(?P<sign>[-+\u2212\u2013]?)\s*\$?\s*"
+    r"(?P<num>\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})(?P<close>\))?\s*(?P<trail>-|CR\b|DR\b)?\s*$", re.I)
+_STMT_SKIP = re.compile(
+    r"^(?:total|subtotal|new balance|previous balance|statement balance|minimum payment|payment due|"
+    r"credit limit|available credit|opening balance|closing balance|balance)\b", re.I)
+
+
+def _statement_ref(text: str, today: date) -> date:
+    """The statement's closing date: the latest full date (with a year) in the text that is not
+    in the future. Rows without a year are placed on or before it. Falls back to today."""
+    best = None
+    for m in _DATE_TOKEN.finditer(text or ""):
+        d, had_year = _token_date(m, today)
+        if d and had_year and not m.group("rel") and d <= today + timedelta(days=2):
+            best = d if best is None or d > best else best
+    return best or today
+
+
+def parse_statement_text(text: str, today: date | None = None) -> list[dict]:
+    """Rows from a statement's plain text (a PDF's text, or text copied out of one): any line
+    that starts with a date and ends with an amount. A second date right after the first (the
+    post date) is skipped. Amounts keep the statement's own signs (card statements list charges
+    as positive); see suggest_flip()."""
+    today = today or date.today()
+    ref = _statement_ref(text, today)
+    out = []
+    for raw in (text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw).strip()
+        m = _DATE_TOKEN.match(line)
+        if not m or m.group("rel"):
+            continue
+        d, _ = _token_date(m, ref)
+        if d is None:
+            continue
+        rest = line[m.end():].strip()
+        m2 = _DATE_TOKEN.match(rest)
+        if m2 and not m2.group("rel") and _token_date(m2, ref)[0]:
+            rest = rest[m2.end():].strip()
+        a = _STMT_AMOUNT.search(rest)
+        if not a:
+            continue
+        desc = rest[:a.start()].strip(" -\u2022\u00b7|")
+        if not re.search(r"[A-Za-z]", desc) or _STMT_SKIP.match(desc):
+            continue
+        v = float(a.group("num").replace(",", ""))
+        if v == 0:
+            continue
+        neg = bool(a.group("sign") in ("-", "\u2212", "\u2013") or (a.group("open") and a.group("close"))
+                   or (a.group("trail") and a.group("trail").upper() in ("-", "CR")))
+        out.append({"date": d.isoformat(), "description": desc, "amount": round(-v if neg else v, 2)})
+    return out
+
+
+def suggest_flip(parsed: list[dict]) -> bool:
+    """Guess whether a file lists charges as positive numbers (most card statements do).
+    Bank accounts have more money going out than coming in, so when most non-transfer rows are
+    positive, the file's signs are the other way around."""
+    rows = [r for r in parsed if not _TRANSFER.search(r.get("description") or "")]
+    if len(rows) < 2:
+        return False
+    pos = sum(1 for r in rows if r["amount"] > 0)
+    return pos > 0.6 * len(rows)
+
+
+def _pdf_text(content_b64: str) -> str:
+    import base64
+    try:
+        data = base64.b64decode(content_b64.split(",", 1)[-1], validate=False)
+    except Exception:
+        raise ValueError("I couldn't open that PDF. Try downloading the statement again.")
+    try:
+        from pypdf import PdfReader  # optional: pip install pypdf
+    except ImportError:
+        raise ValueError("PDF statements need the pypdf package on the server (pip install pypdf). "
+                         "For now, use a CSV export or a screenshot.")
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        return "\n".join((p.extract_text() or "") for p in reader.pages[:40])
+    except Exception:
+        raise ValueError("I couldn't read that PDF. If it is a scan, try a screenshot instead.")
 
 
 # ── Merchant cleanup ──────────────────────────────────────
@@ -559,5 +755,6 @@ def build_preview(parsed: list[dict], rules: list[dict] | None = None, flip_sign
             "merchant": display_name(merchant, r["description"], category),
             "amount": round(abs(amt), 2), "kind": kind, "category": category,
             "transfer": transfer, "refund": refund, "hash": h,
+            "date_guessed": bool(r.get("date_guessed")),
         })
     return out
