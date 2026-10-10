@@ -274,3 +274,37 @@ export interface SwingIdea {
   chg_3m: number | null;
   off_high: number | null;
 }
+
+export type Zone = "buy" | "hold" | "sell";
+
+export interface ZoneHolding {
+  kind: "stock" | "crypto";
+  symbol: string;
+  value: number;
+  weight_pct: number;
+  gain_pct: number | null;
+  price: number | null;
+  score: ScoreBlock | null;
+  zone: Zone | null;
+}
+
+export interface ZoneWatch {
+  kind: "stock" | "crypto";
+  symbol: string;
+  price: number | null;
+  score: number | null;
+  label: string | null;
+}
+
+export interface ZonesResponse {
+  holdings: ZoneHolding[];
+  accumulate: string[];
+  sell: string[];
+  watch: ZoneWatch[];
+}
+
+export interface ZoneChartResponse {
+  symbol: string;
+  kind: "stock" | "crypto";
+  points: { date: string; price: number; score: number | null }[];
+}

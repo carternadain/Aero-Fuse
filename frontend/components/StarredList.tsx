@@ -29,7 +29,7 @@ export default function StarredList({ compact = false }: { compact?: boolean }) 
         <div className="p-3 space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-10" />)}</div>
       ) : !items.length ? (
         <p className="px-4 py-5 text-[12px] text-dim leading-relaxed">
-          Tap <Star size={11} className="inline text-amber" /> on any ticker (search, Swing Ideas, Top Buys, a chart) to pin it here
+          Tap <Star size={11} className="inline text-amber" /> on any ticker (search, Swing Ideas, Buy & Sell Zones, a chart) to pin it here
           with a live price and how it&apos;s done since you starred it.
         </p>
       ) : (

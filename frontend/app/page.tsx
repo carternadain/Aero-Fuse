@@ -38,7 +38,7 @@ import Portfolio from "@/components/Portfolio";
 import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
-import TopBuys from "@/components/TopBuys";
+import BuyZones from "@/components/BuyZones";
 import SwingIdeas from "@/components/SwingIdeas";
 import Overview from "@/components/Overview";
 import DialogHost from "@/components/DialogHost";
@@ -293,9 +293,9 @@ export default function Dashboard() {
             <SubTabs value={sub} onChange={setSub} />
             <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
             {sub === "ideas" && (
-              <Section id="sec-ideas" title="Buy" accent="Ideas" hint="long-term scores · swing setups · hot themes">
+              <Section id="sec-ideas" title="Buy" accent="Ideas" hint="buy & sell zones · swing setups · hot themes">
                 <Panes items={[
-                  { id: "sec-topbuys", label: "Long-term", node: <TopBuys /> },
+                  { id: "sec-topbuys", label: "Zones", node: <BuyZones /> },
                   { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
                   { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
                 ]} />

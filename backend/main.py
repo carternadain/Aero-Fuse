@@ -51,6 +51,7 @@ import risk
 import scoring
 import taxes
 import universe
+import zones
 
 WATCHLIST_FILE = Path(__file__).parent / "watchlist.json"
 DEFAULT_WATCHLIST = ["BTC", "SOL", "SOFI", "MSFT", "RDW"]
@@ -1413,6 +1414,19 @@ def markets_history(kind: str, key_id: str):
     if kind not in ("crypto", "stock"):
         raise HTTPException(400, "kind must be 'crypto' or 'stock'")
     return market_data.history_with_scores(kind, key_id)
+
+
+@app.get("/api/zones")
+def get_zones():
+    """Buy & Sell Zones: held assets bucketed by long-term score, plus what to add or trim."""
+    return zones.build_zones(valued_holdings(), gather_scored_assets())
+
+
+@app.get("/api/zones/chart/{kind}/{symbol}")
+def get_zones_chart(kind: str, symbol: str):
+    if kind not in ("crypto", "stock"):
+        raise HTTPException(400, "kind must be 'crypto' or 'stock'")
+    return zones.zone_chart(kind, symbol)
 
 
 @app.get("/api/signals/edge-report")
