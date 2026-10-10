@@ -193,7 +193,7 @@ export default function LiqHeatmap() {
       <div className="panel-head flex-wrap gap-2">
         <span className="panel-title"><Flame size={14} />BTC Liquidation Heatmap</span>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-edge2 overflow-hidden text-[11px]">
+          <div className="seg flex rounded-lg border border-edge2 text-[11px]">
             {RANGES.map(([k, l]) => (
               <button key={k} onClick={() => setRange(k)}
                       className={`px-3 py-1.5 font-bold ${range === k ? "bg-panel2 text-up" : "text-dim hover:text-txt"}`}>{l}</button>
@@ -206,17 +206,17 @@ export default function LiqHeatmap() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-edge text-[11px] text-dim">
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 max-sm:gap-4">
           {Object.entries(MAPS).map(([k, stops]) => (
             <button key={k} onClick={() => setMap(k)} title={k}
                     className={`w-6 h-6 rounded-md border-2 ${map === k ? "border-txt" : "border-transparent"}`}
                     style={{ background: `linear-gradient(135deg, ${stops.join(",")})` }} />
           ))}
         </div>
-        <label className="flex items-center gap-2 flex-1 min-w-[180px]">
+        <label className="flex items-center gap-2 flex-1 min-w-[min(180px,100%)]">
           <span className="whitespace-nowrap">Threshold <b className="text-txt tabular-nums">{thr.toFixed(2)}</b></span>
           <input type="range" min={0} max={1} step={0.01} value={thr} onChange={(e) => setThr(+e.target.value)}
-                 className="flex-1 accent-[var(--color-up)]" />
+                 className="flex-1 min-w-0 accent-[var(--color-up)]" />
         </label>
       </div>
 

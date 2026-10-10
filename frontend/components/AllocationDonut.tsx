@@ -86,7 +86,7 @@ export default function AllocationDonut({ filter, onFilter }: { filter: Section 
           <div className="flex-1 min-w-0 space-y-0.5">
             {slices.rows.map((r) => (
               <button key={r.s} onClick={() => pick(r.s)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${filter === r.s ? "bg-panel2" : "hover:bg-panel2/60"}`}>
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 max-sm:py-2.5 rounded-lg text-left transition-colors ${filter === r.s ? "bg-panel2" : "hover:bg-panel2/60"}`}>
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: SECTION_COLOR[r.s] }} />
                 <span className="text-[12.5px] font-semibold text-txt flex-1 truncate">{SECTION_LABEL[r.s]}</span>
                 <span className="text-[12px] tabular-nums text-dim">{r.pct.toFixed(1)}%</span>
