@@ -43,6 +43,7 @@ import SwingIdeas from "@/components/SwingIdeas";
 import Overview from "@/components/Overview";
 import DialogHost from "@/components/DialogHost";
 import Celebrate from "@/components/Celebrate";
+import HolidayFx from "@/components/HolidayFx";
 import PullToRefresh from "@/components/PullToRefresh";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
@@ -241,6 +242,7 @@ export default function Dashboard() {
       <TabNav active={tab} onChange={setTab} />
       <DialogHost />
       <Celebrate />
+      <HolidayFx />
       <PullToRefresh />
       <CommandPalette />
       <TickerHost />
