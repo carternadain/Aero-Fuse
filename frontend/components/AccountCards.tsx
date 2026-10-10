@@ -61,7 +61,7 @@ export default function AccountCards() {
           const chg = c.spark?.change ?? null;
           const up = (chg ?? 0) >= 0;
           return (
-            <button key={c.name} onClick={() => jump(c)}
+            <button key={`${c.manual ? "a" : "h"}:${c.name}`} onClick={() => jump(c)}
                     className="snap-start shrink-0 w-[78%] sm:w-[260px] rounded-2xl border border-edge p-4 text-left relative overflow-hidden
                                bg-gradient-to-br from-panel2 to-panel hover:border-edge2 transition-colors active:scale-[0.99]">
               <span className="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-15" style={{ background: SECTION_COLOR[c.section] }} />
@@ -84,7 +84,7 @@ export default function AccountCards() {
       {cards.length > 1 && (
         <div className="flex justify-center gap-1.5 mt-2 sm:hidden">
           {cards.map((c, i) => (
-            <span key={c.name} className={`h-1.5 rounded-full transition-all ${i === page ? "w-4 bg-txt" : "w-1.5 bg-edge2"}`} />
+            <span key={`${c.manual ? "a" : "h"}:${c.name}`} className={`h-1.5 rounded-full transition-all ${i === page ? "w-4 bg-txt" : "w-1.5 bg-edge2"}`} />
           ))}
         </div>
       )}
