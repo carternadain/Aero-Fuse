@@ -606,6 +606,11 @@ class ContributionPatch(BaseModel):
 
 class SettingsIn(BaseModel):
     monthly_expenses: float | None = None
+    birth_year: int | None = None
+
+
+# Age is stored as a birth year so it stays right as the years pass.
+DEFAULT_BIRTH_YEAR = 1996
 
 
 class HoldingPatch(BaseModel):
@@ -1039,14 +1044,25 @@ def get_networth_risk():
 
 @app.get("/api/settings")
 def get_settings():
+    from datetime import date
     est = db.get_setting("monthly_expenses")
-    return {"monthly_expenses": float(est) if est else None}
+    by = int(db.get_setting("birth_year") or DEFAULT_BIRTH_YEAR)
+    return {"monthly_expenses": float(est) if est else None,
+            "birth_year": by, "age": date.today().year - by}
 
 
 @app.put("/api/settings")
 def put_settings(body: SettingsIn):
-    v = body.monthly_expenses
-    db.set_setting("monthly_expenses", str(v) if v and v > 0 else None)
+    from datetime import date
+    # Only touch the fields that were sent, so saving one setting never clears another
+    sent = body.model_fields_set
+    if "monthly_expenses" in sent:
+        v = body.monthly_expenses
+        db.set_setting("monthly_expenses", str(v) if v and v > 0 else None)
+    if "birth_year" in sent:
+        by = body.birth_year
+        ok = by is not None and 1900 < by <= date.today().year
+        db.set_setting("birth_year", str(by) if ok else None)
     return get_settings()
 
 
