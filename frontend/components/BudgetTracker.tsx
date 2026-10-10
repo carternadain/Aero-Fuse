@@ -5,8 +5,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronLeft, ChevronRight, FileUp, PiggyBank, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
-import { askText } from "./DialogHost";
-import { budgetChanged, toast } from "@/lib/bus";
+import { budgetChanged, onBudgetChanged, toast } from "@/lib/bus";
 import { ALL_CATS, EXPENSE_CATS, catLabel, errorText } from "@/lib/categories";
 import ImportStatement from "./ImportStatement";
 
@@ -56,6 +55,8 @@ export default function BudgetTracker() {
   const changed = () => { refresh(); budgetChanged(); };
 
   useEffect(() => { refresh(); }, [month]);
+  // Target edits in the Monthly budget panel show up here (refresh doesn't emit, so no loop).
+  useEffect(() => onBudgetChanged(() => { refresh(); }), [month]);
 
   const add = async () => {
     const amount = parseFloat(f.amount);
@@ -64,15 +65,6 @@ export default function BudgetTracker() {
     setF({ ...f, amount: "", note: "" });
     setAdding(false);
     changed();
-  };
-
-  const setLimit = async (category: string, current: number | null) => {
-    const v = await askText(`Monthly budget for ${category}:`, String(current ?? ""));
-    if (v == null) return;
-    const limit = parseFloat(v.replace(/[$,]/g, ""));
-    if (isNaN(limit)) return;
-    await api.put("/api/budgets", { category, monthly_limit: limit });
-    refresh();
   };
 
   const openEdit = (t: Tx) => {
@@ -102,7 +94,7 @@ export default function BudgetTracker() {
   return (
     <section className="panel flex flex-col">
       <div className="panel-head">
-        <span className="panel-title"><PiggyBank size={14} />Budget</span>
+        <span className="panel-title"><PiggyBank size={14} />Spending</span>
         <div className="flex flex-wrap items-center gap-1.5">
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Previous month"
                   onClick={() => setMonth(monthShift(month, -1))}>
@@ -201,34 +193,20 @@ export default function BudgetTracker() {
           )}
         </div>
 
-        {/* Category bars vs budget */}
-        <div className="space-y-2 overflow-y-auto max-h-44 pr-1">
-          {(sum?.categories ?? []).length === 0 && (
-            <p className="text-[11px] text-dim pt-2">
-              Click a category bar to set its monthly limit. Spending turns red when you blow past it.
-            </p>
+        {/* Spent per category, colored like the donut */}
+        <div className="space-y-1 overflow-y-auto max-h-44 pr-1 min-w-0">
+          {pieData.length === 0 && (
+            <p className="text-[11px] text-dim pt-2">Targets live in the Monthly budget panel below.</p>
           )}
-          {(sum?.categories ?? []).map((c, i) => {
-            const pct = c.limit ? Math.min(100, (c.spent / c.limit) * 100) : 0;
+          {(sum?.categories ?? []).filter((c) => c.spent > 0).map((c, i) => {
             const over = c.limit !== null && c.spent > c.limit;
             return (
-              <div key={c.category} className="cursor-pointer" onClick={() => setLimit(c.category, c.limit)}
-                   title="Click to set monthly limit">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-txt">{c.category.replace("_", " ")}</span>
-                  <span className={over ? "text-down font-bold" : "text-dim"}>
-                    {fmtUsd(c.spent)}{c.limit !== null ? ` / ${fmtUsd(c.limit)}` : " · set limit"}
-                  </span>
-                </div>
-                <div className="h-1.5 rounded bg-edge overflow-hidden mt-0.5">
-                  <div
-                    className="h-full rounded transition-all"
-                    style={{
-                      width: c.limit ? `${pct}%` : "100%",
-                      background: over ? "var(--color-down)" : c.limit ? (pct > 80 ? "var(--color-amber)" : "var(--color-up)") : PIE_COLORS[i % PIE_COLORS.length] + "55",
-                    }}
-                  />
-                </div>
+              <div key={c.category} className="flex items-center gap-2 text-[11px] min-w-0">
+                <span className="h-2 w-2 rounded-full shrink-0"
+                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                <span className="min-w-0 flex-1 truncate text-txt">{catLabel(c.category)}</span>
+                {over && <span className="shrink-0 text-[9px] uppercase tracking-widest text-down font-bold">over</span>}
+                <span className={`shrink-0 tabular-nums ${over ? "text-down font-bold" : "text-dim"}`}>{fmtUsd(c.spent)}</span>
               </div>
             );
           })}

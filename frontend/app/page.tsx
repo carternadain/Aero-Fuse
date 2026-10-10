@@ -40,6 +40,7 @@ import Portfolio from "@/components/Portfolio";
 import NetWorth from "@/components/NetWorth";
 import FireCalc from "@/components/FireCalc";
 import BudgetTracker from "@/components/BudgetTracker";
+import MonthlyBudget from "@/components/MonthlyBudget";
 import RecurringBills from "@/components/RecurringBills";
 import BackupPanel from "@/components/BackupPanel";
 import RiskDesk from "@/components/RiskDesk";
@@ -70,7 +71,7 @@ import EarningsCalendar from "@/components/EarningsCalendar";
 const PARENT: Record<string, string> = {
   "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth",
   "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
-  "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow",
+  "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow", "sec-budget": "sec-cashflow",
   "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
@@ -359,6 +360,7 @@ export default function Dashboard() {
                     <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
                   </div>
                 ) },
+                { id: "sec-budget", label: "Budget", node: <MonthlyBudget /> },
                 { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
               ]} />
             </Section>
