@@ -274,12 +274,14 @@ def _with_stats(c, r: dict, today: date, fills_limit: int = 0) -> dict:
     s = c.execute(
         "SELECT count(*) n, coalesce(sum(amount),0) amt, coalesce(sum(qty),0) q FROM autoinvest_fills "
         "WHERE rule_id=? AND status IN ('filled','existing')", (r["id"],)).fetchone()
+    added = c.execute("SELECT coalesce(sum(qty),0) q FROM autoinvest_fills WHERE rule_id=? AND status='filled'",
+                      (r["id"],)).fetchone()["q"]
     settled = _settled(c, r["id"])
     nd = None if r["paused"] else next_date(r, today)
     if nd and nd.isoformat() in settled:  # today's buy is done: show the one after
         nd = next_date(r, today + timedelta(days=1))
     out = {**r, "paused": bool(r["paused"]), "buys": s["n"], "invested": round(s["amt"], 2),
-           "qty": round(s["q"], 10), "pending": len(due_dates(r, settled, today)),
+           "qty": round(s["q"], 10), "added_qty": round(added, 10), "pending": len(due_dates(r, settled, today)),
            "next_date": nd.isoformat() if nd else None}
     if fills_limit:
         out["fills"] = [db.row_to_dict(f) for f in c.execute(
