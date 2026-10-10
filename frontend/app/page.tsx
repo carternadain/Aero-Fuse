@@ -40,6 +40,8 @@ import Portfolio from "@/components/Portfolio";
 import NetWorth from "@/components/NetWorth";
 import FireCalc from "@/components/FireCalc";
 import BudgetTracker from "@/components/BudgetTracker";
+import RecurringBills from "@/components/RecurringBills";
+import BackupPanel from "@/components/BackupPanel";
 import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
@@ -68,7 +70,7 @@ import EarningsCalendar from "@/components/EarningsCalendar";
 const PARENT: Record<string, string> = {
   "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth",
   "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
-  "sec-income": "sec-cashflow", "sec-budget": "sec-cashflow",
+  "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow",
   "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
@@ -349,10 +351,15 @@ export default function Dashboard() {
               ]} />
             </Section>
             <Section id="sec-taxes" title="Tax" accent="Savings" hint="gains · harvest losses · wash sales"><TaxCenter /></Section>
-            <Section id="sec-cashflow" title="Cash" accent="Flow" hint="dividends · budget">
+            <Section id="sec-cashflow" title="Money" accent="In & Out" hint="import statements · bills · budget · dividends">
               <Panes items={[
+                { id: "sec-spending", label: "Spending", node: (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                    <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
+                    <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
+                  </div>
+                ) },
                 { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
-                { id: "sec-budget", label: "Budget", pro: true, node: <BudgetTracker /> },
               ]} />
             </Section>
             <Section id="sec-whatif" title="What" accent="If" hint="money lab · crash test · FIRE" pro>
@@ -362,7 +369,8 @@ export default function Dashboard() {
                 { id: "sec-fire", label: "FIRE", node: <FireCalc /> },
               ]} />
             </Section>
-            <ProHint what="the net-worth calendar, budget, Money Lab, the stress test and FIRE" />
+            <Section id="sec-backup" title="Backup" accent="& Export" hint="your data, downloadable"><BackupPanel /></Section>
+            <ProHint what="the net-worth calendar, Money Lab, the stress test and FIRE" />
           </>
         )}
 

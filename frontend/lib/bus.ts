@@ -24,6 +24,10 @@ export const openSearch = () => emit("app:search", null);
 export const openAlerts = (prefill?: { symbol: string; kind?: Kind; price?: number }) => emit("app:alerts", prefill ?? null);
 export const openReport = (month?: string) => emit("app:report", month ?? null);
 
+/** Transactions were added, removed, re-filed or imported: panels built on them should reload. */
+export const budgetChanged = () => emit("app:budget", null);
+export const onBudgetChanged = (fn: () => void) => on<null>("app:budget", fn);
+
 /** Light tap on Android (iOS Safari doesn't expose vibration). */
 export function haptic(ms = 8) {
   try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
