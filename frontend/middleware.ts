@@ -26,5 +26,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Everything except the login page, API/webhook proxies, Next internals and static files.
-  matcher: ["/((?!login|api|webhook|_next|favicon|icon-|apple-touch-icon|manifest|sw\\.js|tesseract).*)"],
+  matcher: ["/((?!login|api|webhook|_next|favicon|icon|apple-touch-icon|manifest|sw\\.js|tesseract).*)"],
 };

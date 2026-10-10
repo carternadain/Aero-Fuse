@@ -12,11 +12,13 @@ export const metadata: Metadata = {
   applicationName: "Aero",
   appleWebApp: { capable: true, title: "Aero", statusBarStyle: "black-translucent" },
   icons: {
+    // ?v= busts browsers' long-lived favicon cache (they kept showing the old icon).
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/favicon.png", sizes: "64x64", type: "image/png" },
+      { url: "/favicon.ico?v=2", sizes: "any" },
+      { url: "/icon.svg?v=2", type: "image/svg+xml" },
+      { url: "/favicon.png?v=2", sizes: "64x64", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
+    apple: "/apple-touch-icon.png?v=2",
   },
 };
 
