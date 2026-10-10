@@ -1,8 +1,10 @@
 """Estimated net worth before the first recorded snapshot.
 
-Today's holdings (same quantities) are priced at each past day's close; everything
+Today's holdings are priced at each past day's close; everything
 else (cash, manual accounts, debts, options) is held flat so the estimate meets the
-first real snapshot exactly. Real snapshots always win: estimates only cover days
+first real snapshot exactly. Quantities come from today's holdings minus any auto-invest
+buys made after that day (the fills ledger), so recurring buys show up as growth instead of
+being assumed held all along; with no fills, today's qty is used for every day. Real snapshots always win: estimates only cover days
 before the first one. Rows carry source='estimate'.
 
 Prices: Yahoo daily closes via yfinance (stocks/ETFs, and crypto as "SYM-USD"), with
@@ -66,12 +68,51 @@ def _days(a: date, b: date) -> list[date]:
     return [a + timedelta(days=i) for i in range((b - a).days + 1)]
 
 
-def estimate(holdings: list[dict], anchor: dict, closes: dict[tuple[str, str], Closes]) -> list[dict]:
+def _fills_by_holding(live: list[dict], fills: list[dict] | None) -> list[list[tuple[str, float]]]:
+    """Pure. For each live holding, the (date, qty) buys that went into it, oldest first.
+    A fill matches the holding with the same kind, symbol and label, else the first one with
+    the same kind and symbol (the label was edited by hand)."""
+    out: list[list[tuple[str, float]]] = [[] for _ in live]
+    for f in fills or []:
+        key = (f.get("kind"), (f.get("symbol") or "").upper())
+        lab = (f.get("label") or "").strip().lower()
+        idx = [i for i, h in enumerate(live) if (h.get("kind"), (h.get("symbol") or "").upper()) == key]
+        if not idx:
+            continue
+        exact = [i for i in idx if (live[i].get("label") or "").strip().lower() == lab]
+        out[(exact or idx)[0]].append((f["date"], float(f.get("qty") or 0)))
+    for x in out:
+        x.sort()
+    return out
+
+
+def qty_on(qty: float, buys: list[tuple[str, float]], day: str) -> float:
+    """Pure. Units held at the close of `day`: today's qty minus buys dated after it."""
+    return max(0.0, qty - sum(q for d, q in buys if d > day))
+
+
+def _qty_series(qty: float, buys: list[tuple[str, float]], grid: list[date]) -> list[float]:
+    """qty_on for every day of an ascending grid in one pass."""
+    later = sum(q for _, q in buys)  # bought after the day being looked at
+    j, out = 0, []
+    for d in grid:
+        k = d.isoformat()
+        while j < len(buys) and buys[j][0] <= k:
+            later -= buys[j][1]
+            j += 1
+        out.append(max(0.0, qty - later))
+    return out
+
+
+def estimate(holdings: list[dict], anchor: dict, closes: dict[tuple[str, str], Closes],
+             fills: list[dict] | None = None) -> list[dict]:
     """Pure. Estimated rows for every day before anchor['date'] (oldest first).
 
     holdings: valued holdings (kind, symbol, qty, multiplier, value).
     anchor: the earliest real point {date, net_worth, liabilities, cash?, property?}.
     closes: (kind, symbol) -> daily closes.
+    fills: auto-invest buys {kind, symbol, label, date, qty}; units bought after a day are
+      not counted on that day.
     """
     live = [h for h in holdings if h.get("kind") in ("crypto", "stock") and h.get("qty") and (h.get("value") or 0) > 0]
     if not live:
@@ -101,17 +142,20 @@ def estimate(holdings: list[dict], anchor: dict, closes: dict[tuple[str, str], C
 
     grid = _days(start, end)
     hv = [flat] * len(grid)
-    for h, f in zip(live, firsts):
+    buys = _fills_by_holding(live, fills)
+    for h, f, b in zip(live, firsts, buys):
         c = closes.get((h["kind"], h["symbol"])) or {}
+        qtys = _qty_series(h["qty"], b, grid)
         if f is None:  # no history at all (a small holding): held flat at today's price
-            val = h["value"]
-            hv = [v + val for v in hv]
+            unit = h["value"] / h["qty"]
+            for i in range(len(grid)):
+                hv[i] += qtys[i] * unit
             continue
         mult = h.get("multiplier") or 1
         last = c[f.isoformat()]  # before its history starts, hold its first close
         for i, d in enumerate(grid):
             last = c.get(d.isoformat(), last)
-            hv[i] += h["qty"] * mult * last
+            hv[i] += qtys[i] * mult * last
 
     offset = anchor["net_worth"] - hv[-1]  # meet the first real snapshot exactly
     liab = anchor.get("liabilities") or 0.0
@@ -132,7 +176,8 @@ def estimate(holdings: list[dict], anchor: dict, closes: dict[tuple[str, str], C
     return rows
 
 
-def build(holdings: list[dict], snaps: list[dict], current: dict, fetch=daily_closes) -> list[dict]:
+def build(holdings: list[dict], snaps: list[dict], current: dict, fetch=daily_closes,
+          fills: list[dict] | None = None) -> list[dict]:
     """Cached estimate for the days before the first snapshot (or before today if none)."""
     if snaps:
         anchor = snaps[0]
@@ -142,7 +187,9 @@ def build(holdings: list[dict], snaps: list[dict], current: dict, fetch=daily_cl
     if not live:
         return []
     sig = (anchor["date"], round(anchor["net_worth"], 2),
-           tuple(sorted((h["kind"], h["symbol"], float(h["qty"])) for h in live)))
+           tuple(sorted((h["kind"], h["symbol"], float(h["qty"])) for h in live)),
+           tuple(sorted((f["kind"], f["symbol"], f.get("label") or "", f["date"], float(f["qty"]))
+                        for f in fills or [])))
     key = f"nwbf:result:{hash(sig)}"
     hit = _get(key, RESULT_TTL)
     if hit is not None:
@@ -157,7 +204,7 @@ def build(holdings: list[dict], snaps: list[dict], current: dict, fetch=daily_cl
         ctxs = [contextvars.copy_context() for _ in syms]
         with ThreadPoolExecutor(max_workers=8) as pool:
             got = list(pool.map(lambda p: p[0].run(fetch, *p[1]), zip(ctxs, syms)))
-        rows = estimate(holdings, anchor, dict(zip(syms, got)))
+        rows = estimate(holdings, anchor, dict(zip(syms, got)), fills)
         # an empty result (prices down) is cached briefly so we retry soon, not every request
         if rows:
             _set(key, rows)

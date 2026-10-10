@@ -258,6 +258,42 @@ def migrate():
                         merchant TEXT PRIMARY KEY COLLATE NOCASE,
                         status TEXT NOT NULL CHECK (status IN ('ignored','confirmed')),
                         updated_at TEXT)""")
+        # Auto-invest: recurring buys that add shares to a holding on schedule (autoinvest.py).
+        c.execute("""CREATE TABLE IF NOT EXISTS autoinvest_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        symbol TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'stock' CHECK (kind IN ('crypto','stock')),
+                        amount REAL NOT NULL,              -- $ per buy
+                        frequency TEXT NOT NULL DEFAULT 'monthly'
+                            CHECK (frequency IN ('weekly','biweekly','monthly')),
+                        day INTEGER NOT NULL DEFAULT 1,    -- weekday 0=Mon..6 (weekly/biweekly) or day of month 1-31
+                        start_date TEXT NOT NULL,          -- YYYY-MM-DD, first possible buy
+                        end_date TEXT,                     -- optional last possible buy
+                        paused INTEGER NOT NULL DEFAULT 0,
+                        paused_at TEXT,                    -- YYYY-MM-DD the pause began
+                        label TEXT DEFAULT '',             -- where it's held (matches holdings.label)
+                        track_from TEXT,                   -- buys before this were already in the holding's qty
+                        resume_from TEXT,                  -- schedule edited "from now on": earlier dates are history
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL)""")
+        # One row per scheduled buy once it's settled: filled (shares added), existing (recorded
+        # only, already counted in qty) or skipped (paused). Pending dates have no row yet.
+        c.execute("""CREATE TABLE IF NOT EXISTS autoinvest_fills (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        rule_id INTEGER,                   -- NULL once the rule is deleted (shares kept)
+                        symbol TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        label TEXT DEFAULT '',
+                        sched_date TEXT NOT NULL,          -- the scheduled day
+                        trade_date TEXT,                   -- the trading day whose close was used
+                        qty REAL NOT NULL DEFAULT 0,
+                        price REAL,
+                        amount REAL NOT NULL DEFAULT 0,
+                        status TEXT NOT NULL DEFAULT 'filled' CHECK (status IN ('filled','existing','skipped')),
+                        holding_id INTEGER,
+                        created_at TEXT NOT NULL)""")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_fill_rule_date "
+                  "ON autoinvest_fills(rule_id, sched_date) WHERE rule_id IS NOT NULL")
 
 
 def migrate_refunds(c) -> int:
