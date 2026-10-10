@@ -79,9 +79,9 @@ export default function Header() {
 
   return (
     <header ref={ref} className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 sm:gap-x-4 lg:gap-x-6 gap-y-1 px-4 py-2 sm:py-3 safe-top border-b border-edge bg-panel sticky top-0 z-40">
-      <h1 className="flex items-center shrink-0 h-10 text-txt">
-        <AeroMark size={26} />
-        <span className="sr-only">Aero</span>
+      <h1 className="flex items-center gap-2.5 shrink-0 h-10 font-display text-[20px] sm:text-[22px] leading-none text-txt whitespace-nowrap">
+        <AeroMark size={22} />
+        Aero
       </h1>
 
       <div className="order-last sm:order-none basis-full sm:basis-auto sm:flex-1 min-w-0 flex items-center gap-4 overflow-x-auto [scrollbar-width:none]" data-noswipe>
