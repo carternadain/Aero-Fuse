@@ -26,7 +26,8 @@ import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import Panes from "@/components/Panes";
-import Section, { ProHint } from "@/components/Section";
+import Section, { Gated, ProHint } from "@/components/Section";
+import Settings from "@/components/Settings";
 import { getBotTools, reveal, usePrefs } from "@/lib/prefs";
 import StatsBar from "@/components/StatsBar";
 import NewsFeed from "@/components/NewsFeed";
@@ -269,6 +270,7 @@ export default function Dashboard() {
       <HolidayFx />
       <PullToRefresh />
       <CommandPalette />
+      <Settings />
       <TickerHost />
       <MonthlyReportHost />
       <ToastHost />
@@ -286,27 +288,27 @@ export default function Dashboard() {
         {tab === "trading" && botTools && (
           <>
             <StatsBar stats={stats} edge={edge} />
-            <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
-              <Panes items={[
+            <Section id="sec-trades" title="Trade log" hint="open and closed trades · P&L calendar">
+              <Panes label="Trade log" items={[
                 { id: "sec-tradelist", label: "Trades", node: <TradeTracker trades={trades} onChanged={refreshCore} /> },
                 { id: "sec-tradecal", label: "Calendar", node: <TradeCalendar trades={trades} /> },
               ]} />
             </Section>
-            <Section id="sec-signals" title="Signals" accent="& Levels" hint="TradingView alerts · key levels · positions" pro>
-              <Panes grid items={[
+            <Section id="sec-signals" title="Signals and levels" hint="TradingView alerts · key levels · positions" pro>
+              <Panes grid label="Signals and levels" items={[
                 { id: "sec-signallog", label: "Signals", span: "lg:col-span-5", node: <SignalLog signals={signals} onChanged={refreshCore} /> },
                 { id: "sec-levels", label: "Levels", span: "lg:col-span-3", node: <KeyLevels levels={levels} prices={prices} onChanged={refreshCore} /> },
                 { id: "sec-positions", label: "Positions", span: "lg:col-span-4", node: <Portfolio positions={positions} prices={prices} onChanged={refreshCore} /> },
               ]} />
             </Section>
-            <Section id="sec-edge" title="Sizing" accent="& Stats" hint="position sizing · win rate and expectancy · paper trading bot" pro>
-              <Panes items={[
+            <Section id="sec-edge" title="Sizing and stats" hint="position sizing · win rate and expectancy · paper trading bot" pro>
+              <Panes label="Sizing and stats" items={[
                 { id: "sec-riskdesk", label: "Sizing", node: <RiskDesk trades={trades} /> },
                 { id: "sec-analytics", label: "Stats", node: <Analytics /> },
                 { id: "sec-simbot", label: "Paper bot", node: <SimBot /> },
               ]} />
             </Section>
-            <ProHint what="signals, key levels, position sizing and trading stats" />
+            <ProHint what="signals, key levels, position sizing and trading stats" ids={["sec-signals", "sec-edge"]} />
           </>
         )}
 
@@ -318,7 +320,7 @@ export default function Dashboard() {
             {sub === "check" && <div id="sec-topbuys" className="scroll-mt-28"><CheckTicker /></div>}
             {sub === "mine" && (
               <div id="sec-exits" className="scroll-mt-28">
-                <Panes items={[
+                <Panes label="Your holdings" items={[
                   { id: "sec-holdrisk", label: "Risk", node: <HoldingsRisk /> },
                   { id: "sec-exitplan", label: "Sell plan", node: <ExitPlanner /> },
                   ...(hasOptions ? [{ id: "sec-optplan", label: "Options", node: <OptionsPlan /> }] : []),
@@ -345,14 +347,14 @@ export default function Dashboard() {
             )}
             {sub === "crypto" && (
               <>
-                <Section id="sec-liqmap" title="Liquidation" accent="Heatmap" hint="where leveraged BTC positions get wiped"><LiqHeatmap /></Section>
-                <Section id="sec-crypto" title="Crypto" accent="Markets" hint="live coins · hot sectors">
-                  <Panes items={[
-                    { id: "sec-coins", label: "Coins", node: <div className="space-y-3"><CryptoContext /><CryptoScreener /></div> },
-                    { id: "sec-narratives", label: "Narratives", pro: true, node: <Narratives /> },
+                <div id="sec-crypto" className="scroll-mt-28">
+                  <Panes grid label="Crypto" items={[
+                    { id: "sec-coins", label: "Coins", span: "lg:col-span-8", node: <div className="space-y-3"><CryptoContext /><CryptoScreener /></div> },
+                    { id: "sec-narratives", label: "Narratives", pro: true, span: "lg:col-span-4", node: <Narratives /> },
                   ]} />
-                </Section>
-                <ProHint what="crypto narratives" />
+                </div>
+                <Gated id="sec-liqmap"><LiqHeatmap /></Gated>
+                <ProHint what="crypto narratives" ids={["sec-narratives"]} />
               </>
             )}
           </>
@@ -361,16 +363,16 @@ export default function Dashboard() {
         {/* ── News ── */}
         {tab === "news" && (
           <>
-            <Section id="sec-news" title="News" accent="For You" hint="what you own · watchlist · macro">
+            <div id="sec-news" className="scroll-mt-28">
               <NewsFeed news={news} loading={newsLoading} onRefresh={() => refreshNews(true)} />
-            </Section>
-            <Section id="sec-calendar" title="Coming" accent="Up" hint="earnings · Fed · CPI · jobs">
-              <Panes items={[
-                { id: "sec-earnings", label: "Earnings", node: <EarningsCalendar /> },
-                { id: "sec-econ", label: "Macro", pro: true, node: <EconCalendar /> },
+            </div>
+            <div id="sec-calendar" className="scroll-mt-28">
+              <Panes grid label="Coming up" items={[
+                { id: "sec-earnings", label: "Earnings", span: "lg:col-span-7", node: <EarningsCalendar /> },
+                { id: "sec-econ", label: "Macro", pro: true, span: "lg:col-span-5", node: <EconCalendar /> },
               ]} />
-            </Section>
-            <ProHint what="the macro calendar" />
+            </div>
+            <ProHint what="the macro calendar" ids={["sec-econ"]} />
           </>
         )}
 
