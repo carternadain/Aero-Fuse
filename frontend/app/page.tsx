@@ -54,6 +54,7 @@ import SavingsPlan from "@/components/SavingsPlan";
 import MoneyLab from "@/components/MoneyLab";
 import StressTest from "@/components/StressTest";
 import WealthChecks from "@/components/WealthChecks";
+import TaxCenter from "@/components/TaxCenter";
 import NetWorthCalendar from "@/components/NetWorthCalendar";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
@@ -347,6 +348,7 @@ export default function Dashboard() {
                 { id: "sec-health", label: "Health check", node: <WealthChecks /> },
               ]} />
             </Section>
+            <Section id="sec-taxes" title="Tax" accent="Savings" hint="gains · harvest losses · wash sales"><TaxCenter /></Section>
             <Section id="sec-cashflow" title="Cash" accent="Flow" hint="dividends · budget">
               <Panes items={[
                 { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
