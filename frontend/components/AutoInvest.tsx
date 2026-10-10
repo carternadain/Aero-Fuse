@@ -164,9 +164,9 @@ interface Form {
 
 const fromRule = (r: Rule | null): Form => r
   ? { symbol: r.symbol, kind: r.kind, amount: String(r.amount), frequency: r.frequency, day: r.day,
-      start_date: r.start_date, end_date: r.end_date ?? "", label: r.label, add_past: true, paused: r.paused }
+      start_date: r.start_date, end_date: r.end_date ?? "", label: r.label, add_past: false, paused: r.paused }
   : { symbol: "", kind: "stock", amount: "", frequency: "monthly", day: new Date().getDate(),
-      start_date: todayIso(), end_date: "", label: "", add_past: true, paused: false };
+      start_date: todayIso(), end_date: "", label: "", add_past: false, paused: false };
 
 function Seg<T extends string | number>({ value, options, onChange, label }: {
   value: T; options: [T, string][]; onChange: (v: T) => void; label: string;
@@ -380,7 +380,7 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
 
           {isNew && pastStart && (
             <Toggle label="Add past buys to holdings" checked={f.add_past} onChange={(v) => set("add_past", v)}
-                    sub={f.add_past ? "Buys since the start date are added at each day's close." : "Your share count already has them. They're kept for history only."} />
+                    sub={f.add_past ? "Buys since the start date are added at each day's close." : "Off: your share count already includes them, so they only shape your net worth history."} />
           )}
 
           {!isNew && (
