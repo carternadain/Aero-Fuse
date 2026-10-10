@@ -5,9 +5,9 @@ import { ArrowRight, Bell, Bot, Download, Layers, LayoutGrid, CornerDownLeft, Ey
 import { api } from "@/lib/api";
 import { haptic, navigate, on, openAlerts, openReport, openSettings, openTicker, type Kind } from "@/lib/bus";
 import { accountAnchor } from "@/lib/live";
-import { isHidden, setHidden } from "@/lib/privacy";
+import { setHidden, usePrivacy } from "@/lib/privacy";
 import { useStars } from "@/lib/stars";
-import { getMode, setMode, setBotTools, usePrefs } from "@/lib/prefs";
+import { setMode, setBotTools, usePrefs } from "@/lib/prefs";
 
 interface IndexTicker { symbol: string; kind: Kind; name: string | null; sector?: string; owned: boolean }
 
@@ -58,7 +58,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Free money", "wealth", undefined, "sec-health", "health check irs limits emergency fund match"],
   ["Net worth calendar", "wealth", undefined, "sec-nwcal", "daily heatmap"],
   ["Monthly budget", "wealth", undefined, "sec-budget", "monthly budget targets limits category spending left per day pace over"],
-  ["Money in & out (import statements)", "wealth", undefined, "sec-spending", "budget spending import csv ofx qfx bank statement transactions categories rules"],
+  ["Spending (import statements)", "wealth", undefined, "sec-spending", "money in out budget spending import csv ofx qfx bank statement transactions categories rules"],
   ["Bills & subscriptions", "wealth", undefined, "sec-bills", "bills recurring subscriptions monthly charges"],
   ["FIRE calculator", "wealth", undefined, "sec-fire", "retire early independence"],
 ];
@@ -88,7 +88,8 @@ export default function CommandPalette() {
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const { items: stars } = useStars();
-  const { botTools } = usePrefs();
+  const { botTools, mode } = usePrefs();
+  const hidden = usePrivacy(); // labels below flip with these, so the list must too
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -149,10 +150,10 @@ export default function CommandPalette() {
                  run: () => navigate({ tab: "home", anchor: accountAnchor(a) }) });
     }
     out.push(
-      { id: "x:hide", group: "Actions", label: isHidden() ? "Show balances" : "Hide balances", icon: Eye, keywords: "privacy mask",
-        run: () => setHidden(!isHidden()) },
-      { id: "x:mode", group: "Actions", label: getMode() === "simple" ? "Switch to Pro mode (show everything)" : "Switch to Simple mode",
-        icon: Layers, keywords: "simple pro advanced declutter view", run: () => setMode(getMode() === "simple" ? "pro" : "simple") },
+      { id: "x:hide", group: "Actions", label: hidden ? "Show balances" : "Hide balances", icon: Eye, keywords: "privacy mask",
+        run: () => setHidden(!hidden) },
+      { id: "x:mode", group: "Actions", label: mode === "simple" ? "Switch to Pro mode (show everything)" : "Switch to Simple mode",
+        icon: Layers, keywords: "simple pro advanced declutter view", run: () => setMode(mode === "simple" ? "pro" : "simple") },
       { id: "x:bot", group: "Actions", label: botTools ? "Hide trading bot tools" : "Show trading bot tools", icon: Bot,
         keywords: "bot trade log signals paper simbot switch", run: () => {
           setBotTools(!botTools);
@@ -160,7 +161,7 @@ export default function CommandPalette() {
         } },
       { id: "x:settings", group: "Actions", label: "Settings", icon: Gear, keywords: "preferences options colors palette theme holiday view simple pro log out sign out logout",
         run: () => openSettings() },
-      { id: "x:home", group: "Actions", label: "Customize Home", icon: LayoutGrid, keywords: "home cards edit show hide layout settings",
+      { id: "x:home", group: "Actions", label: "Edit Home", icon: LayoutGrid, keywords: "home screen cards customize show hide layout settings",
         run: () => openSettings("home") },
       { id: "x:panels", group: "Actions", label: "Choose Invest and News panels", icon: LayoutGrid, keywords: "panels show hide settings narratives macro screener heatmap",
         run: () => openSettings("panels") },
@@ -170,7 +171,7 @@ export default function CommandPalette() {
       { id: "x:report", group: "Actions", label: "Monthly report", icon: FileBarChart, keywords: "recap summary month", run: () => openReport() },
     );
     return out;
-  }, [index, stars, botTools]);
+  }, [index, stars, botTools, mode, hidden]);
 
   const ql = q.trim().toLowerCase();
   const results = useMemo(() => {
