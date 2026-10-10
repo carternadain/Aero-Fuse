@@ -209,8 +209,10 @@ def test_endpoint(tmpdb):
     # commit fills in a hash for edited rows, and dedupes the second time
     row = {"date": "2026-10-09", "merchant": "Lyft", "description": "", "amount": 9.0,
            "kind": "expense", "category": "transport", "hash": None}
-    assert c.post("/api/import/commit", json={"rows": [row]}).json() == {"inserted": 1, "duplicates": 0}
-    assert c.post("/api/import/commit", json={"rows": [row]}).json() == {"inserted": 0, "duplicates": 1}
+    first = c.post("/api/import/commit", json={"rows": [row]}).json()
+    assert (first["inserted"], first["duplicates"]) == (1, 0) and first["batch"]
+    again = c.post("/api/import/commit", json={"rows": [row]}).json()
+    assert (again["inserted"], again["duplicates"]) == (0, 1)
 
 
 # ── real tesseract output (dark-mode Robinhood-style screenshot) ──

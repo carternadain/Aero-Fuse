@@ -239,8 +239,10 @@ def migrate():
 
         # transactions v2: statement import (merchant, where it came from, dedupe hash)
         tcols = {r["name"] for r in c.execute("PRAGMA table_info(transactions)").fetchall()}
+        # v3: budget_month (YYYY-MM) counts a row in another month than its date (card statements
+        # paid the month after); import_batch groups one import so it can be moved or removed.
         for name, decl in {"merchant": "TEXT DEFAULT ''", "source": "TEXT DEFAULT 'manual'",
-                           "import_hash": "TEXT"}.items():
+                           "import_hash": "TEXT", "budget_month": "TEXT", "import_batch": "TEXT"}.items():
             if tcols and name not in tcols:
                 c.execute(f"ALTER TABLE transactions ADD COLUMN {name} {decl}")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_import_hash "
@@ -859,36 +861,109 @@ def list_snapshots() -> list[dict]:
 
 # ── Budget: transactions + limits ─────────────────────────
 
+# The month a transaction counts in: its budget_month when set, else the month of its date.
+BUDGET_MONTH = "COALESCE(NULLIF(budget_month, ''), substr(date,1,7))"
+
+
 def create_transaction(data: dict) -> dict:
     with conn() as c:
         cur = c.execute(
-            "INSERT INTO transactions (date, category, amount, kind, note, merchant, source) "
-            "VALUES (?,?,?,?,?,?,'manual')",
-            (data.get("date") or utcnow()[:10], data["category"], data["amount"],
-             data.get("kind", "expense"), data.get("note", ""), data.get("merchant", "") or ""),
+            "INSERT INTO transactions (date, category, amount, kind, note, merchant, source, budget_month) "
+            "VALUES (?,?,?,?,?,?,'manual',?)",
+            (data.get("date") or datetime.now().strftime("%Y-%m-%d"), data["category"], data["amount"],
+             data.get("kind", "expense"), data.get("note", ""), data.get("merchant", "") or "",
+             data.get("budget_month") or None),
         )
         row = c.execute("SELECT * FROM transactions WHERE id=?", (cur.lastrowid,)).fetchone()
         return _tx_out(row)
 
 
 def _tx_out(row) -> dict:
-    """Row -> dict with a guaranteed readable merchant name."""
+    """Row -> dict with a guaranteed readable merchant name and the month it counts in."""
     d = row_to_dict(row)
     from importer import display_name  # lazy: importer imports db
     d["merchant"] = display_name(d.get("merchant"), d.get("note"), d.get("category"))
+    d["month"] = d.get("budget_month") or str(d.get("date") or "")[:7]
     return d
 
 
-def list_transactions(month: str | None = None, limit: int = 500) -> list[dict]:
+def list_transactions(month: str | None = None, limit: int = 2000) -> list[dict]:
+    """Newest first. With `month`, the transactions that count in that budget month."""
     with conn() as c:
         if month:
             rows = c.execute(
-                "SELECT * FROM transactions WHERE date LIKE ? ORDER BY date DESC, id DESC LIMIT ?",
-                (f"{month}%", limit)).fetchall()
+                f"SELECT * FROM transactions WHERE {BUDGET_MONTH}=? ORDER BY date DESC, id DESC LIMIT ?",
+                (month, limit)).fetchall()
         else:
             rows = c.execute(
                 "SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT ?", (limit,)).fetchall()
         return [_tx_out(r) for r in rows]
+
+
+def _scope(ids: list[int] | None, month: str | None, batch: str | None) -> tuple[str, list]:
+    """WHERE clause for a bulk action on explicit ids, one budget month, or one import batch."""
+    if ids:
+        ids = [int(i) for i in ids][:5000]
+        return f"id IN ({','.join('?' * len(ids))})", ids
+    if month:
+        return f"{BUDGET_MONTH}=?", [month]
+    if batch:
+        return "import_batch=?", [batch]
+    raise ValueError("Say which transactions: ids, a month or an import batch.")
+
+
+def delete_transactions(ids: list[int] | None = None, month: str | None = None,
+                        batch: str | None = None) -> int:
+    where, args = _scope(ids, month, batch)
+    with conn() as c:
+        return c.execute(f"DELETE FROM transactions WHERE {where}", args).rowcount
+
+
+def move_transactions(budget_month: str | None, ids: list[int] | None = None,
+                      month: str | None = None, batch: str | None = None) -> int:
+    """Count these transactions in `budget_month` (None = back to the month of their date).
+    A row whose date is already in that month just has its override cleared."""
+    where, args = _scope(ids, month, batch)
+    with conn() as c:
+        return c.execute(
+            f"UPDATE transactions SET budget_month = CASE WHEN ? IS NULL OR substr(date,1,7)=? "
+            f"THEN NULL ELSE ? END WHERE {where}",
+            [budget_month, budget_month, budget_month, *args]).rowcount
+
+
+def update_transaction(tx_id: int, fields: dict) -> dict | None:
+    """Edit date / amount / merchant / note / budget_month of one transaction."""
+    allowed = {k: v for k, v in fields.items() if k in ("date", "amount", "merchant", "note", "budget_month")}
+    with conn() as c:
+        row = c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone()
+        if not row:
+            return None
+        if "budget_month" in allowed:
+            bm = allowed["budget_month"] or None
+            date_ = allowed.get("date") or row["date"]
+            allowed["budget_month"] = None if bm == str(date_)[:7] else bm
+        if allowed:
+            sets = ", ".join(f"{k}=?" for k in allowed)
+            c.execute(f"UPDATE transactions SET {sets} WHERE id=?", [*allowed.values(), tx_id])
+        return _tx_out(c.execute("SELECT * FROM transactions WHERE id=?", (tx_id,)).fetchone())
+
+
+def recent_income(days: int = 120, limit: int = 4) -> list[dict]:
+    """Recent income sources (newest first, one per name) for one-tap re-entry of a paycheck."""
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    out, seen = [], set()
+    with conn() as c:
+        for r in c.execute("SELECT * FROM transactions WHERE kind='income' AND date >= ? "
+                           "ORDER BY date DESC, id DESC LIMIT 200", (cutoff,)).fetchall():
+            t = _tx_out(r)
+            key = t["merchant"].strip().lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"name": t["merchant"], "amount": t["amount"], "date": t["date"]})
+            if len(out) >= limit:
+                break
+    return out
 
 
 def list_transactions_since(days: int = 800, limit: int = 20000) -> list[dict]:
@@ -972,25 +1047,32 @@ def find_similar_transactions(rows: list[dict]) -> set[int]:
     return matched
 
 
-def insert_imported_transactions(rows: list[dict]) -> dict:
-    """Bulk insert statement rows; rows whose import_hash already exists are skipped."""
+def insert_imported_transactions(rows: list[dict], batch: str | None = None) -> dict:
+    """Bulk insert statement rows; rows whose import_hash already exists are skipped.
+    A row's optional budget_month counts it in another month than its date."""
     from importer import display_name  # lazy: importer imports db
     inserted = duplicates = 0
     with conn() as c:
         for r in rows:
             cur = c.execute(
                 """INSERT OR IGNORE INTO transactions
-                   (date, category, amount, kind, note, merchant, source, import_hash)
-                   VALUES (?,?,?,?,?,?,'import',?)""",
+                   (date, category, amount, kind, note, merchant, source, import_hash,
+                    budget_month, import_batch)
+                   VALUES (?,?,?,?,?,?,'import',?,?,?)""",
                 (r["date"], r["category"], r["amount"], r.get("kind", "expense"),
                  r.get("note", ""),
                  display_name(r.get("merchant"), r.get("note"), r.get("category")),
-                 r.get("hash") or None))
+                 r.get("hash") or None,
+                 r.get("budget_month") if r.get("budget_month") and r["budget_month"] != r["date"][:7] else None,
+                 batch))
             if cur.rowcount:
                 inserted += 1
             else:
                 duplicates += 1
-    return {"inserted": inserted, "duplicates": duplicates}
+    out = {"inserted": inserted, "duplicates": duplicates}
+    if batch:
+        out["batch"] = batch
+    return out
 
 
 def update_transaction_category(tx_id: int, category: str, kind: str | None = None) -> dict | None:
@@ -1067,8 +1149,8 @@ def spending_by_month(months: list[str]) -> dict[str, dict[str, float]]:
     out: dict[str, dict[str, float]] = {}
     with conn() as c:
         rows = c.execute(
-            f"""SELECT substr(date,1,7) AS m, category, SUM(amount) AS total
-                FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
+            f"""SELECT {BUDGET_MONTH} AS m, category, SUM(amount) AS total
+                FROM transactions WHERE kind='expense' AND {BUDGET_MONTH} IN ({marks})
                 GROUP BY m, category""", months).fetchall()
     for r in rows:
         # refunds are negative expenses; a category never shows below zero spent
@@ -1084,13 +1166,26 @@ def spending_by_day(months: list[str]) -> dict[str, dict[str, dict[int, float]]]
     out: dict[str, dict[str, dict[int, float]]] = {}
     with conn() as c:
         rows = c.execute(
-            f"""SELECT substr(date,1,7) AS m, CAST(substr(date,9,2) AS INTEGER) AS d, category,
-                       SUM(amount) AS total
-                FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
+            # A row moved into another month (a card statement paid later) lands on the 1st.
+            f"""SELECT {BUDGET_MONTH} AS m,
+                       CASE WHEN {BUDGET_MONTH} = substr(date,1,7)
+                            THEN CAST(substr(date,9,2) AS INTEGER) ELSE 1 END AS d,
+                       category, SUM(amount) AS total
+                FROM transactions WHERE kind='expense' AND {BUDGET_MONTH} IN ({marks})
                 GROUP BY m, d, category""", months).fetchall()
     for r in rows:
         out.setdefault(r["m"], {}).setdefault(r["category"], {})[r["d"]] = r["total"]
     return out
+
+
+def moved_spending(month: str) -> dict[str, float]:
+    """Expense totals per category counted in `month` but bought in an earlier month."""
+    with conn() as c:
+        rows = c.execute(
+            """SELECT category, SUM(amount) AS total FROM transactions
+               WHERE kind='expense' AND budget_month=? AND substr(date,1,7) < ?
+               GROUP BY category""", (month, month)).fetchall()
+    return {r["category"]: r["total"] for r in rows}
 
 
 def active_months(months: list[str]) -> set[str]:
@@ -1100,8 +1195,8 @@ def active_months(months: list[str]) -> set[str]:
     marks = ",".join("?" * len(months))
     with conn() as c:
         rows = c.execute(
-            f"SELECT DISTINCT substr(date,1,7) AS m FROM transactions "
-            f"WHERE substr(date,1,7) IN ({marks})", months).fetchall()
+            f"SELECT DISTINCT {BUDGET_MONTH} AS m FROM transactions "
+            f"WHERE {BUDGET_MONTH} IN ({marks})", months).fetchall()
     return {r["m"] for r in rows}
 
 
@@ -1194,5 +1289,7 @@ def budget_summary(month: str) -> dict:
         "net": round(income - expenses, 2),
         "savings_rate": round((income - expenses) / income * 100, 1) if income > 0 else 0,
         "categories": categories,
-        "transactions": txs[:50],
+        "transactions": txs,
+        "count": len(txs),
+        "recent_income": recent_income(),
     }

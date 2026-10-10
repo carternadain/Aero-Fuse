@@ -227,7 +227,7 @@ export default function MonthlyBudget() {
                 <li key={a.category} style={{ borderColor: "color-mix(in srgb, var(--color-txt) 8%, transparent)" }}>
                   <button className="w-full min-h-10 flex items-center justify-between gap-2 text-left text-[12px] rounded focus-visible:outline-2 focus-visible:outline-up"
                           onClick={() => goTo(a.category)}>
-                    <span className="text-txt truncate capitalize">{catLabel(a.category)}</span>
+                    <span className="text-txt truncate">{catLabel(a.category)}</span>
                     <span className="shrink-0 flex items-center gap-1 tabular-nums" style={{ color: alertColor(a.level) }}>
                       +{fmtUsd(a.over_amount)}
                       <ChevronRight size={14} className="text-faint" aria-hidden />
@@ -283,7 +283,7 @@ export default function MonthlyBudget() {
             </div>
           ) : (
             <p className="text-[12px] text-dim">
-              Import a statement or screenshot in the panel above, or tap a category below to set a target.
+              Import a statement or screenshots under Spending &amp; bills, or tap a category below to set a target.
             </p>
           )}
         </div>
@@ -303,7 +303,7 @@ export default function MonthlyBudget() {
               <button className="w-full min-h-10 px-3 py-2 text-left hover:bg-panel2 focus-visible:outline-2 focus-visible:outline-up"
                       aria-expanded={isOpen} onClick={() => toggle(c)}>
                 <div className="flex items-baseline justify-between gap-2 text-[12px]">
-                  <span className="text-txt truncate capitalize min-w-0 inline-flex items-center gap-2">
+                  <span className="text-txt truncate min-w-0 inline-flex items-center gap-2">
                     {al && (
                       <span className="shrink-0 size-1.5 rounded-full" style={{ background: alertColor(al.level) }}>
                         <span className="sr-only">Running higher than usual</span>
