@@ -38,9 +38,9 @@ export default function OptionsWatch() {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="text-[11px] text-dim">Signals + confluence</span>
-        <button className="btn !py-1.5 !px-2" onClick={loadData} disabled={loading} title="Refresh">
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+        <span className="text-[12px] text-dim">Your options tickers and their latest signals</span>
+        <button className="icon-btn" onClick={loadData} disabled={loading} title="Refresh" aria-label="Refresh options watch">
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
@@ -60,20 +60,18 @@ export default function OptionsWatch() {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-txt text-sm">{s.symbol}</span>
                 {s.has_confluence && (
-                  <span className="text-[9px] font-bold text-amber border border-amber/40 bg-amber/10 rounded px-1.5 py-px">
-                    🔥 CONFLUENCE
-                  </span>
+                  <span className="text-[11px] font-semibold text-amber">Confluence</span>
                 )}
               </div>
               <span className="tabular-nums text-xs text-dim">
                 {s.price != null ? `$${fmtPrice(s.price)}` : "—"}
               </span>
             </div>
-            <ScoreMeter score={s.score} compact />
+            {s.score != null && <ScoreMeter score={s.score} compact />}
+            {s.signals.length === 0 ? <p className="text-[12px] text-faint">No recent signals</p> : (
             <div className="space-y-1 pt-1">
-              {s.signals.length === 0 && <p className="text-[10px] text-faint">No recent signals</p>}
-              {s.signals.slice(0, 4).map((sig) => (
-                <div key={sig.id} className="flex items-center gap-2 text-[10px]">
+              {s.signals.slice(0, 2).map((sig) => (
+                <div key={sig.id} className="flex items-center gap-2 text-[11px]">
                   <span className={sig.direction === "buy" ? "text-up" : "text-down"}>
                     {sig.direction === "buy" ? "▲" : "▼"}
                   </span>
@@ -87,6 +85,7 @@ export default function OptionsWatch() {
                 </div>
               ))}
             </div>
+            )}
           </div>
         ))}
       </div>
