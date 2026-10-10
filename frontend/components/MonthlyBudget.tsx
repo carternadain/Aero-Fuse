@@ -266,21 +266,23 @@ export default function MonthlyBudget() {
       )}
 
       {plan && !hasTargets && (
-        <div className="p-3 border-b border-edge bg-panel2 space-y-2">
+        <div className="m-3 rounded-xl bg-panel2 p-3">
           {plan.history_months > 0 ? (
-            <>
-              <div className="text-[12px] text-txt font-bold">
-                Start from your last {plan.history_months} {plan.history_months === 1 ? "month" : "months"}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-semibold text-txt">
+                  Start from your last {plan.history_months} {plan.history_months === 1 ? "month" : "months"}
+                </div>
+                <p className="text-[12px] text-dim">Targets based on what you actually spent.</p>
               </div>
-              <p className="text-[11px] text-dim">
-                Sets a target for every category from what you actually spent. Tweak any of them after.
-              </p>
-              <button className="btn btn-primary !min-h-10 w-full" disabled={busy} onClick={startFromHistory}>
-                Set targets from history
+              <button className="shrink-0 min-h-10 px-4 rounded-full text-[13px] font-semibold text-up transition-colors hover:brightness-110 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-up"
+                      style={{ background: "color-mix(in srgb, var(--color-up) 16%, transparent)" }}
+                      disabled={busy} onClick={startFromHistory}>
+                Set targets
               </button>
-            </>
+            </div>
           ) : (
-            <p className="text-[11px] text-dim">
+            <p className="text-[12px] text-dim">
               Import a statement in the panel above, or tap a category below to set a target.
             </p>
           )}
