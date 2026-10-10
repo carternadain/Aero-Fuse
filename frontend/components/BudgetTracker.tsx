@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronLeft, ChevronRight, FileUp, PiggyBank, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileUp, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtUsd } from "./NetWorth";
-import { budgetChanged, onBudgetChanged, toast } from "@/lib/bus";
+import { budgetChanged, fmtShortDate, onBudgetChanged, toast } from "@/lib/bus";
 import { ALL_CATS, EXPENSE_CATS, catLabel, errorText } from "@/lib/categories";
 import ImportStatement from "./ImportStatement";
+import SwipeRow, { deferDelete } from "./SwipeRow";
 
 interface Tx {
   id: number;
@@ -31,6 +32,11 @@ interface BudgetSummary {
 
 const PIE_COLORS = ["#e3a83c", "#56b8a4", "#6cb4ff", "#e98cb4", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
 
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 function monthShift(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -47,6 +53,7 @@ export default function BudgetTracker() {
   const [importing, setImporting] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [edit, setEdit] = useState({ category: "other", remember: true, existing: false });
+  const [hidden, setHidden] = useState<number[]>([]); // deleted, waiting out the Undo window
   const [f, setF] = useState({ kind: "expense", category: "food", amount: "", note: "" });
 
   const refresh = () =>
@@ -88,28 +95,37 @@ export default function BudgetTracker() {
     }
   };
 
+  const remove = (t: Tx) =>
+    deferDelete({
+      message: "Transaction deleted",
+      hide: () => setHidden((h) => [...h, t.id]),
+      restore: () => setHidden((h) => h.filter((i) => i !== t.id)),
+      commit: () => api.del(`/api/transactions/${t.id}`).then(() => { changed(); setHidden((h) => h.filter((i) => i !== t.id)); }),
+    });
+
   const pieData = (sum?.categories ?? []).filter((c) => c.spent > 0)
     .map((c) => ({ name: c.category, value: c.spent }));
 
   return (
     <section className="panel flex flex-col">
       <div className="panel-head">
-        <span className="panel-title"><PiggyBank size={14} />Spending</span>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-0.5">
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Previous month"
                   onClick={() => setMonth(monthShift(month, -1))}>
             <ChevronLeft size={14} />
           </button>
-          <span className="text-[11px] text-txt tabular-nums">{month}</span>
+          <span className="min-w-[4.5rem] text-center text-[13px] font-semibold text-txt tabular-nums">{monthLabel(month)}</span>
           <button className="btn !min-h-10 !min-w-10 !px-2" aria-label="Next month"
                   onClick={() => setMonth(monthShift(month, 1))}>
             <ChevronRight size={14} />
           </button>
+        </div>
+        <div className="flex items-center gap-1.5">
           <button className="btn !min-h-10" onClick={() => setImporting(true)}>
             <FileUp size={13} />Import
           </button>
           <button className="btn btn-primary !min-h-10" onClick={() => setAdding(!adding)}>
-            <Plus size={13} strokeWidth={3} />Tx
+            <Plus size={13} strokeWidth={3} />Add
           </button>
         </div>
       </div>
@@ -215,25 +231,21 @@ export default function BudgetTracker() {
 
       {/* Recent transactions */}
       <div className="border-t border-edge overflow-y-auto max-h-80">
-        {(sum?.transactions ?? []).map((t) => (
+        {(sum?.transactions ?? []).filter((t) => !hidden.includes(t.id)).map((t) => (
           <div key={t.id} className="border-t border-edge first:border-t-0">
-            <div className="flex items-center gap-2 pl-3 pr-1 min-h-10 text-[11px] hover:bg-panel2">
-              <span className="text-faint tabular-nums shrink-0">{t.date.slice(5)}</span>
+            <SwipeRow label="Delete transaction" onDelete={() => remove(t)}
+                      className="flex items-center gap-2 pl-3 pr-3 [@media(hover:hover)]:pr-1 min-h-10 text-[11px] hover:bg-panel2">
+              <span className="text-dim shrink-0 w-12">{fmtShortDate(t.date)}</span>
               <span className="min-w-0 flex-1 truncate text-txt" title={t.note}>{t.merchant || t.note || "—"}</span>
               <button className={`shrink-0 min-h-10 px-1.5 rounded focus-visible:outline-2 focus-visible:outline-up ${t.kind === "income" ? "text-up" : "text-dim"} hover:text-txt`}
                       aria-label={`Change category (${catLabel(t.category)})`} aria-expanded={editId === t.id}
                       onClick={() => openEdit(t)}>
                 {catLabel(t.category)}
               </button>
-              <span className={`shrink-0 font-bold tabular-nums ${t.kind === "income" ? "text-up" : "text-down"}`}>
-                {t.kind === "income" ? "+" : "−"}{fmtUsd(t.amount)}
+              <span className={`shrink-0 font-bold tabular-nums ${t.kind === "income" || t.amount < 0 ? "text-up" : "text-down"}`}>
+                {t.kind === "income" || t.amount < 0 ? "+" : "−"}{fmtUsd(Math.abs(t.amount))}
               </span>
-              <button className="icon-btn h-10 w-10 justify-center focus-visible:outline-2 focus-visible:outline-up"
-                      aria-label="Delete transaction"
-                      onClick={() => api.del(`/api/transactions/${t.id}`).then(changed)}>
-                <X size={14} />
-              </button>
-            </div>
+            </SwipeRow>
             {editId === t.id && (
               <div className="px-3 pb-3 space-y-1 bg-panel2">
                 <select className="field !h-10" value={edit.category} aria-label="Category"

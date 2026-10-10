@@ -24,9 +24,6 @@ import StarredList from "@/components/StarredList";
 import CompareChart from "@/components/CompareChart";
 import SectorMap from "@/components/SectorMap";
 import TradeCalendar from "@/components/TradeCalendar";
-import Goals from "@/components/Goals";
-import NetWorthHistory from "@/components/NetWorthHistory";
-import IncomeTracker from "@/components/IncomeTracker";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import ExitDesk from "@/components/ExitDesk";
 import Panes from "@/components/Panes";
@@ -38,12 +35,6 @@ import TradeTracker from "@/components/TradeTracker";
 import SignalLog from "@/components/SignalLog";
 import KeyLevels from "@/components/KeyLevels";
 import Portfolio from "@/components/Portfolio";
-import NetWorth from "@/components/NetWorth";
-import FireCalc from "@/components/FireCalc";
-import BudgetTracker from "@/components/BudgetTracker";
-import MonthlyBudget from "@/components/MonthlyBudget";
-import RecurringBills from "@/components/RecurringBills";
-import BackupPanel from "@/components/BackupPanel";
 import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
@@ -53,13 +44,6 @@ import Overview from "@/components/Overview";
 import DialogHost from "@/components/DialogHost";
 import Celebrate from "@/components/Celebrate";
 import PullToRefresh from "@/components/PullToRefresh";
-import RiskRating from "@/components/RiskRating";
-import SavingsPlan from "@/components/SavingsPlan";
-import MoneyLab from "@/components/MoneyLab";
-import StressTest from "@/components/StressTest";
-import WealthChecks from "@/components/WealthChecks";
-import TaxCenter from "@/components/TaxCenter";
-import NetWorthCalendar from "@/components/NetWorthCalendar";
 import CryptoScreener from "@/components/CryptoScreener";
 import CryptoContext from "@/components/CryptoContext";
 import EconCalendar from "@/components/EconCalendar";
@@ -67,10 +51,10 @@ import Narratives from "@/components/Narratives";
 import StockScreener from "@/components/StockScreener";
 import OptionsWatch from "@/components/OptionsWatch";
 import EarningsCalendar from "@/components/EarningsCalendar";
+import WealthPages, { WEALTH_ANCHOR, type WealthPage } from "@/components/WealthPages";
 
 // Anchors that live inside another foldable section
 const PARENT: Record<string, string> = {
-  "sec-risk": "sec-wealth", "sec-plan": "sec-wealth", "sec-nwcal": "sec-wealth", "sec-nwhistory": "sec-wealth",
   "sec-goals": "sec-ontrack", "sec-health": "sec-ontrack",
   "sec-income": "sec-cashflow", "sec-spending": "sec-cashflow", "sec-budget": "sec-cashflow",
   "sec-moneylab": "sec-whatif", "sec-stress": "sec-whatif", "sec-fire": "sec-whatif",
@@ -102,6 +86,7 @@ function inHScroll(el: HTMLElement | null): boolean {
 export default function Dashboard() {
   const [tab, setTabState] = useState<TabKey>("home");
   const [sub, setSubState] = useState<MarketsSub>("ideas");
+  const [wealthPage, setWealthPage] = useState<WealthPage | null>(null);
   const [, setPrivacyTick] = useState(0); // re-render everything when "hide balances" flips
   useEffect(() => {
     const on = () => setPrivacyTick((n) => n + 1);
@@ -116,6 +101,7 @@ export default function Dashboard() {
       if (!p) return;
       setTabState(p.tab);
       if (p.sub) setSubState(p.sub);
+      setWealthPage(p.tab === "wealth" ? p.page ?? null : null);
     };
     fromHash();
     window.addEventListener("hashchange", fromHash);
@@ -126,10 +112,17 @@ export default function Dashboard() {
 
   const subRef = useRef(sub);
   subRef.current = sub;
+  const wpRef = useRef<WealthPage | null>(null);
+  wpRef.current = wealthPage;
+  const listScroll = useRef(0);
   const go = useCallback((t: TabKey, s?: MarketsSub, anchor?: string) => {
     setTabState(t);
     if (s) setSubState(s);
-    history.replaceState(null, "", `#${t}${t === "markets" ? `/${s ?? subRef.current}` : ""}`);
+    const page = t === "wealth" && anchor ? WEALTH_ANCHOR[anchor] ?? null : null;
+    setWealthPage(page);
+    const hash = `#${t}${t === "markets" ? `/${s ?? subRef.current}` : ""}${page ? `/${page}` : ""}`;
+    if (page && location.hash === "#wealth") history.pushState({ wp: 1 }, "", hash); // browser back returns to the list
+    else history.replaceState(null, "", hash);
     if (anchor) {
       if (PARENT[anchor]) reveal(PARENT[anchor]); // parent first so lastRevealed ends as the pane id
       reveal(anchor);
@@ -141,6 +134,25 @@ export default function Dashboard() {
       window.scrollTo({ top: 0 });
     }
   }, []);
+  const openWealthPage = useCallback((p: WealthPage) => {
+    if (!wpRef.current) listScroll.current = window.scrollY;
+    history.pushState({ wp: 1 }, "", `#wealth/${p}`);
+    setWealthPage(p);
+    if (!window.matchMedia("(min-width: 1024px)").matches) window.scrollTo({ top: 0 });
+  }, []);
+  const closeWealthPage = useCallback(() => {
+    if (history.state?.wp) history.back(); // hashchange pops the page
+    else { history.replaceState(null, "", "#wealth"); setWealthPage(null); }
+  }, []);
+  // popping back to the list restores where you were on it
+  const hadPage = useRef(false);
+  useEffect(() => {
+    if (hadPage.current && !wealthPage && tab === "wealth") {
+      const y = listScroll.current;
+      requestAnimationFrame(() => window.scrollTo({ top: y }));
+    }
+    hadPage.current = !!wealthPage;
+  }, [wealthPage, tab]);
   const setTab = (t: TabKey) => go(t);
   const setSub = (s: MarketsSub) => go("markets", s);
 
@@ -162,6 +174,7 @@ export default function Dashboard() {
       const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
       if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5 || Date.now() - t0 > 700) return;
       const cur = pos.current;
+      if (cur.tab === "wealth" && wpRef.current && dx > 0) { haptic(); closeWealthPage(); return; } // swipe back, not a tab change
       const i = SEQ.findIndex((x) => x.tab === cur.tab && (x.tab !== "markets" || x.sub === cur.sub));
       const next = SEQ[i + (dx < 0 ? 1 : -1)];
       if (!next) return;
@@ -171,7 +184,7 @@ export default function Dashboard() {
     window.addEventListener("touchstart", start, { passive: true });
     window.addEventListener("touchend", end, { passive: true });
     return () => { window.removeEventListener("touchstart", start); window.removeEventListener("touchend", end); };
-  }, [go]);
+  }, [go, closeWealthPage]);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [edge, setEdge] = useState<EdgeReport | null>(null);
@@ -333,54 +346,14 @@ export default function Dashboard() {
 
         {/* ── Wealth ── */}
         {tab === "wealth" && (
-          <>
-            <Section id="sec-wealth" title="Net Worth" accent="Accounts" hint="tap an account to expand · tap a row to edit">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                <div className="lg:col-span-7"><NetWorth /></div>
-                <div className="lg:col-span-5">
-                  <Panes items={[
-                    { id: "sec-nwhistory", label: "Over time", node: <NetWorthHistory /> },
-                    { id: "sec-risk", label: "Risk", node: <RiskRating /> },
-                    { id: "sec-plan", label: "Savings plan", node: <SavingsPlan /> },
-                    { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
-                  ]} />
-                </div>
-              </div>
-            </Section>
-            <Section id="sec-ontrack" title="On" accent="Track" hint="goals · free money · limits · cushion">
-              <Panes items={[
-                { id: "sec-goals", label: "Goals", node: <Goals /> },
-                { id: "sec-health", label: "Health check", node: <WealthChecks /> },
-              ]} />
-            </Section>
-            <Section id="sec-taxes" title="Tax" accent="Savings" hint="gains · harvest losses · wash sales"><TaxCenter /></Section>
-            <Section id="sec-cashflow" title="Money" accent="In & Out" hint="import statements · bills · budget · dividends">
-              <Panes items={[
-                { id: "sec-spending", label: "Spending", node: (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-                    <div className="lg:col-span-7 min-w-0"><BudgetTracker /></div>
-                    <div className="lg:col-span-5 min-w-0"><RecurringBills /></div>
-                  </div>
-                ) },
-                { id: "sec-budget", label: "Budget", node: <MonthlyBudget /> },
-                { id: "sec-income", label: "Dividends", node: <IncomeTracker /> },
-              ]} />
-            </Section>
-            <Section id="sec-whatif" title="What" accent="If" hint="money lab · crash test · FIRE" pro>
-              <Panes items={[
-                { id: "sec-moneylab", label: "Money lab", node: <MoneyLab /> },
-                { id: "sec-stress", label: "Stress test", node: <StressTest /> },
-                { id: "sec-fire", label: "FIRE", node: <FireCalc /> },
-              ]} />
-            </Section>
-            <Section id="sec-backup" title="Backup" accent="& Export" hint="your data, downloadable"><BackupPanel /></Section>
-            <ProHint what="the net-worth calendar, Money Lab, the stress test and FIRE" />
-          </>
+          <WealthPages page={wealthPage} onOpen={openWealthPage} onClose={closeWealthPage} />
         )}
 
-        <footer className="pb-4 pt-2 text-center text-[10px] text-faint font-medium">
-          Quality over quantity · Confluence + sweep + 2:1 RR minimum · 70% win rate target
-        </footer>
+        {tab === "trading" && (
+          <footer className="pb-4 pt-2 text-center text-[10px] text-faint font-medium">
+            Quality over quantity · Confluence + sweep + 2:1 RR minimum · 70% win rate target
+          </footer>
+        )}
       </main>
     </div>
   );

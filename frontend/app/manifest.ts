@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 // Makes the dashboard installable ("Add to Home Screen") as a standalone app.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Swing Terminal",
-    short_name: "Swing",
-    description: "Personal swing trading terminal",
+    name: "Aero-Fuse",
+    short_name: "Aero-Fuse",
+    description: "Personal money and trading app",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

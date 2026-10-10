@@ -1,7 +1,8 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useState } from "react";
-import { Bell, RefreshCw, Target } from "lucide-react";
+import { RefreshCw, Target } from "lucide-react";
 import type { ScoredAsset } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
 import { openTicker } from "@/lib/bus";
@@ -41,6 +42,9 @@ export default function TopBuys() {
           <span className="panel-sub text-[10px] text-faint font-medium ml-1">crypto + stocks, best long-term score first</span>
         </span>
         <div className="flex items-center gap-2">
+          <InfoTip topic="Telegram alerts">
+            <p>Telegram alerts fire when any watched asset crosses into Accumulate (≥75) or Extremely overbought (≤25).</p>
+          </InfoTip>
           <div className="seg flex rounded-lg border border-edge2 text-[10px]">
             {(["all", "crypto", "stock"] as const).map((f) => (
               <button
@@ -58,11 +62,6 @@ export default function TopBuys() {
             <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-      </div>
-
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-edge bg-panel2/40 text-[10px] text-dim">
-        <Bell size={11} className="text-amber" />
-        Telegram alerts fire when any watched asset crosses into Accumulate (≥75) or Extremely overbought (≤25).
       </div>
 
       <div className="divide-y divide-edge">

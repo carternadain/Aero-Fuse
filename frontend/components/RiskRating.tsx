@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Gauge, Info } from "lucide-react";
 import { api } from "@/lib/api";
@@ -57,7 +58,9 @@ export default function RiskRating() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><Gauge size={14} />Risk Rating</span>
-        <span className="text-[10px] text-faint">how much could swing hard or go to $0</span>
+        <span className="flex items-center gap-1 text-[10px] text-faint">how much could swing hard or go to $0
+          <InfoTip topic="the risk rating"><p>Rules of thumb computed from your own numbers, not financial advice.</p></InfoTip>
+        </span>
       </div>
 
       {!r || r.score == null ? (
@@ -120,9 +123,6 @@ export default function RiskRating() {
               </li>
             ))}
           </ul>
-          <p className="text-[9px] text-faint">
-            Rules of thumb computed from your own numbers, not financial advice.
-          </p>
         </div>
       )}
     </section>

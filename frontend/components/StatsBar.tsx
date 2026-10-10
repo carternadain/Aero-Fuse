@@ -7,9 +7,9 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "up
   const color =
     tone === "up" ? "text-up" : tone === "down" ? "text-down" : tone === "amber" ? "text-amber" : "text-txt";
   return (
-    <div className="flex flex-col items-center px-4 py-2 min-w-[90px]">
+    <div className="flex flex-col items-center justify-center min-w-0 px-3 py-2.5 bg-panel sm:bg-transparent sm:px-4 sm:py-2 sm:min-w-[90px]">
       <span className="text-[9px] tracking-[0.15em] text-dim uppercase">{label}</span>
-      <span className={`text-base font-bold tabular-nums ${color}`}>{value}</span>
+      <span className={`max-w-full truncate text-base font-bold tabular-nums ${color}`}>{value}</span>
     </div>
   );
 }
@@ -20,7 +20,10 @@ export default function StatsBar({ stats, edge }: { stats: Stats | null; edge?: 
   const aiTake = edge?.ai_take;
   const aiSkip = edge?.ai_skip;
   return (
-    <div className="panel flex flex-wrap justify-around divide-x divide-edge">
+    <div className="panel overflow-hidden">
+     {/* Phones: even 2-column grid with hairline gaps. Desktop: the original centered row. */}
+     <div className="grid grid-cols-2 gap-px bg-edge [&>:last-child:nth-child(odd)]:col-span-2
+                     sm:flex sm:flex-wrap sm:justify-around sm:gap-0 sm:bg-transparent sm:divide-x sm:divide-edge">
       <Stat
         label="Win Rate"
         value={stats.closed ? `${wr}%` : "—"}
@@ -58,6 +61,7 @@ export default function StatsBar({ stats, edge }: { stats: Stats | null; edge?: 
         value={stats.worst_trade ? `${stats.worst_trade.asset} ${fmtPnl(stats.worst_trade.pnl_pct)}` : "—"}
         tone="down"
       />
+     </div>
     </div>
   );
 }

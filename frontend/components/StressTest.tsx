@@ -1,5 +1,6 @@
 "use client";
 
+import InfoTip from "./InfoTip";
 import { useEffect, useMemo, useState } from "react";
 import { Zap } from "lucide-react";
 import { api } from "@/lib/api";
@@ -100,7 +101,12 @@ export default function StressTest() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><Zap size={14} />Stress Test</span>
-        <span className="text-[10px] text-faint">replay a crash on what you own today</span>
+        <span className="flex items-center gap-1 text-[10px] text-faint">replay a crash on what you own today
+          <InfoTip topic="the stress test" title="How the stress test works">
+            <p>Approximate peak-to-bottom drops from each event, applied to your current mix. Real losses depend on exactly what you hold and when you sell. Selling at the bottom is how paper losses become real ones.</p>
+            <p>Options move about 3× the market and leveraged ETFs about 2.5×. Altcoins fall harder than BTC.</p>
+          </InfoTip>
+        </span>
       </div>
 
       <div className="flex flex-wrap gap-1.5 px-3 py-2.5 border-b border-edge">
@@ -138,7 +144,6 @@ export default function StressTest() {
                     </div>
                   ),
                 )}
-                <p className="text-[10px] text-faint">Options move about 3× the market and leveraged ETFs about 2.5×. Altcoins fall harder than BTC.</p>
               </div>
             )}
 
@@ -198,10 +203,6 @@ export default function StressTest() {
                 </div>
               ))}
             </div>
-            <p className="text-[9px] text-faint mt-3">
-              Approximate peak-to-bottom drops from each event, applied to your current mix. Real losses depend on
-              exactly what you hold and when you sell. Selling at the bottom is how paper losses become real ones.
-            </p>
           </div>
         </div>
       )}

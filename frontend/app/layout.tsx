@@ -1,16 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const manrope = Manrope({ subsets: ["latin"], variable: "--font-sans" });
-const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-num" });
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-serif-face" });
+// Apple devices get SF Pro from the system stack; Inter is the look-alike everywhere else.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Swing Terminal",
-  description: "Personal swing trading terminal",
-  applicationName: "Swing Terminal",
-  appleWebApp: { capable: true, title: "Swing", statusBarStyle: "black-translucent" },
+  title: "Aero-Fuse",
+  description: "Personal money and trading app",
+  applicationName: "Aero-Fuse",
+  appleWebApp: { capable: true, title: "Aero-Fuse", statusBarStyle: "black-translucent" },
   icons: {
     icon: "/favicon.png",
     apple: "/apple-touch-icon.png",
@@ -35,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${manrope.variable} ${jetbrains.variable} ${serif.variable}`}>{children}</body>
+      <body className={inter.variable}>{children}</body>
     </html>
   );
 }

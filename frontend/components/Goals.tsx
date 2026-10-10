@@ -76,7 +76,9 @@ export default function Goals({ compact = false }: { compact?: boolean }) {
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="panel-title"><Flag size={14} />Goals</span>
+        {/* Home has no section heading above this card, so it keeps its title there */}
+        {compact ? <span className="panel-title"><Flag size={14} />Goals</span>
+          : <span className="text-[12px] text-dim">Targets and whether you're on pace</span>}
         {compact ? (
           <button className="text-[10px] font-bold text-dim hover:text-txt" onClick={() => navigate({ tab: "wealth", anchor: "sec-goals" })}>Manage</button>
         ) : (

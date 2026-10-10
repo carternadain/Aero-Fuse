@@ -18,7 +18,8 @@
   --color-amber: #ffc24d;
   --color-cyan: #9ccfe6;
 
-  --font-display: var(--font-serif-face), Georgia, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), system-ui, sans-serif;
 }
 
 html {
@@ -26,7 +27,7 @@ html {
 }
 
 body {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   overscroll-behavior-y: none;
   background: var(--color-bg);
   color: var(--color-txt);
@@ -34,9 +35,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* All numbers render in the mono face with aligned digits */
+/* Numbers keep the body face, with aligned (tabular) digits — no monospace */
 .tabular-nums {
-  font-family: var(--font-num), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
@@ -159,33 +159,15 @@ input, select, textarea {
   color: var(--color-down);
 }
 
-/* Film grain over everything — breaks up the flat "generated dashboard" look */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 100;
-  opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
 
-/* Editorial section numbers: 01, 02, 03… per tab */
-main {
-  counter-reset: sec;
-}
-.section-divider::before {
-  counter-increment: sec;
-  content: counter(sec, decimal-leading-zero);
-  font-family: var(--font-num), ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--color-faint);
-  letter-spacing: 0.08em;
-  transform: translateY(-11px);
+/* Display type: one voice, no italic accents */
+.font-display {
+  font-weight: 650;
+  letter-spacing: -0.022em;
 }
 .font-display em {
-  font-style: italic;
+  font-style: normal;
+  color: inherit;
 }
 
 /* Installed on iOS: keep the header clear of the notch / status bar */
@@ -307,6 +289,26 @@ main {
 @keyframes flash-up { from { background-color: color-mix(in srgb, var(--color-up) 32%, transparent); } }
 @keyframes flash-down { from { background-color: color-mix(in srgb, var(--color-down) 32%, transparent); } }
 
+/* Wealth list <-> page: push in from the right, pop back from the left */
+.wp-push { animation: wp-push 0.25s ease-out backwards; }
+.wp-pop { animation: wp-pop 0.25s ease-out backwards; }
+@keyframes wp-push { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes wp-pop { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: none; } }
+@media (min-width: 1024px) { .wp-push, .wp-pop { animation-name: tab-enter; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .skeleton, .tab-enter, .flash-up, .flash-down { animation: none !important; }
+  .skeleton, .tab-enter, .flash-up, .flash-down, .wp-push, .wp-pop { animation: none !important; }
+}
+
+/* InfoTip: bottom sheet on phones, fade-in dialog on desktop */
+.infotip-backdrop { animation: infotip-fade 0.18s ease-out; }
+.infotip-sheet { animation: infotip-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes infotip-fade { from { opacity: 0; } }
+@keyframes infotip-up { from { transform: translateY(100%); } }
+@media (min-width: 640px) {
+  .infotip-sheet { animation: infotip-pop 0.18s ease-out; }
+  @keyframes infotip-pop { from { opacity: 0; transform: scale(0.97); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .infotip-backdrop, .infotip-sheet { animation: none !important; }
 }

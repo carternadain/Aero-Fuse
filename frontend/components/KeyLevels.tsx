@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, Plus, TriangleAlert, X } from "lucide-react";
+import { Layers, Plus, TriangleAlert } from "lucide-react";
 import type { Level } from "@/lib/types";
 import { api, fmtPrice } from "@/lib/api";
+import SwipeRow, { deferDelete } from "./SwipeRow";
 
 const KIND_COLORS: Record<string, string> = {
   liquidity: "text-cyan",
@@ -23,6 +24,7 @@ export default function KeyLevels({
 }) {
   const [f, setF] = useState({ asset: "SOL", price: "", label: "", kind: "liquidity" });
   const [adding, setAdding] = useState(false);
+  const [hidden, setHidden] = useState<string[]>([]); // deleted, waiting out the Undo window
 
   const add = async () => {
     const price = parseFloat(f.price);
@@ -33,7 +35,8 @@ export default function KeyLevels({
     onChanged();
   };
 
-  const grouped = levels.reduce<Record<string, Level[]>>((acc, l) => {
+  const shownLevels = levels.filter((l) => !hidden.includes(String(l.id)));
+  const grouped = shownLevels.reduce<Record<string, Level[]>>((acc, l) => {
     (acc[l.asset] ??= []).push(l);
     return acc;
   }, {});
@@ -75,7 +78,7 @@ export default function KeyLevels({
       )}
 
       <div className="overflow-y-auto">
-        {levels.length === 0 && (
+        {shownLevels.length === 0 && (
           <p className="p-4 text-xs text-dim">Pin liquidity zones &amp; key levels per asset.</p>
         )}
         {Object.entries(grouped).map(([asset, ls]) => {
@@ -90,7 +93,17 @@ export default function KeyLevels({
                 const proximity = live ? Math.abs(live - l.price) / l.price : null;
                 const near = proximity !== null && proximity < 0.015; // within 1.5%
                 return (
-                  <div key={l.id} className={`flex items-center gap-2 px-3 py-1.5 text-xs ${near ? "bg-amber/10" : ""}`}>
+                  <SwipeRow key={l.id} label="Delete level"
+                            className={`flex items-center gap-2 pl-3 pr-3 [@media(hover:hover)]:pr-1 min-h-10 text-xs ${near ? "!bg-amber/10" : ""}`}
+                            onDelete={() => {
+                              const id = String(l.id);
+                              deferDelete({
+                                message: "Level deleted",
+                                hide: () => setHidden((h) => [...h, id]),
+                                restore: () => setHidden((h) => h.filter((i) => i !== id)),
+                                commit: () => api.del(`/api/levels/${l.id}`).then(() => { onChanged(); setHidden((h) => h.filter((i) => i !== id)); }),
+                              });
+                            }}>
                     {near && <TriangleAlert size={11} className="live-dot text-amber shrink-0" />}
                     <span className={`font-bold tabular-nums ${KIND_COLORS[l.kind] ?? "text-txt"}`}>
                       {fmtPrice(l.price)}
@@ -98,10 +111,7 @@ export default function KeyLevels({
                     <span className="text-[10px] uppercase text-faint">{l.kind.slice(0, 3)}</span>
                     <span className="text-dim truncate flex-1">{l.label}</span>
                     {near && <span className="text-[9px] text-amber font-bold whitespace-nowrap">PRICE NEAR</span>}
-                    <button className="icon-btn" onClick={() => api.del(`/api/levels/${l.id}`).then(onChanged)}>
-                      <X size={12} />
-                    </button>
-                  </div>
+                  </SwipeRow>
                 );
               })}
             </div>

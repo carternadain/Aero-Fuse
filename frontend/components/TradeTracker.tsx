@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, CandlestickChart, Droplets, Plus, Trash2, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Droplets, Plus, Trash2, X } from "lucide-react";
 import type { Trade } from "@/lib/types";
 import { api, fmtPnl, fmtPrice, timeAgo } from "@/lib/api";
 import { askConfirm } from "./DialogHost";
@@ -220,7 +220,7 @@ export default function TradeTracker({ trades, onChanged }: { trades: Trade[]; o
   return (
     <section className="panel flex flex-col max-h-[640px]">
       <div className="panel-head">
-        <span className="panel-title"><CandlestickChart size={14} />Trade Tracker</span>
+        <span className="text-[11px] text-dim">Open and closed trades</span>
         <div className="flex items-center gap-2">
           <select className="field !w-auto !py-1 sm:text-[10px]" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
             <option value="">ALL</option><option value="open">OPEN</option><option value="closed">CLOSED</option>
