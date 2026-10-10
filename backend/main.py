@@ -35,6 +35,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 load_dotenv()  # also pick up a local backend/.env if present
 
 import auth
+import autoinvest
 import backup
 import budget
 import spend_alerts
@@ -329,6 +330,7 @@ def networth_snapshot_loop():
     """Hourly upsert of today's snapshot so live-priced holdings draw the chart on their own."""
     print("[networth] auto-snapshot started")
     while True:
+        autoinvest.safe_apply()  # settle due recurring buys first so the snapshot includes them
         try:
             # Anything tracked → keep today's point current (also corrects it after deletions).
             if db.list_holdings() or db.list_accounts():
@@ -1078,6 +1080,104 @@ def remove_contribution(c_id: int):
     return {"ok": True}
 
 
+# ── Auto-invest (recurring buys that grow holdings) ──────
+
+class AutoInvestIn(BaseModel):
+    symbol: str
+    kind: str = "stock"
+    amount: float
+    frequency: str = "monthly"
+    day: int = 1
+    start_date: str
+    end_date: str | None = None
+    label: str = ""
+    add_past: bool = True          # False: past buys are already in the holding's qty
+
+
+class AutoInvestPatch(BaseModel):
+    symbol: str | None = None
+    kind: str | None = None
+    amount: float | None = None
+    frequency: str | None = None
+    day: int | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    label: str | None = None
+    paused: bool | None = None
+    apply_to: str = "future"       # future | all: whether schedule edits rewrite past buys
+
+
+def _check_rule(r: dict):
+    if not (r.get("symbol") or "").strip() or len(r["symbol"].strip()) > 15:
+        raise HTTPException(400, "symbol required")
+    if r.get("kind") not in ("crypto", "stock"):
+        raise HTTPException(400, "kind must be 'crypto' or 'stock'")
+    if not (0 < (r.get("amount") or 0) <= 10_000_000):
+        raise HTTPException(400, "amount must be more than 0")
+    if r.get("frequency") not in autoinvest.FREQS:
+        raise HTTPException(400, f"frequency must be one of {list(autoinvest.FREQS)}")
+    lo, hi = (1, 31) if r["frequency"] == "monthly" else (0, 6)
+    if not (lo <= int(r.get("day", -1)) <= hi):
+        raise HTTPException(400, "day must be 1-31 (monthly) or 0-6, Monday first (weekly)")
+    _check_day(r.get("start_date"), "start_date")
+    if r.get("end_date"):
+        _check_day(r["end_date"], "end_date")
+        if r["end_date"] < r["start_date"]:
+            raise HTTPException(400, "end_date is before start_date")
+
+
+@app.get("/api/autoinvest")
+def get_autoinvest():
+    return autoinvest.list_rules()
+
+
+@app.get("/api/autoinvest/{rule_id}")
+def get_autoinvest_rule(rule_id: int):
+    r = autoinvest.get_rule(rule_id)
+    if not r:
+        raise HTTPException(404, "Rule not found")
+    return r
+
+
+@app.post("/api/autoinvest")
+def post_autoinvest(body: AutoInvestIn):
+    data = body.model_dump()
+    data["symbol"] = data["symbol"].upper().strip()
+    _check_rule(data)
+    rid = autoinvest.create_rule(data, add_past=body.add_past)
+    autoinvest.safe_apply(rule_ids=[rid])  # backfill past buys from price history
+    return autoinvest.get_rule(rid)
+
+
+@app.post("/api/autoinvest/apply")
+def post_autoinvest_apply():
+    return autoinvest.safe_apply()
+
+
+@app.patch("/api/autoinvest/{rule_id}")
+def patch_autoinvest(rule_id: int, body: AutoInvestPatch):
+    cur = autoinvest.get_rule(rule_id, fills=0)
+    if not cur:
+        raise HTTPException(404, "Rule not found")
+    if body.apply_to not in ("future", "all"):
+        raise HTTPException(400, "apply_to must be 'future' or 'all'")
+    raw = body.model_dump(exclude={"apply_to"}, exclude_unset=True)
+    fields = {k: v for k, v in raw.items() if v is not None or k == "end_date"}
+    _check_rule({**cur, **{k: v for k, v in fields.items() if k != "paused"},
+                 "symbol": (fields.get("symbol") or cur["symbol"])})
+    autoinvest.update_rule(rule_id, fields, apply_to=body.apply_to)
+    autoinvest.safe_apply(rule_ids=[rule_id])
+    return autoinvest.get_rule(rule_id)
+
+
+@app.delete("/api/autoinvest/{rule_id}")
+def remove_autoinvest(rule_id: int, keep_shares: bool = True):
+    """keep_shares=false takes the shares this rule added back out of the holding."""
+    if not autoinvest.delete_rule(rule_id, keep_shares=keep_shares):
+        raise HTTPException(404, "Rule not found")
+    return {"ok": True}
+
+
 @app.get("/api/networth/risk")
 def get_networth_risk():
     """Risk rating over everything tracked. Uses logged spending (this or last month) for the cash cushion."""
@@ -1150,7 +1250,8 @@ def _nw_estimate(snaps: list[dict]) -> list[dict]:
     """Estimated rows before the first snapshot; [] when prices can't be had."""
     try:
         hv = valued_holdings()
-        return nw_backfill.build(hv["holdings"], snaps, db.networth_breakdown(hv["value"]))
+        return nw_backfill.build(hv["holdings"], snaps, db.networth_breakdown(hv["value"]),
+                                 fills=autoinvest.ledger())
     except Exception as e:  # noqa: BLE001 - the chart falls back to recorded days
         print(f"[networth] estimate error: {e}")
         return []
