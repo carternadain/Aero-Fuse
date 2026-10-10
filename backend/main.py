@@ -1828,8 +1828,8 @@ class ExitRuleIn(BaseModel):
 
 
 @app.get("/api/exits")
-def get_exit_desk():
-    return exits.desk(valued_holdings()["holdings"])
+def get_exit_desk(kind: str | None = None):
+    return exits.desk(valued_holdings()["holdings"], kind=kind)
 
 
 @app.get("/api/exits/rules")

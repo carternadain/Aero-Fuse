@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, LogOut, MoreHorizontal, Search } from "lucide-react";
+import { Bot, Eye, EyeOff, LogOut, MoreHorizontal, Search } from "lucide-react";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { api, fmtPrice } from "@/lib/api";
 import AeroMark from "./AeroMark";
 import PalettePicker, { HolidayToggle } from "./PalettePicker";
 import AlertsCenter from "./AlertsCenter";
-import { openSearch } from "@/lib/bus";
-import { setMode, usePrefs } from "@/lib/prefs";
+import { navigate, openSearch } from "@/lib/bus";
+import { setBotTools, setMode, usePrefs } from "@/lib/prefs";
 
 export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -16,7 +16,12 @@ export default function Header() {
   const [clock, setClock] = useState("");
   const [authOn, setAuthOn] = useState(false);
   const [hide, setHide] = useState(false);
-  const { mode } = usePrefs();
+  const { mode, botTools } = usePrefs();
+  const toggleBot = () => {
+    const next = !botTools;
+    setBotTools(next);
+    if (!next && window.location.hash.startsWith("#trading")) navigate({ tab: "home" }); // the Bot tab is going away
+  };
   const ref = useRef<HTMLElement>(null);
   const [menu, setMenu] = useState(false); // phones: the less-used header buttons live in a ⋯ menu
   const menuRef = useRef<HTMLDivElement>(null);
@@ -118,6 +123,11 @@ export default function Header() {
           <button className="icon-btn !text-dim hover:!text-txt" title={hide ? "Show balances" : "Hide balances"} onClick={toggleHide}>
             {hide ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
+          <button className={`icon-btn ${botTools ? "!text-up" : "!text-dim hover:!text-txt"}`} aria-pressed={botTools}
+                  title={botTools ? "Hide trading bot tools" : "Show trading bot tools"}
+                  aria-label={botTools ? "Hide trading bot tools" : "Show trading bot tools"} onClick={toggleBot}>
+            <Bot size={15} />
+          </button>
           <PalettePicker />
           {authOn && (
             <button className="icon-btn" onClick={logout} title="Sign out">
@@ -135,6 +145,14 @@ export default function Header() {
                       onClick={() => { toggleHide(); setMenu(false); }}>
                 {hide ? <EyeOff size={15} className="text-dim" /> : <Eye size={15} className="text-dim" />}
                 {hide ? "Show balances" : "Hide balances"}
+              </button>
+              <button role="switch" aria-checked={botTools} onClick={toggleBot}
+                      className="w-full min-h-11 flex items-center gap-2.5 px-2 rounded-md text-left text-xs font-bold text-txt hover:bg-panel2/60">
+                <Bot size={15} className="text-dim" />
+                <span className="flex-1">Trading bot tools</span>
+                <span aria-hidden className={`relative w-9 h-5 rounded-full transition-colors ${botTools ? "bg-up" : "bg-edge2"}`}>
+                  <span className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-txt transition-transform ${botTools ? "translate-x-4" : ""}`} />
+                </span>
               </button>
               <p className="px-2 pt-2 pb-1 text-[10px] text-faint border-t border-edge mt-1">Colors for gains and losses</p>
               <PalettePicker variant="list" />

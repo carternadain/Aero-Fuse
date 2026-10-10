@@ -1,7 +1,7 @@
 "use client";
 
 import InfoTip from "./InfoTip";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Hourglass, Plus, RefreshCw, Target, Trash2 } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
 import { haptic, navigate, openTicker } from "@/lib/bus";
@@ -26,16 +26,9 @@ interface Row {
   gain_pct: number | null; gain_usd: number | null; weight_pct: number; heat: Heat; option: Opt | null;
   from_high_pct: number | null; rule: Rule | null; hits: { id: string; tone: "up" | "down" | "amber"; text: string }[];
 }
-interface Desk {
-  rows: Row[];
-  backdrop: {
-    fear_greed: { value: number; label: string; week_ago: number | null; month_avg: number } | null;
-    btc_funding: { current: number; avg_7d: number; annualized: number } | null;
-    btc_heat: { overall: number | null; label: string | null }; btc_mayer: string | null; spy_heat: number | null;
-  };
-}
+interface Desk { rows: Row[] }
 
-export function heatColor(h: number | null): string {
+function heatColor(h: number | null): string {
   if (h == null) return "var(--color-faint)";
   if (h < 30) return "var(--color-cyan)";
   if (h < 45) return "var(--color-up)";
@@ -77,10 +70,10 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
   const num = (v: string) => (v === "" ? undefined : Number(v));
   return (
     <div className="mt-3 rounded-xl border border-edge bg-panel2/30 p-3 space-y-2 text-[12px]">
-      <div className="text-[10px] font-bold tracking-widest text-faint">YOUR EXIT PLAN</div>
+      <div className="text-[10px] font-bold tracking-widest text-faint">YOUR SELL PLAN</div>
       <div className="flex flex-wrap gap-1.5">
         {PRESETS.map(([n, p]) => (
-          <button key={n} onClick={() => setR(p)} className="chip-tap px-2 py-0.5 rounded-md border border-edge2 text-[10px] font-semibold text-dim hover:text-txt">{n}</button>
+          <button key={n} onClick={() => setR(p)} className="chip-tap min-h-10 px-3 rounded-md border border-edge2 text-[11px] font-semibold text-dim hover:text-txt">{n}</button>
         ))}
       </div>
       {r.tp.map((t, i) => (
@@ -93,10 +86,10 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
           <input className="field !py-1 max-sm:flex-1 sm:w-14 min-w-0" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={t.trim}
                  onChange={(e) => setR({ ...r, tp: r.tp.map((x, j) => (j === i ? { ...x, trim: Number(e.target.value) } : x)) })} />
           <span className="text-faint">%</span>
-          <button className="icon-btn ml-auto" onClick={() => setR({ ...r, tp: r.tp.filter((_, j) => j !== i) })}><Trash2 size={12} /></button>
+          <button className="icon-btn ml-auto h-10 w-10" aria-label="Remove level" onClick={() => setR({ ...r, tp: r.tp.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
         </div>
       ))}
-      <button className="text-[11px] text-up font-semibold flex items-center gap-1"
+      <button className="min-h-10 text-[11px] text-up font-semibold flex items-center gap-1"
               onClick={() => setR({ ...r, tp: [...r.tp, { pct: (r.tp.at(-1)?.pct ?? 0) + 50, trim: 25 }] })}>
         <Plus size={12} /> add take-profit level
       </button>
@@ -109,8 +102,8 @@ function RuleEditor({ row, onSaved }: { row: Row; onSaved: () => void }) {
           <input className="field !py-1 w-full" inputMode="decimal" autoComplete="off" enterKeyHint="done" value={r.heat ?? ""} onChange={(e) => setR({ ...r, heat: num(e.target.value) })} /></label>
       </div>
       <div className="flex gap-2 justify-end pt-1">
-        {row.rule && <button className="btn" onClick={() => save(null)}>Remove plan</button>}
-        <button className="btn btn-primary" onClick={() => save(r)}>Save plan</button>
+        {row.rule && <button className="btn min-h-10" onClick={() => save(null)}>Remove plan</button>}
+        <button className="btn btn-primary min-h-10" onClick={() => save(r)}>Save plan</button>
       </div>
       <p className="text-[10px] text-faint">Checked every 10 minutes. When a level hits you get a push notification (if on), once per hit.</p>
     </div>
@@ -125,7 +118,7 @@ function RowCard({ row, onSaved }: { row: Row; onSaved: () => void }) {
   const target = row.kind === "option" && o ? { symbol: o.underlying, kind: "stock" as const } : { symbol: row.symbol, kind: row.kind as "crypto" | "stock" };
   return (
     <div className="border-t border-edge/60 first:border-t-0">
-      <button className="w-full text-left px-4 py-3" onClick={() => setOpen(!open)}>
+      <button className="w-full text-left px-4 py-3 min-h-10" onClick={() => setOpen(!open)}>
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border"
                style={{ borderColor: heatColor(h.overall), background: `color-mix(in srgb, ${heatColor(h.overall)} 12%, transparent)` }}>
@@ -199,9 +192,9 @@ function RowCard({ row, onSaved }: { row: Row; onSaved: () => void }) {
             </div>
           ))}
           <div className="flex gap-2 mt-2">
-            <button className="btn" onClick={() => openTicker(target)}>Chart & details</button>
-            <button className={`btn ${edit ? "" : "btn-primary"}`} onClick={() => setEdit(!edit)}>
-              <Target size={12} /> {row.rule ? "Edit exit plan" : "Set exit plan"}
+            <button className="btn min-h-10" onClick={() => openTicker(target)}>Chart & details</button>
+            <button className={`min-h-10 btn ${edit ? "" : "btn-primary"}`} onClick={() => setEdit(!edit)}>
+              <Target size={12} /> {row.rule ? "Edit sell plan" : "Set sell plan"}
             </button>
           </div>
           {edit && <RuleEditor row={row} onSaved={() => { setEdit(false); onSaved(); }} />}
@@ -220,61 +213,41 @@ function Cell({ k, v, tone }: { k: string; v: React.ReactNode; tone?: string }) 
   );
 }
 
-/** Exit Desk: how stretched each position is, over three horizons, with your own exit rules. */
-export default function ExitDesk() {
+/** Options you hold: heat for the underlying, the option clock, and your sell plan per contract. */
+export default function OptionsPlan() {
   const [d, setD] = useState<Desk | null>(null);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<"all" | "crypto" | "stock" | "option" | "plans">("all");
-  const load = () => { setLoading(true); api.get<Desk>("/api/exits").then(setD).catch(() => {}).finally(() => setLoading(false)); };
+  const load = () => { setLoading(true); api.get<Desk>("/api/exits?kind=option").then(setD).catch(() => {}).finally(() => setLoading(false)); };
   useEffect(() => { load(); const t = setInterval(load, 300_000); return () => clearInterval(t); }, []);
 
-  const rows = useMemo(() => (d?.rows ?? []).filter((r) =>
-    filter === "all" || (filter === "plans" ? !!r.rule : r.kind === filter)), [d, filter]);
-  const noCost = (d?.rows ?? []).filter((r) => r.gain_pct == null).length;
-  const b = d?.backdrop;
+  const rows = d?.rows ?? [];
+  const noCost = rows.filter((r) => r.gain_pct == null).length;
 
   return (
     <section className="panel">
       <div className="panel-head">
-        <span className="text-[12px] text-dim">How stretched each holding is</span>
+        <span className="text-[12px] text-dim">Options you hold</span>
         <div className="flex items-center gap-1">
-          <InfoTip topic="the exit desk" title="Reading the Exit Desk">
-            <p>Short = days to 2 weeks · Mid = weeks to months · Long = months to years. Tap a row for the data behind it.</p>
-            <p>Heat 0–100 per horizon: under 30 = washed out, 45–58 = neutral, over 70 = stretched, over 82 = overheated. Each number is a measurement (RSI, distance from moving averages in units of the asset&apos;s own volatility, range position, funding), shown with what it means. It describes how stretched price is, not where it goes next. Hot assets can stay hot for a long time.</p>
-            <p>Plans are checked every 10 minutes. When a level hits you get a push notification (if on), once per hit.</p>
+          <InfoTip topic="options you hold" title="Reading your options">
+            <p>Heat is 0-100 for the stock behind the option: under 30 = washed out, 45-58 = neutral, over 70 = stretched, over 82 = overheated. It describes how stretched price is, not where it goes next.</p>
+            <p>The option clock shows what time is costing you: days to expiry, breakeven, and how much of the price is time value that fades if the stock doesn&apos;t move.</p>
+            <p>Sell plans are checked every 10 minutes. When a level hits you get a push notification (if on), once per hit.</p>
           </InfoTip>
-          <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh"><RefreshCw size={12} className={loading ? "animate-spin" : ""} /></button>
+          <button className="btn min-h-10 min-w-10 !px-2" onClick={load} disabled={loading} title="Refresh" aria-label="Refresh"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
         </div>
       </div>
-
-      {b && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 border-b border-edge">
-          <Cell k="Crypto Fear & Greed" v={b.fear_greed ? <span>{b.fear_greed.value} <span className="text-dim font-semibold">{b.fear_greed.label}</span></span> : "—"}
-                tone={b.fear_greed ? (b.fear_greed.value >= 75 ? "text-down" : b.fear_greed.value >= 55 ? "text-amber" : b.fear_greed.value <= 25 ? "text-cyan" : undefined) : undefined} />
-          <Cell k="BTC funding (7d avg)" v={b.btc_funding ? `${b.btc_funding.avg_7d >= 0 ? "+" : ""}${b.btc_funding.avg_7d.toFixed(4)}%` : "—"} />
-          <Cell k="BTC Mayer multiple" v={b.btc_mayer ?? "—"} />
-          <Cell k="S&P 500 heat (SPY)" v={b.spy_heat != null ? b.spy_heat.toFixed(0) : "—"} />
-        </div>
-      )}
 
       <p className="px-4 pt-2 text-[10.5px] text-faint">Tap a row for the data behind it.</p>
-      <div className="flex gap-1.5 px-3 py-2 border-b border-edge overflow-x-auto [scrollbar-width:none]" data-noswipe>
-        {([["all", "All"], ["crypto", "Crypto"], ["stock", "Stocks"], ["option", "Options"], ["plans", "With a plan"]] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setFilter(k)}
-                  className={`chip-tap shrink-0 px-2.5 py-0.5 rounded-md border text-[11px] font-semibold ${filter === k ? "border-up/50 bg-up/10 text-up" : "border-edge2 text-dim"}`}>{l}</button>
-        ))}
-      </div>
 
       {!d ? (
-        <div className="p-3 space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
-          <p className="text-[11px] text-faint text-center">Crunching up to 5 years of history per holding…</p></div>
+        <div className="p-3 space-y-2">{[0, 1].map((i) => <Skeleton key={i} className="h-20" />)}</div>
       ) : (
         <>
           {rows.map((r) => <RowCard key={r.key} row={r} onSaved={load} />)}
-          {!rows.length && <p className="px-4 py-5 text-[12px] text-dim">Nothing here yet.</p>}
+          {!rows.length && <p className="px-4 py-5 text-[12px] text-dim">No options held right now.</p>}
           <div className="px-4 py-3 border-t border-edge text-[10.5px] text-faint leading-relaxed space-y-1">
-            {noCost > 0 && <p>{noCost} positions have no cost basis, so gains and % rules can&apos;t be checked.{" "}
-              <button className="text-up font-semibold" onClick={() => navigate({ tab: "wealth", anchor: "sec-wealth" })}>Add cost basis in Wealth →</button></p>}
+            {noCost > 0 && <p>{noCost} {noCost === 1 ? "option has" : "options have"} no cost basis, so gains and % rules can&apos;t be checked.{" "}
+              <button className="text-up font-semibold min-h-10" onClick={() => navigate({ tab: "wealth", anchor: "sec-wealth" })}>Add cost basis in Wealth →</button></p>}
             <p>Not financial advice. The decision is yours; this is the data and your own plan side by side.</p>
           </div>
         </>
