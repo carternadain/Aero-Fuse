@@ -56,7 +56,9 @@ def export_transactions_csv(month: str | None = None) -> str:
     c = _open_ro()
     try:
         if month:
-            cur = c.execute("SELECT * FROM transactions WHERE substr(date,1,7)=? ORDER BY date, id", (month,))
+            # budget month, so a card statement moved to the month it's paid exports with that month
+            cur = c.execute("SELECT * FROM transactions WHERE COALESCE(NULLIF(budget_month, ''), substr(date,1,7))=? "
+                            "ORDER BY date, id", (month,))
         else:
             cur = c.execute("SELECT * FROM transactions ORDER BY date, id")
         cols = [d[0] for d in cur.description]
