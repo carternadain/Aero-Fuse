@@ -42,7 +42,7 @@ const META: Record<WealthPage, { title: string; sub: string; icon: LucideIcon; t
   accounts: { title: "Accounts", sub: "Balances by account", icon: Landmark, tint: "up" },
   goals: { title: "Goals & health", sub: "Targets, free money, cushion", icon: Target, tint: "amber" },
   plan: { title: "Risk & savings plan", sub: "Leverage and contributions", icon: ShieldCheck, tint: "cyan" },
-  spending: { title: "Spending & bills", sub: "Import statements, subscriptions", icon: WalletCards, tint: "down" },
+  spending: { title: "Spending & bills", sub: "Import statements or screenshots, subscriptions", icon: WalletCards, tint: "down" },
   budget: { title: "Budget", sub: "Monthly targets and pace", icon: PieChart, tint: "warn" },
   dividends: { title: "Dividends", sub: "Payouts and yield", icon: Coins, tint: "up" },
   taxes: { title: "Taxes", sub: "Gains, harvesting, wash sales", icon: Receipt, tint: "amber" },

@@ -6,11 +6,11 @@ import {
 } from "recharts";
 import { Flame } from "lucide-react";
 import { api } from "@/lib/api";
+import { setAge, useAge } from "@/lib/profile";
 import { fmtUsd } from "./NetWorth";
 
 interface FireInputs {
   currentNW: number;
-  age: number;
   monthlyInvest: number;
   annualSpend: number;
   returnPct: number;     // nominal expected return %
@@ -19,7 +19,7 @@ interface FireInputs {
 }
 
 const DEFAULTS: FireInputs = {
-  currentNW: 25000, age: 25, monthlyInvest: 1500, annualSpend: 50000,
+  currentNW: 25000, monthlyInvest: 1500, annualSpend: 50000,
   returnPct: 8, inflationPct: 3, swrPct: 4,
 };
 
@@ -48,6 +48,7 @@ function Slider({
 
 export default function FireCalc() {
   const [inp, setInp] = useState<FireInputs>(DEFAULTS);
+  const age = useAge();
   const [loadedNW, setLoadedNW] = useState(false);
 
   // Restore saved inputs, then offer live net worth as the starting point
@@ -86,7 +87,7 @@ export default function FireCalc() {
     const fatFire = (inp.annualSpend * 2) / (inp.swrPct / 100);
 
     // Coast FIRE: the amount that grows to fireNumber by age 65 with zero new contributions
-    const yearsTo65 = Math.max(0, 65 - inp.age);
+    const yearsTo65 = Math.max(0, 65 - age);
     const coastNumber = fireNumber / Math.pow(1 + realReturn, yearsTo65);
 
     const data: { age: number; nw: number; contributions: number }[] = [];
@@ -97,17 +98,17 @@ export default function FireCalc() {
     // Monthly compounding with monthly deposits (matches Money Lab and how accounts actually grow).
     const rm = Math.pow(1 + realReturn, 1 / 12) - 1;
     for (let m = 0; m <= 45 * 12; m++) {
-      if (m % 12 === 0) data.push({ age: inp.age + m / 12, nw: Math.round(nw), contributions: Math.round(contributed) });
-      if (fireAge === null && nw >= fireNumber) fireAge = Math.round(inp.age + m / 12);
-      if (leanAge === null && nw >= leanFire) leanAge = Math.round(inp.age + m / 12);
+      if (m % 12 === 0) data.push({ age: age + m / 12, nw: Math.round(nw), contributions: Math.round(contributed) });
+      if (fireAge === null && nw >= fireNumber) fireAge = Math.round(age + m / 12);
+      if (leanAge === null && nw >= leanFire) leanAge = Math.round(age + m / 12);
       nw = nw * (1 + rm) + inp.monthlyInvest;
       contributed += inp.monthlyInvest;
     }
     const coastReached = inp.currentNW >= coastNumber;
     return { realReturn, fireNumber, leanFire, fatFire, coastNumber, coastReached, fireAge, leanAge, data };
-  }, [inp]);
+  }, [inp, age]);
 
-  const yearsAway = calc.fireAge !== null ? calc.fireAge - inp.age : null;
+  const yearsAway = calc.fireAge !== null ? calc.fireAge - age : null;
   const progress = Math.min(100, (inp.currentNW / calc.fireNumber) * 100);
 
   return (
@@ -198,8 +199,8 @@ export default function FireCalc() {
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 border-t border-edge">
         <Slider label="Current NW" value={inp.currentNW} min={0} max={1_000_000} step={1000}
                 fmt={fmtUsd} onChange={set("currentNW")} />
-        <Slider label="Age" value={inp.age} min={16} max={60} step={1}
-                fmt={(v) => `${v}`} onChange={set("age")} />
+        <Slider label="Age" value={age} min={16} max={60} step={1}
+                fmt={(v) => `${v}`} onChange={setAge} />
         <Slider label="Invested / mo" value={inp.monthlyInvest} min={0} max={15000} step={100}
                 fmt={fmtUsd} onChange={set("monthlyInvest")} />
         <Slider label="Spend / yr" value={inp.annualSpend} min={15000} max={250000} step={1000}

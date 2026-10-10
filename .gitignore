@@ -20,3 +20,6 @@ frontend/.next/
 frontend/next-env.d.ts
 *.tsbuildinfo
 backend/backups/
+
+# tesseract assets (copied by frontend/scripts/copy-tesseract.mjs)
+frontend/public/tesseract/

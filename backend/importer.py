@@ -8,7 +8,7 @@ import csv
 import hashlib
 import io
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 EXPENSE_CATEGORIES = ["rent", "food", "transport", "subscriptions", "fun",
                       "trading_fees", "health", "shopping", "other"]
@@ -190,6 +190,169 @@ def parse(filename: str, content: str) -> list[dict]:
         raise ValueError("I couldn't read that file. Try a CSV, OFX or QFX export from your bank.")
     if not rows:
         raise ValueError("I read the file but found no transactions in it.")
+    return rows
+
+
+# ── Screenshot (OCR) parsing ──────────────────────────────
+
+_MONTHS = {m: i + 1 for i, m in enumerate(
+    "jan feb mar apr may jun jul aug sep oct nov dec".split())}
+_WEEKDAY = r"(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+"
+
+# Header / balance lines of a card app. Matched as a prefix, so "Available credit $4,500.00" is dropped too.
+_SHOT_NOISE = re.compile(
+    r"^(?:transactions?|recent activity|activity|see all|view all|balance|available credit|"
+    r"statement balance|current balance|pending balance|credit limit|payment due|minimum payment|"
+    r"due date|card ending|gold card|robinhood|search|filter|all activity|home|cash back|rewards?)\b", re.I)
+_SHOT_TIME = re.compile(r"^\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?$", re.I)      # status bar clock or a time line
+_SHOT_BATTERY = re.compile(r"^\d{1,3}\s*%$")
+_SHOT_CATEGORY = re.compile(
+    r"^(?:restaurants?|groceries|grocery|food(?: & drink| and drink)?|fast food|coffee(?: shops?)?|shopping|"
+    r"travel|transportation|transport|entertainment|health(?:care)?|gas|bills(?: & utilities)?|utilities|"
+    r"subscriptions?|services?|other|uncategorized|fees?|education|home|personal|gifts?|general merchandise|"
+    r"automotive|insurance|pets?|software|streaming|online|in[- ]store|card present|purchase|declined|posted)$", re.I)
+_SHOT_PAYMENT = re.compile(r"\b(?:payment received|auto-?\s?pay|thank you)\b|^payment\b", re.I)
+
+# An amount at the end of a line: optional sign, $ (or OCR'd "S" glued to digits), digits, optional
+# trailing minus. The part before it must end in whitespace (or be empty).
+_SHOT_AMOUNT = re.compile(
+    r"(?:^|(?<=\s))(?P<sign>[+\-\u2212\u2013]?)\s*(?P<cur>\$|S(?=\d))?\s*"
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+[.,]\d{2}|\d+)\s*(?P<trail>[-\u2212\u2013]?)\s*$")
+
+
+def _shot_amount(line: str) -> tuple[str, float, bool] | None:
+    """Split 'Starbucks $5.45' into ('Starbucks', 5.45, plus_sign). None if no amount at the end."""
+    m = _SHOT_AMOUNT.search(line)
+    if not m:
+        return None
+    num = m.group("num")
+    if not m.group("cur") and not re.search(r"[.,]\d{2}$", num):
+        return None  # a bare integer without $ is not safely an amount ("Store 42")
+    if re.search(r",\d{2}$", num):          # "5,45" comma decimal
+        num = num[:-3].replace(",", "").replace(".", "") + "." + num[-2:]
+    else:
+        num = num.replace(",", "")
+    value = float(num)
+    if value == 0:
+        return None
+    plus = m.group("sign") == "+"
+    return line[:m.start()].strip(), value, plus
+
+
+def _shot_date(line: str, today: date) -> date | None:
+    """Parse a date/status line ('Oct 8', '10/08', 'Pending', 'Yesterday', '2 days ago')."""
+    s = line.lower().strip()
+    s = re.sub(r"[\u2022\u00b7|]", " ", s)
+    s = re.sub(r"[,\s]*\d{1,2}:\d{2}\s*(?:[ap]\.?m\.?)?$", "", s)   # trailing time of day
+    s = re.sub(r"\b(?:pending|posted|on)\b", " ", s) if re.search(r"[a-z]{3}\w*\s+\d|\d/\d", s) else s
+    s = re.sub(r"\s+", " ", s).strip(" ,.")
+    if s in ("pending", "today", "posted today", "just now"):
+        return today
+    if s == "yesterday":
+        return today - timedelta(days=1)
+    m = re.fullmatch(r"(\d{1,2}) days? ago", s)
+    if m:
+        return today - timedelta(days=int(m.group(1)))
+    s = re.sub(rf"^{_WEEKDAY}", "", s)
+    month = day = year = None
+    m = re.fullmatch(r"([a-z]{3,9})\.? (\d{1,2})(?:st|nd|rd|th)?(?:,? (\d{4}))?", s)
+    if m and m.group(1)[:3] in _MONTHS:
+        month, day, year = _MONTHS[m.group(1)[:3]], int(m.group(2)), m.group(3)
+    else:
+        m = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{2}|\d{4}))?", s)
+        if m:
+            month, day, year = int(m.group(1)), int(m.group(2)), m.group(3)
+    if month is None:
+        return None
+    try:
+        if year:
+            y = int(year)
+            return date(y + 2000 if y < 100 else y, month, day)
+        d = date(today.year, month, day)
+        if d > today + timedelta(days=2):  # no year shown: a far-future date means last year
+            d = date(today.year - 1, month, day)
+        return d
+    except ValueError:
+        return None
+
+
+def parse_screenshot_text(text: str, today: date) -> list[dict]:
+    """Turn OCR text from a card-app screenshot into rows shaped like parse():
+    {date 'YYYY-MM-DD', amount (charges negative, refunds/payments positive), description}.
+
+    Two layouts are handled: date *section headers* above their rows, and a date/status line
+    *below* each row. Which one applies is decided by whether the first amount comes before
+    the first date line."""
+    # Pass 1: classify every line.
+    items: list[tuple[str, object]] = []
+    for raw in (text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw).strip(" \t\u2022\u00b7|")
+        if not line:
+            continue
+        if _SHOT_NOISE.match(line) and not _shot_date(line, today):
+            items.append(("noise", None))
+        elif _SHOT_TIME.match(line) or _SHOT_BATTERY.match(line):
+            items.append(("time", None))      # ignorable, but does not break a merchant/amount pair
+        elif (d := _shot_date(line, today)) is not None:
+            items.append(("date", d))
+        elif (a := _shot_amount(line)) is not None:
+            items.append(("amount", a))
+        elif not re.search(r"[A-Za-z]", line) or _SHOT_CATEGORY.match(line):
+            items.append(("time", None))
+        else:
+            items.append(("text", line))
+
+    kinds = [k for k, _ in items]
+    row_mode = "amount" in kinds and ("date" not in kinds or kinds.index("amount") < kinds.index("date"))
+
+    rows: list[dict] = []
+    undated: list[dict] = []
+    section = today
+    candidate: str | None = None   # last merchant-looking line, used when the amount is on its own line
+    cand_after_row = False         # candidate came right after a finished row (maybe that row's subtitle)
+    prev = None                    # previous significant item kind ("time" lines are transparent)
+    for kind, val in items:
+        if kind == "time":
+            continue
+        if kind == "noise":
+            candidate = None
+        elif kind == "text":
+            candidate, cand_after_row = val, prev == "amount"
+        elif kind == "date":
+            candidate = None   # a date line separates a dangling merchant from the next row
+            if row_mode:
+                for r in undated:
+                    r["date"] = val.isoformat()
+                undated = []
+            else:
+                section = val
+        elif kind == "amount":
+            prefix, value, plus = val
+            # "Starbucks" / "Restaurants $6.45": the amount sits on the subtitle line, so the
+            # pending line above is the merchant. But a pending line right after a finished row
+            # may just be that row's subtitle ("Shopping"), so an inline merchant wins unless the
+            # inline text itself looks like a subtitle.
+            if prefix and candidate and not (cand_after_row and not _SHOT_CATEGORY.match(prefix)):
+                merchant = candidate
+            else:
+                merchant = prefix or candidate or ""
+            candidate = None
+            # drop leading icon glyphs OCR picks up from the merchant avatar
+            merchant = re.sub(r"^[^\w$]+", "", merchant).strip(" -:\u2022\u00b7")
+            if not re.search(r"[A-Za-z]", merchant):
+                continue
+            is_payment = bool(_SHOT_PAYMENT.search(merchant))
+            positive = plus or is_payment
+            if is_payment and not _TRANSFER.search(merchant):
+                merchant = "Payment received"  # so categorize() files a bare "Payment" as a transfer
+            row = {"date": None if row_mode else section.isoformat(),
+                   "amount": round(value if positive else -value, 2), "description": merchant}
+            rows.append(row)
+            if row_mode:
+                undated.append(row)
+        prev = kind
+    for r in undated:   # no date line found for these: assume today
+        r["date"] = today.isoformat()
     return rows
 
 
