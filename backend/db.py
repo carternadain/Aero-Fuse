@@ -1178,6 +1178,16 @@ def spending_by_day(months: list[str]) -> dict[str, dict[str, dict[int, float]]]
     return out
 
 
+def moved_spending(month: str) -> dict[str, float]:
+    """Expense totals per category counted in `month` but bought in an earlier month."""
+    with conn() as c:
+        rows = c.execute(
+            """SELECT category, SUM(amount) AS total FROM transactions
+               WHERE kind='expense' AND budget_month=? AND substr(date,1,7) < ?
+               GROUP BY category""", (month, month)).fetchall()
+    return {r["category"]: r["total"] for r in rows}
+
+
 def active_months(months: list[str]) -> set[str]:
     """Which of these months have any transaction at all (income or expense)."""
     if not months:
