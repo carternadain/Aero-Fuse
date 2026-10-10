@@ -13,6 +13,7 @@ Brings together:
 import json
 import os
 import threading
+from datetime import date as _date
 import contextvars
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -657,6 +658,11 @@ class ImportPreviewIn(BaseModel):
     flip_sign: bool = False
 
 
+class ScreenshotPreviewIn(BaseModel):
+    text: str
+    today: str | None = None  # YYYY-MM-DD from the browser; defaults to the server date
+
+
 class ImportRowIn(BaseModel):
     date: str
     merchant: str = ""
@@ -1162,6 +1168,41 @@ def import_preview(body: ImportPreviewIn):
     }
 
 
+SCREENSHOT_MAX_BYTES = 200 * 1024
+
+
+def _preview_response(rows: list[dict]) -> dict:
+    return {
+        "rows": rows,
+        "counts": {
+            "total": len(rows),
+            "new": sum(1 for r in rows if not r["duplicate"] and not r["transfer"]),
+            "duplicates": sum(1 for r in rows if r["duplicate"]),
+            "transfers": sum(1 for r in rows if r["transfer"] and not r["duplicate"]),
+        },
+    }
+
+
+@app.post("/api/import/screenshot-preview")
+def import_screenshot_preview(body: ScreenshotPreviewIn):
+    if len(body.text.encode("utf-8", "ignore")) > SCREENSHOT_MAX_BYTES:
+        raise HTTPException(413, "That screenshot has too much text (200 KB max). Try a closer crop.")
+    try:
+        today = _date.fromisoformat(body.today) if body.today else _date.today()
+    except ValueError:
+        raise HTTPException(400, "today must look like 2026-10-08")
+    parsed = importer.parse_screenshot_text(body.text, today)
+    if not parsed:
+        raise HTTPException(400, "I couldn't find any charges in that screenshot. "
+                                 "Try a closer crop of the transaction list.")
+    rows = importer.build_preview(parsed, db.list_rules())
+    dupes = db.existing_import_hashes([r["hash"] for r in rows])
+    similar = db.find_similar_transactions(rows)
+    for i, r in enumerate(rows):
+        r["duplicate"] = r["hash"] in dupes or i in similar
+    return _preview_response(rows)
+
+
 @app.post("/api/import/commit")
 def import_commit(body: ImportCommitIn):
     if len(body.rows) > IMPORT_MAX_ROWS:
@@ -1176,6 +1217,13 @@ def import_commit(body: ImportCommitIn):
             raise HTTPException(400, "Rule pattern can't be empty")
     for rule in body.remember:
         db.create_rule(rule.pattern, rule.category, rule.kind)
+    # Edited screenshot rows arrive without a hash: make one so a later re-import dedupes.
+    missing = [r for r in body.rows if not r.hash]
+    if missing:
+        fresh = importer.row_hashes([{"date": r.date, "amount": r.amount,
+                                      "description": r.description or r.merchant} for r in missing])
+        for r, h in zip(missing, fresh):
+            r.hash = h
     rows = []
     for r in body.rows:
         kind = r.kind or ("income" if r.category == "income" else "expense")

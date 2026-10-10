@@ -197,7 +197,7 @@ export default function MonthlyBudget() {
             </>
           ) : (
             <p className="text-[11px] text-dim">
-              Import a statement in the panel above, or tap a category below to set a target.
+              Import a statement or screenshot in the panel above, or tap a category below to set a target.
             </p>
           )}
         </div>
