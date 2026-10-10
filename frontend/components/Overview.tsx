@@ -93,7 +93,22 @@ function greeting(): string {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
+/** Holiday key from <html data-holiday> (set by HolidayFx). Read after mount, so SSR markup never differs. */
+function useHoliday(): string | null {
+  const [h, setH] = useState<string | null>(null);
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setH(el.dataset.holiday || null);
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ["data-holiday"] });
+    return () => mo.disconnect();
+  }, []);
+  return h;
+}
+
 export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
+  const holiday = useHoliday();
   const [risk, setRisk] = useState<RiskReport | null>(null);
   const [plan, setPlan] = useState<{ monthly_you: number; monthly_match: number } | null>(null);
   const [only, setOnly] = useState<Section | null>(null);
@@ -197,7 +212,7 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       <div className="pt-1">
         <div className="flex items-start justify-between gap-2">
           <h2 className="font-display text-[28px] sm:text-[40px] leading-none text-txt">
-            {greeting()}<em className="text-amber">.</em>
+            {holiday ? <span className="holiday-greeting">{greeting()}</span> : greeting()}<em className="text-amber">.</em>
           </h2>
           <button className="icon-btn !text-dim hover:!text-txt" onClick={() => setCustomize(true)} title="Customize Home">
             <SlidersHorizontal size={16} />
