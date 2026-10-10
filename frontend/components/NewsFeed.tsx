@@ -96,7 +96,7 @@ export default function NewsFeed({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2 font-bold transition-colors ${
+            className={`flex-1 min-h-10 py-2 font-bold transition-colors ${
               tab === t ? "text-up border-b-2 border-up" : "text-dim hover:text-txt"
             }`}
           >

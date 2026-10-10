@@ -45,6 +45,7 @@ import econ_calendar
 import extras
 import importer
 import recurring
+import leaps
 import liqmap
 import exits
 import brief
@@ -1962,6 +1963,12 @@ def get_income():
 @app.get("/api/ticker/{symbol}/why")
 def get_ticker_why(symbol: str, kind: str | None = None):
     return extras.why(_kind(symbol, kind), symbol.upper())
+
+
+@app.get("/api/leaps/{symbol}")
+def get_leaps(symbol: str, expiry: str | None = None):
+    """LEAP checker: long-dated calls for a stock/ETF. Always 200; {"available": false} when data is missing."""
+    return leaps.leap_check(symbol, expiry)
 
 
 @app.get("/api/compare")

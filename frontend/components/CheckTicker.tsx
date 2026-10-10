@@ -1,6 +1,7 @@
 "use client";
 
 import InfoTip from "./InfoTip";
+import LeapChecker from "./LeapChecker";
 import Skeleton from "./Skeleton";
 import StarButton from "./StarButton";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -503,6 +504,7 @@ export default function CheckTicker() {
   const rsiNote = w?.rsi == null ? "" : w.rsi >= 70 ? "Stretched" : w.rsi <= 30 ? "Beaten down" : "Neutral";
   const hasTiles = hasRange || w?.rsi != null || vs200 != null || earnings != null;
   const sym = sel?.symbol ?? "";
+  const longRisk = (chartFresh ? chart.reads?.long?.risk : null) ?? (horizon === "long" ? risk : holding?.risk?.long ?? null);
 
   return (
     <section className="panel">
@@ -674,7 +676,7 @@ export default function CheckTicker() {
                 <div role="group" aria-label="Chart range" className="mt-0.5 flex justify-center gap-1 text-[12px]">
                   {RANGES.map((r) => (
                     <button key={r.key} onClick={() => chooseRange(r.key)} aria-pressed={range === r.key}
-                            className={`h-7 px-3.5 rounded-full font-semibold focus-visible:outline-2 focus-visible:outline-cyan ${range === r.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
+                            className={`h-7 max-sm:h-10 px-3.5 rounded-full font-semibold focus-visible:outline-2 focus-visible:outline-cyan ${range === r.key ? "bg-panel2 text-txt" : "text-dim hover:text-txt"}`}>
                       {r.label}
                     </button>
                   ))}
@@ -716,6 +718,8 @@ export default function CheckTicker() {
                   <p className="mt-1 text-[11px] text-faint">Based on how much {sym} usually moves. Not a forecast.</p>
                 </div>
               )}
+
+              {sel.kind === "stock" && <LeapChecker symbol={sel.symbol} price={price} longRisk={longRisk} />}
 
               {/* Key stats */}
               {hasTiles && (

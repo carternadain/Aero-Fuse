@@ -215,10 +215,10 @@ export default function LiqHeatmap() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-edge text-[11px] text-dim">
-        <div className="flex gap-1.5 max-sm:gap-4">
+        <div className="flex gap-1.5 max-sm:gap-1">
           {Object.entries(MAPS).map(([k, stops]) => (
             <button key={k} onClick={() => setMap(k)} title={k}
-                    className={`w-6 h-6 rounded-md border-2 ${map === k ? "border-txt" : "border-transparent"}`}
+                    className={`w-6 h-6 max-sm:w-10 max-sm:h-10 rounded-md border-2 ${map === k ? "border-txt" : "border-transparent"}`}
                     style={{ background: `linear-gradient(135deg, ${stops.join(",")})` }} />
           ))}
         </div>
