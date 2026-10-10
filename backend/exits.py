@@ -96,30 +96,28 @@ def _sig(name: str, value: str, heat: float | None, note: str) -> dict:
     return {"name": name, "value": value, "heat": round(heat, 1) if heat is not None else None, "note": note}
 
 
-def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
-    key = f"heat:{kind}:{sym}"
-    hit = _get(key, 2400)  # inputs are daily/weekly bars; the screeners warmer refreshes every 15 min
-    if hit is not None:
-        return hit  # type: ignore[return-value]
-    closes = _daily(kind, sym)
-    if price is None:
-        price = market_data.live_quote(sym, kind).get("price") or (closes[-1] if closes else None)
-    if len(closes) < 30 or not price:
-        return {"short": None, "mid": None, "long": None, "overall": None, "signals": {"short": [], "mid": [], "long": []}}
-    closes = closes[:-1] + [price]
+def _vol(closes: list[float]) -> float:
+    """Daily stdev of the last 60 returns, floored."""
     rets = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes)) if closes[i - 1]]
-    vol = statistics.pstdev(rets[-60:]) if len(rets) > 10 else 0.03  # daily stdev
-    vol = max(vol, 0.004)
-    per = 365 if kind == "crypto" else 252
+    vol = statistics.pstdev(rets[-60:]) if len(rets) > 10 else 0.03
+    return max(vol, 0.004)
+
+
+def _z_vs(closes: list[float], price: float, vol: float, n: int):
+    sma = scoring.sma(closes, n)
+    if not sma:
+        return None, None
+    dev = price / sma - 1
+    return dev, dev / (vol * math.sqrt(n))
+
+
+def horizon_signals(kind: str, closes: list[float], price: float) -> dict:
+    """Pure short / mid signal math. `closes` must already end with `price`. No I/O, no funding."""
+    vol = _vol(closes)
+    short, mid = [], []
 
     def z_vs(n: int):
-        sma = scoring.sma(closes, n)
-        if not sma:
-            return None, None
-        dev = price / sma - 1
-        return dev, dev / (vol * math.sqrt(n))
-
-    short, mid, long_ = [], [], []
+        return _z_vs(closes, price, vol, n)
 
     r = scoring.rsi(closes, 14)
     if r is not None:
@@ -157,6 +155,24 @@ def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
         z3 = c3 / (vol * math.sqrt(n3))
         mid.append(_sig("3-month move", f"{c3 * 100:+.0f}% ({z3:+.1f}σ)", clamp(50 + z3 * 20),
                         "Quarter-long gain relative to how much this asset normally moves."))
+    return {"short": short, "mid": mid}
+
+
+def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
+    key = f"heat:{kind}:{sym}"
+    hit = _get(key, 2400)  # inputs are daily/weekly bars; the screeners warmer refreshes every 15 min
+    if hit is not None:
+        return hit  # type: ignore[return-value]
+    closes = _daily(kind, sym)
+    if price is None:
+        price = market_data.live_quote(sym, kind).get("price") or (closes[-1] if closes else None)
+    if len(closes) < 30 or not price:
+        return {"short": None, "mid": None, "long": None, "overall": None, "signals": {"short": [], "mid": [], "long": []}}
+    closes = closes[:-1] + [price]
+    vol = _vol(closes)
+    per = 365 if kind == "crypto" else 252
+    hs = horizon_signals(kind, closes, price)
+    short, mid, long_ = hs["short"], hs["mid"], []
 
     sma200 = scoring.sma(closes, 200)
     if sma200:
@@ -165,7 +181,7 @@ def asset_heat(kind: str, sym: str, price: float | None = None) -> dict:
             h = clamp((mm - 0.8) / (2.4 - 0.8) * 100)
             note = "Mayer multiple. Historically BTC under 0.8 was deep value and above 2.4 marked cycle tops."
         else:
-            _, z = z_vs(200)
+            _, z = _z_vs(closes, price, vol, 200)
             h = clamp(50 + (z or 0) * 22)
             note = "Price ÷ 200-day average. Far above it = extended long-term trend."
         long_.append(_sig("vs 200-day average", f"{mm:.2f}×", h, note))

@@ -28,6 +28,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Sector map", "markets", "ideas", "sec-sectors", "energy space heatmap"],
   ["Swing ideas", "markets", "ideas", "sec-swing", "energy nuclear space defense ai"],
   ["Buy & sell zones", "markets", "ideas", "sec-topbuys", "top buys best scores overbought accumulate"],
+  ["Exit plan", "markets", "ideas", "sec-exitplan", "sell ladder take profit budget sells simulator"],
   ["Options watch", "markets", "stocks", "sec-options", "contracts calls puts"],
   ["Tech stock screener", "markets", "stocks", "sec-screener", ""],
   ["BTC liquidation heatmap", "markets", "crypto", "sec-liqmap", "coinglass liquidity leverage bitcoin"],
