@@ -47,9 +47,9 @@ export default function CryptoScreener() {
       <div className="panel-head">
         <span className="panel-title">
           <Bitcoin size={14} /> Crypto Screener
-          <span className="panel-sub text-[10px] text-faint font-medium ml-1">top 15 · long-term score</span>
+          <span className="panel-sub hidden sm:inline text-[10px] text-faint font-medium ml-1">top 15 · 1-year score</span>
         </span>
-        <button className="btn !py-1.5 !px-2" onClick={load} disabled={loading} title="Refresh">
+        <button className="btn !min-h-10 !min-w-10 !px-2" onClick={load} disabled={loading} title="Refresh" aria-label="Refresh coins">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
@@ -64,7 +64,7 @@ export default function CryptoScreener() {
               <th className="text-right font-semibold px-2 hidden md:table-cell">7d</th>
               <th className="text-right font-semibold px-2 hidden lg:table-cell">1y</th>
               <th className="text-center font-semibold px-2 hidden sm:table-cell">7d trend</th>
-              <th className="text-left font-semibold px-3 w-[160px]">Long-term score</th>
+              <th className="text-left font-semibold px-3 w-[160px]">1-year score</th>
             </tr>
           </thead>
           <tbody>
@@ -79,14 +79,16 @@ export default function CryptoScreener() {
               <tr
                 key={c.id}
                 onClick={() => openTicker({ symbol: c.symbol.toUpperCase(), kind: "crypto", cgId: c.id })}
-                className="border-t border-edge hover:bg-panel2 transition-colors cursor-pointer"
+                onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openTicker({ symbol: c.symbol.toUpperCase(), kind: "crypto", cgId: c.id }); } }}
+                tabIndex={0}
+                className="border-t border-edge hover:bg-panel2 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyan"
                 title="View score history"
               >
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     {c.image && <img src={c.image} alt="" className="w-5 h-5 rounded-full" />}
                     <div className="leading-tight">
-                      <div className="font-bold text-txt flex items-center gap-0.5">{c.symbol}
+                      <div className="font-bold text-txt flex items-center gap-1">{c.symbol}
                         <StarButton symbol={c.symbol.toUpperCase()} kind="crypto" size={12} className="!p-1 !min-h-0 !min-w-0" /></div>
                       <div className="text-[10px] text-faint">{mcap(c.market_cap)}</div>
                     </div>
@@ -110,8 +112,8 @@ export default function CryptoScreener() {
         </table>
       </div>
       <p className="px-3 py-2 text-[10px] text-faint border-t border-edge">
-        Tap any row for its live chart, why it scores this way, and score history. Score blends RSI(14), distance from the 200-day average, and
-        52-week range position. Higher = better long-term accumulation; lower = stretched / overbought. Not financial advice.
+        Tap a row for its chart and score history. The 1-year score blends RSI(14), distance from the 200-day average and 52-week range:
+        higher is cheaper, lower is more stretched. For where a coin sits in the 4-year cycle, search it in Check. Not financial advice.
       </p>
     </section>
   );

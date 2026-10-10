@@ -268,8 +268,8 @@ export default function ExitPlanner() {
                   </div>
                   <div className="min-w-0">
                     <Label>Total profit</Label>
-                    <div className={`mt-1 text-[22px] leading-none font-bold tabular-nums truncate ${calc.profit == null ? "text-dim" : calc.profit >= 0 ? "text-up" : "text-down"}`}>
-                      {calc.profit == null ? "—" : signedMoney(calc.profit)}
+                    <div className={`mt-1 text-[22px] leading-none font-bold tabular-nums truncate ${calc.profit == null || !calc.levels.length ? "text-dim" : calc.profit >= 0 ? "text-up" : "text-down"}`}>
+                      {calc.profit == null || !calc.levels.length ? "—" : signedMoney(calc.profit)}
                     </div>
                   </div>
                   <div className="col-span-2 min-w-0">

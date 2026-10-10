@@ -35,6 +35,16 @@ export const HORIZONS: { key: ZoneHorizon; label: string }[] = [
 ];
 export const isHorizon = (v: unknown): v is ZoneHorizon => HORIZONS.some((h) => h.key === v);
 
+/** Plain-words read per horizon (from /api/zones and /api/zones/chart), e.g. "room to run (62% below its high)". */
+export type HorizonReads = Record<ZoneHorizon, string | null>;
+export type ZoneHoldingX = ZoneHolding & { read?: HorizonReads | null; from_ath_pct?: number | null };
+type ZoneChartX = ZoneChartResponse & { reads?: Record<ZoneHorizon, { risk: number | null; text: string | null }>; from_ath_pct?: number | null };
+const READ_ORDER: { key: ZoneHorizon; label: string }[] = [
+  { key: "long", label: "Long term" },
+  { key: "mid", label: "Mid term" },
+  { key: "short", label: "Short term" },
+];
+
 const RANGE_KEY = "buyzones:range";
 const RANGES: { key: ZoneChartRange; label: string; past: string }[] = [
   { key: "1Y", label: "1Y", past: "past year" },
@@ -305,7 +315,7 @@ export default function CheckTicker() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [sel, setSel] = useState<Sel | null>(null);
-  const [chart, setChart] = useState<ZoneChartResponse | null>(null);
+  const [chart, setChart] = useState<ZoneChartX | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [why, setWhy] = useState<Why | null>(null);
   const [range, setRange] = useState<ZoneChartRange>(() => {
@@ -379,7 +389,7 @@ export default function CheckTicker() {
     let live = true;
     setChartLoading(true);
     api
-      .get<ZoneChartResponse>(`/api/zones/chart/${sel.kind}/${encodeURIComponent(sel.symbol)}?range=${range}&horizon=${horizon}`)
+      .get<ZoneChartX>(`/api/zones/chart/${sel.kind}/${encodeURIComponent(sel.symbol)}?range=${range}&horizon=${horizon}`)
       .then((r) => live && setChart(r))
       .catch(() => live && setChart(null))
       .finally(() => live && setChartLoading(false));
@@ -423,6 +433,8 @@ export default function CheckTicker() {
   const submitTyped = async () => {
     const sym = q.trim().toUpperCase();
     if (!sym) return;
+    const known = index.find((x) => x.symbol === sym); // e.g. NIGHT: the server already knows it's a coin
+    if (known) { finishPick({ kind: known.kind, symbol: known.symbol }); return; }
     setSearching(true);
     setSearchErr(false);
     try {
@@ -447,17 +459,26 @@ export default function CheckTicker() {
     }
   };
 
-  const holding = data?.holdings.find((h) => sel && h.symbol === sel.symbol && h.kind === sel.kind) ?? null;
+  const holding: ZoneHoldingX | null = data?.holdings.find((h) => sel && h.symbol === sel.symbol && h.kind === sel.kind) ?? null;
   const points = chart?.points ?? [];
   const chartFresh = !!chart && !!sel && chart.symbol === sel.symbol && chart.kind === sel.kind && chart.horizon === horizon;
   const whyFresh = why && sel && why.symbol.toUpperCase() === sel.symbol.toUpperCase() ? why : null;
 
   const riskOf = (h: ZoneHolding) => h.risk?.[horizon] ?? null;
-  const risk = chartFresh ? chart.now.risk : holding ? riskOf(holding) : null;
-  const price = whyFresh?.price ?? holding?.price ?? (chartFresh ? chart.now.price : null);
+  // chart.now is null when this horizon has no reading yet (e.g. a coin under a year old, long term).
+  const chartNow = chartFresh ? chart.now : null;
+  const risk = chartFresh ? chartNow?.risk ?? null : holding ? riskOf(holding) : null;
+  const price = whyFresh?.price ?? holding?.price ?? chartNow?.price ?? null;
   const zone = zoneOf(risk);
   const verdict = risk != null ? verdictOf(risk) : null;
   const signals = chartFresh ? chart.signals : [];
+  // One short line per horizon. The chart's reads are freshest; a holding's fill in while it loads.
+  const readText = (k: ZoneHorizon): string | null =>
+    chartFresh && chart.reads ? chart.reads[k]?.text ?? null : holding?.read?.[k] ?? null;
+  const reads = READ_ORDER.map((r) => ({ ...r, text: readText(r.key) }));
+  const hasReads = reads.some((r) => r.text);
+  const noLongYet = sel?.kind === "crypto" && horizon === "long" && risk == null && chartFresh;
+  const odds = chartFresh && chart.odds && (chart.odds.m3 != null || chart.odds.y1 != null) ? chart.odds : null;
   const holdings = data?.holdings ?? [];
   const showList = focused && q.trim().length > 0;
 
@@ -538,9 +559,11 @@ export default function CheckTicker() {
         </div>
         <div className="flex items-center gap-1 h-11 shrink-0">
           <InfoTip topic="the risk score">
-            <p>Risk runs from 0 to 100, and 100 is the most stretched price gets. {horizon === "long"
-              ? "Long term: each asset is measured against its own history: how far price sits above its 200-day and 200-week averages, ranked against every other day on record. 100 is the most stretched it has ever been; past crypto bull-market tops mostly read 80–90."
-              : "Mid and short term read RSI, distance from the 20- and 50-day averages in units of the asset's own volatility, Bollinger position and recent moves."}</p>
+            <p>Risk runs from 0 to 100, and 100 is the most stretched price gets. {horizon !== "long"
+              ? "Mid and short term read RSI, distance from the 20- and 50-day averages in units of the asset's own volatility, Bollinger position and recent moves."
+              : sel?.kind === "crypto"
+                ? "Long term for crypto adds where it sits in the roughly 4-year cycle: how far it is below its all-time high, months since the last Bitcoin halving (past tops came 12–18 months after one) and, for altcoins, strength against Bitcoin. A coin far below its high early in a cycle reads as room to run even when the short term is hot. Past Bitcoin cycle tops read about 85–100."
+                : "Long term: each asset is measured against its own history: how far price sits above its 200-day and 200-week averages, ranked against every other day on record. 100 is the most stretched it has ever been."}</p>
             <p>Long term reads months to years, Mid weeks to months, Short days to two weeks.</p>
             <p>Under 30 is the buy zone, 30 to 70 is hold, and 70 and up is the sell zone. It describes how stretched price is, not where it goes next. Not financial advice.</p>
           </InfoTip>
@@ -602,13 +625,25 @@ export default function CheckTicker() {
                       {verdict.label}
                     </span>
                   ) : (
-                    <span className="text-[12px] text-faint">{chartLoading ? "Reading…" : "No reading yet"}</span>
+                    <span className="text-[12px] text-faint">{chartLoading ? "Reading…" : noLongYet && hasReads ? "" : noLongYet ? "Needs about a year of price history" : "No reading yet"}</span>
                   )}
                 </div>
-                {verdict && <p className="text-[13px] text-txt leading-snug">{verdict.line}</p>}
-                {chartFresh && chart.odds && (
+                {hasReads ? (
+                  <ul aria-label="Risk by time horizon" className="space-y-0.5">
+                    {reads.map((r) => (
+                      <li key={r.key} className={`text-[13px] leading-snug ${r.key === horizon ? "text-txt" : "text-dim"}`}>
+                        <span className={r.key === horizon ? "font-bold" : "font-semibold"}>{r.label}:</span>{" "}
+                        {r.text ?? (r.key === "long" && sel.kind === "crypto" ? "needs about a year of history" : "no reading yet")}
+                      </li>
+                    ))}
+                  </ul>
+                ) : verdict && <p className="text-[13px] text-txt leading-snug">{verdict.line}</p>}
+                {odds && (
                   <p className="text-[12px] text-dim leading-snug">
-                    Price was higher 3 months later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.m3)}%</span> of the time at this level, a year later <span className="tabular-nums font-bold text-txt">{Math.round(chart.odds.y1)}%</span>.
+                    At this level, price was higher{" "}
+                    {odds.m3 != null && <>3 months later <span className="tabular-nums font-bold text-txt">{Math.round(odds.m3)}%</span> of the time</>}
+                    {odds.m3 != null && odds.y1 != null && ", "}
+                    {odds.y1 != null && <>a year later <span className="tabular-nums font-bold text-txt">{Math.round(odds.y1)}%</span>{odds.m3 == null && " of the time"}</>}.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 pt-1">
