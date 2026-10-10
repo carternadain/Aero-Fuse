@@ -28,6 +28,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Sector map", "markets", "ideas", "sec-sectors", "energy space heatmap"],
   ["Swing ideas", "markets", "ideas", "sec-swing", "energy nuclear space defense ai"],
   ["Check a stock or crypto", "markets", "check", "sec-topbuys", "risk score buy sell zones should I buy overheated estimate top buys best scores overbought accumulate exit desk overheated heat stop trailing trim"],
+  ["LEAP checker", "markets", "check", "sec-leap", "leaps options calls long dated breakeven premium strike expiry robinhood"],
   ["Your holdings risk", "markets", "mine", "sec-holdrisk", "risk what I own overheated heat stop trailing trim"],
   ["Sell plan", "markets", "mine", "sec-exitplan", "sell ladder take profit budget sells simulator exit desk overheated heat stop trailing trim"],
   ["Options watch", "markets", "ideas", "sec-options", "contracts calls puts"],
