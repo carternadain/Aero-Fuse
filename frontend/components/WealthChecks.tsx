@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarX2, Gift, Landmark, LifeBuoy } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAge } from "@/lib/profile";
 import { fmtUsd } from "./NetWorth";
 import type { RiskReport } from "./RiskRating";
 
@@ -18,13 +19,6 @@ interface Contribution {
   monthly: number; monthly_match: number; monthly_match_max: number | null;
 }
 interface Holding { kind: string; symbol: string; display: string; value: number | null; label: string }
-
-function readAge(): number {
-  try {
-    const s = localStorage.getItem("fire-inputs-v1");
-    return s ? JSON.parse(s).age ?? 25 : 25;
-  } catch { return 25; }
-}
 
 function Card({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
@@ -57,7 +51,7 @@ export default function WealthChecks() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [spend, setSpend] = useState<number | null>(null);
   const [spendDraft, setSpendDraft] = useState("");
-  const [age, setAge] = useState(25);
+  const age = useAge();
 
   const load = () => {
     api.get<{ contributions: Contribution[] }>("/api/contributions").then((r) => setRows(r.contributions)).catch(() => {});
@@ -71,10 +65,6 @@ export default function WealthChecks() {
 
   useEffect(() => {
     load();
-    setAge(readAge());
-    const onFire = () => setAge(readAge());
-    window.addEventListener("fire-inputs", onFire);
-    return () => window.removeEventListener("fire-inputs", onFire);
   }, []);
 
   const saveSpend = async () => {

@@ -941,6 +941,37 @@ def existing_import_hashes(hashes: list[str]) -> set[str]:
     return found
 
 
+def find_similar_transactions(rows: list[dict]) -> set[int]:
+    """Indexes of `rows` ({date, amount, transfer?}) that look like an existing expense transaction:
+    same absolute amount to the cent and a date within one day. Sign-agnostic (refunds are stored
+    negative). Each existing transaction matches at most one row; same-day matches win over +/-1 day."""
+    from datetime import date as _d, timedelta
+    cand = [(i, _d.fromisoformat(r["date"]), round(abs(r["amount"]) * 100))
+            for i, r in enumerate(rows) if not r.get("transfer")]
+    if not cand:
+        return set()
+    lo = min(d for _, d, _ in cand) - timedelta(days=1)
+    hi = max(d for _, d, _ in cand) + timedelta(days=1)
+    pool: dict[int, list[list]] = {}   # cents -> [[id, date], ...]
+    with conn() as c:
+        for tid, dt, amt in c.execute(
+                "SELECT id, date, amount FROM transactions WHERE kind='expense' AND date BETWEEN ? AND ?",
+                (lo.isoformat(), hi.isoformat())):
+            pool.setdefault(round(abs(amt) * 100), []).append([tid, _d.fromisoformat(dt)])
+    used: set[int] = set()
+    matched: set[int] = set()
+    for max_gap in (0, 1):  # exact-date pairs first so a +/-1 day match can't steal them
+        for i, d, cents in cand:
+            if i in matched:
+                continue
+            for tid, td in pool.get(cents, []):
+                if tid not in used and abs((td - d).days) <= max_gap:
+                    used.add(tid)
+                    matched.add(i)
+                    break
+    return matched
+
+
 def insert_imported_transactions(rows: list[dict]) -> dict:
     """Bulk insert statement rows; rows whose import_hash already exists are skipped."""
     from importer import display_name  # lazy: importer imports db
@@ -1042,6 +1073,23 @@ def spending_by_month(months: list[str]) -> dict[str, dict[str, float]]:
     for r in rows:
         # refunds are negative expenses; a category never shows below zero spent
         out.setdefault(r["m"], {})[r["category"]] = max(0.0, r["total"])
+    return out
+
+
+def spending_by_day(months: list[str]) -> dict[str, dict[str, dict[int, float]]]:
+    """Raw expense sums as {month: {category: {day: total}}} (refunds can make a day negative)."""
+    if not months:
+        return {}
+    marks = ",".join("?" * len(months))
+    out: dict[str, dict[str, dict[int, float]]] = {}
+    with conn() as c:
+        rows = c.execute(
+            f"""SELECT substr(date,1,7) AS m, CAST(substr(date,9,2) AS INTEGER) AS d, category,
+                       SUM(amount) AS total
+                FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
+                GROUP BY m, d, category""", months).fetchall()
+    for r in rows:
+        out.setdefault(r["m"], {}).setdefault(r["category"], {})[r["d"]] = r["total"]
     return out
 
 

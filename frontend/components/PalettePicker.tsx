@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Palette } from "lucide-react";
+import { Palette, PartyPopper } from "lucide-react";
+import { setHolidayFxOff, useHolidayFx } from "@/lib/holidays";
 
 const PALETTES = [
   { key: "calm", name: "Calm", hint: "Blue up · soft orange down", up: "#6cb4ff", down: "#f4a261" },
@@ -10,6 +11,27 @@ const PALETTES = [
 ] as const;
 
 type Key = (typeof PALETTES)[number]["key"];
+
+/** On/off switch for seasonal holiday effects; shared by the desktop popover and the phone menu. */
+export function HolidayToggle({ className = "" }: { className?: string }) {
+  const { off } = useHolidayFx();
+  const on = !off;
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      onClick={() => setHolidayFxOff(on)}
+      className={`w-full flex items-center gap-2.5 px-2 py-2.5 rounded-md text-left text-xs font-bold text-txt hover:bg-panel2/60 ${className}`}
+    >
+      <PartyPopper size={15} className="text-dim" />
+      <span className="flex-1">Holiday effects</span>
+      <span className="text-[10px] font-semibold text-dim">{on ? "On" : "Off"}</span>
+      <span className={`relative w-8 h-[18px] rounded-full shrink-0 transition-colors ${on ? "bg-up" : "bg-edge2"}`} aria-hidden>
+        <span className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-txt transition-transform ${on ? "translate-x-[14px]" : ""}`} />
+      </span>
+    </button>
+  );
+}
 
 /** `list` renders just the options (for the phone header's menu); the default is an icon with a popover. */
 export default function PalettePicker({ variant = "icon" }: { variant?: "icon" | "list" }) {
@@ -64,6 +86,7 @@ export default function PalettePicker({ variant = "icon" }: { variant?: "icon" |
         <div className="absolute right-0 top-7 z-50 w-56 panel !overflow-visible p-1.5 shadow-xl">
           <p className="px-2 pt-1 pb-1.5 text-[10px] text-faint">Colors for gains and losses</p>
           {options}
+          <HolidayToggle className="mt-1 border-t border-edge" />
         </div>
       )}
     </div>

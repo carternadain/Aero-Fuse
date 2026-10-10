@@ -5,7 +5,7 @@ import { Eye, EyeOff, LogOut, MoreHorizontal, Search } from "lucide-react";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { api, fmtPrice } from "@/lib/api";
 import AeroMark from "./AeroMark";
-import PalettePicker from "./PalettePicker";
+import PalettePicker, { HolidayToggle } from "./PalettePicker";
 import AlertsCenter from "./AlertsCenter";
 import { openSearch } from "@/lib/bus";
 import { setMode, usePrefs } from "@/lib/prefs";
@@ -138,6 +138,7 @@ export default function Header() {
               </button>
               <p className="px-2 pt-2 pb-1 text-[10px] text-faint border-t border-edge mt-1">Colors for gains and losses</p>
               <PalettePicker variant="list" />
+              <HolidayToggle className="mt-1 border-t border-edge" />
               {authOn && (
                 <button className="w-full flex items-center gap-2.5 px-2 py-2.5 mt-1 rounded-md text-left text-xs font-bold text-dim border-t border-edge hover:bg-panel2/60"
                         onClick={logout}>

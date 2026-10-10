@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "./holiday-decor.css";
 
 // Apple devices get SF Pro from the system stack; Inter is the look-alike everywhere else.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
