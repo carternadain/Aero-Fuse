@@ -80,7 +80,7 @@ export default function Goals({ compact = false }: { compact?: boolean }) {
         {compact ? <span className="panel-title"><Flag size={14} />Goals</span>
           : <span className="text-[12px] text-dim">Targets and whether you're on pace</span>}
         {compact ? (
-          <button className="text-[10px] font-bold text-dim hover:text-txt" onClick={() => navigate({ tab: "wealth", anchor: "sec-goals" })}>Manage</button>
+          <button className="min-h-10 px-2 -mx-2 text-[10px] font-bold text-dim hover:text-txt focus-visible:outline-2 focus-visible:outline-cyan rounded" onClick={() => navigate({ tab: "wealth", anchor: "sec-goals" })}>Manage</button>
         ) : (
           <button className="icon-btn" onClick={() => setEditing("new")} title="New goal"><Plus size={14} /></button>
         )}

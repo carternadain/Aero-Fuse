@@ -68,13 +68,13 @@ export default function CompareChart() {
         {syms.map((s) => {
           const i = order.indexOf(s);
           return (
-            <span key={s} className="flex items-center gap-1 max-sm:gap-3 pl-2 pr-1 py-1 max-sm:py-2.5 rounded-lg border border-edge2 text-[12px] font-bold text-txt">
+            <span key={s} className="flex items-center gap-1 max-sm:gap-1 pl-2 pr-1 py-1 max-sm:py-0 rounded-lg border border-edge2 text-[12px] font-bold text-txt">
               <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i >= 0 ? i : syms.indexOf(s)] }} />
-              <button className="max-sm:min-w-10" onClick={() => openTicker({ symbol: s })}>{s}</button>
+              <button className="max-sm:min-w-10 max-sm:min-h-10" onClick={() => openTicker({ symbol: s })}>{s}</button>
               <span className="tabular-nums text-dim font-semibold ml-0.5">
                 {shown?.[s] != null ? `${shown[s] >= 0 ? "+" : ""}${shown[s].toFixed(1)}%` : ""}
               </span>
-              <button className="p-0.5 text-faint hover:text-txt" onClick={() => setSyms(syms.filter((x) => x !== s))}><X size={11} /></button>
+              <button className="p-0.5 max-sm:min-w-10 max-sm:min-h-10 inline-flex items-center justify-center text-faint hover:text-txt" aria-label={`Remove ${s}`} onClick={() => setSyms(syms.filter((x) => x !== s))}><X size={11} /></button>
             </span>
           );
         })}
