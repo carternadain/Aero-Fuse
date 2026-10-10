@@ -54,7 +54,7 @@ def guess_kind(sym: str, holdings: list[dict] | None = None) -> str:
     for h in holdings or []:
         if h["symbol"].upper() == sym and h["kind"] in ("crypto", "stock"):
             return h["kind"]
-    if sym in COMMON_CRYPTO:
+    if sym in COMMON_CRYPTO or universe.coin(sym):
         return "crypto"
     try:
         if any(c["symbol"].upper() == sym for c in market_data.crypto_markets(15)):
@@ -65,12 +65,13 @@ def guess_kind(sym: str, holdings: list[dict] | None = None) -> str:
 
 
 def name_for(sym: str) -> tuple[str | None, str | None]:
-    """(company name, sector) from the Swing Ideas universe, if it's in there."""
+    """(name, sector) from the coin registry or the Swing Ideas universe, if it's in there."""
     for sector, names in universe.SECTORS.items():
         for s, n in names:
             if s == sym:
                 return n, sector
-    return None, None
+    c = universe.coin(sym)
+    return (c["name"], "Crypto") if c else (None, None)
 
 
 # ── Starred watchlist ─────────────────────────────────────
@@ -424,8 +425,8 @@ def why(kind: str, sym: str) -> dict:
     reasons: list[dict] = []
     if sc:
         reasons.append({"tone": "up" if sc["score"] >= 60 else "down" if sc["score"] < 40 else "flat",
-                        "text": f"Long-term score {sc['score']:.0f}/100 ({sc['label']}). It blends RSI, distance from the "
-                                f"200-day average and where price sits in its 52-week range."})
+                        "text": f"1-year buy score {sc['score']:.0f}/100 ({sc['label']}); higher means a better entry. It blends "
+                                f"RSI, distance from the 200-day average and where price sits in its 52-week range."})
         if sc.get("rsi") is not None:
             r = sc["rsi"]
             if r <= 30:
