@@ -35,6 +35,7 @@ load_dotenv()  # also pick up a local backend/.env if present
 import auth
 import backup
 import budget
+import spend_alerts
 import charts
 import claude_ai
 import db
@@ -369,6 +370,28 @@ def exit_rule_loop():
         time.sleep(EXIT_RULE_INTERVAL)
 
 
+SPEND_ALERT_INTERVAL = 60 * 60
+
+
+def spend_alert_loop():
+    """Hourly check for categories running above their normal pace -> one push per new level."""
+    print("[spend] above-normal checker started")
+    time.sleep(120)
+    while True:
+        try:
+            from datetime import datetime
+            now = datetime.now()
+            if 8 <= now.hour <= 21:
+                def notify(title, body, tag):
+                    extras.send_push(title, body, url="/#wealth/budget", tag=tag)
+                    if TELEGRAM_BOT_TOKEN:
+                        tg_send(f"💸 *{title}*\n{body}")
+                spend_alerts.check_and_notify(now.date(), notify)
+        except Exception as e:
+            print(f"[spend] alert check error: {e}")
+        time.sleep(SPEND_ALERT_INTERVAL)
+
+
 # ── Cache warmer ──────────────────────────────────────────
 # Refreshes every dataset before its cache expires, so page loads never wait on
 # Yahoo / CoinGecko / news feeds. (Cold, Swing Ideas took ~14s and earnings ~18s.)
@@ -436,6 +459,7 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_backfill_once, daemon=True).start()
     threading.Thread(target=price_alert_loop, daemon=True).start()
     threading.Thread(target=exit_rule_loop, daemon=True).start()
+    threading.Thread(target=spend_alert_loop, daemon=True).start()
     for label, every, factor, jobs in WARM_TIERS:
         threading.Thread(target=cache_warmer_loop, args=(label, every, factor, jobs), daemon=True).start()
     if TELEGRAM_BOT_TOKEN:
@@ -1111,6 +1135,11 @@ def get_budget_summary(month: str | None = None):
     if not month:
         month = datetime.now(timezone.utc).strftime("%Y-%m")
     return db.budget_summary(month)
+
+
+@app.get("/api/spending/alerts")
+def get_spending_alerts():
+    return spend_alerts.alerts()  # local date, like /api/budget/plan
 
 
 @app.get("/api/budget/plan")

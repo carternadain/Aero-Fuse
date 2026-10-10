@@ -1076,6 +1076,23 @@ def spending_by_month(months: list[str]) -> dict[str, dict[str, float]]:
     return out
 
 
+def spending_by_day(months: list[str]) -> dict[str, dict[str, dict[int, float]]]:
+    """Raw expense sums as {month: {category: {day: total}}} (refunds can make a day negative)."""
+    if not months:
+        return {}
+    marks = ",".join("?" * len(months))
+    out: dict[str, dict[str, dict[int, float]]] = {}
+    with conn() as c:
+        rows = c.execute(
+            f"""SELECT substr(date,1,7) AS m, CAST(substr(date,9,2) AS INTEGER) AS d, category,
+                       SUM(amount) AS total
+                FROM transactions WHERE kind='expense' AND substr(date,1,7) IN ({marks})
+                GROUP BY m, d, category""", months).fetchall()
+    for r in rows:
+        out.setdefault(r["m"], {}).setdefault(r["category"], {})[r["d"]] = r["total"]
+    return out
+
+
 def active_months(months: list[str]) -> set[str]:
     """Which of these months have any transaction at all (income or expense)."""
     if not months:
