@@ -5,7 +5,9 @@
 
 import { useSyncExternalStore } from "react";
 
-export type Motion = "fireworks" | "hearts" | "coins" | "bats" | "leaves" | "snow";
+export type Motion = "fireworks" | "hearts" | "coins" | "bats" | "leaves" | "snow" | "blossoms";
+/** What settles on cards and the nav bar for all-day holidays. */
+export type Decor = "snow" | "leaves" | "eggs" | "webs";
 
 export interface Holiday {
   key: string;
@@ -13,16 +15,19 @@ export interface Holiday {
   greeting: string;
   emoji: string;
   motion: Motion;
+  /** Big holidays: a light ambient version of the motion runs all day, plus decor on cards. */
+  allDay?: { ambient: Motion; decor: Decor };
 }
 
 export const HOLIDAYS: Holiday[] = [
   { key: "newyear", name: "New Year's Day", greeting: "Happy New Year", emoji: "🎆", motion: "fireworks" },
   { key: "valentine", name: "Valentine's Day", greeting: "Happy Valentine's Day", emoji: "💘", motion: "hearts" },
   { key: "stpatrick", name: "St. Patrick's Day", greeting: "Happy St. Patrick's Day", emoji: "🍀", motion: "coins" },
+  { key: "easter", name: "Easter", greeting: "Happy Easter", emoji: "🐣", motion: "blossoms", allDay: { ambient: "blossoms", decor: "eggs" } },
   { key: "july4", name: "Independence Day", greeting: "Happy Fourth of July", emoji: "🎇", motion: "fireworks" },
-  { key: "halloween", name: "Halloween", greeting: "Happy Halloween", emoji: "🎃", motion: "bats" },
-  { key: "thanksgiving", name: "Thanksgiving", greeting: "Happy Thanksgiving", emoji: "🦃", motion: "leaves" },
-  { key: "christmas", name: "Christmas", greeting: "Merry Christmas", emoji: "🎄", motion: "snow" },
+  { key: "halloween", name: "Halloween", greeting: "Happy Halloween", emoji: "🎃", motion: "bats", allDay: { ambient: "bats", decor: "webs" } },
+  { key: "thanksgiving", name: "Thanksgiving", greeting: "Happy Thanksgiving", emoji: "🦃", motion: "leaves", allDay: { ambient: "leaves", decor: "leaves" } },
+  { key: "christmas", name: "Christmas", greeting: "Merry Christmas", emoji: "🎄", motion: "snow", allDay: { ambient: "snow", decor: "snow" } },
   { key: "nye", name: "New Year's Eve", greeting: "Last day of the year", emoji: "🥂", motion: "fireworks" },
 ];
 
@@ -35,12 +40,24 @@ function thanksgivingDay(year: number) {
   return firstThu + 21;
 }
 
+/** Easter Sunday (anonymous Gregorian algorithm) as [month 1-12, day]. */
+export function easterDate(y: number): [number, number] {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return [month, day];
+}
+
 /** The holiday on a local calendar date, or null. */
 export function holidayOn(d: Date): Holiday | null {
   const m = d.getMonth() + 1, day = d.getDate();
   if (m === 1 && day === 1) return byKey("newyear");
   if (m === 2 && day === 14) return byKey("valentine");
   if (m === 3 && day === 17) return byKey("stpatrick");
+  const [em, ed] = easterDate(d.getFullYear());
+  if (m === em && day === ed) return byKey("easter");
   if (m === 7 && day === 4) return byKey("july4");
   if (m === 10 && day === 31) return byKey("halloween");
   if (m === 11 && day === thanksgivingDay(d.getFullYear())) return byKey("thanksgiving");

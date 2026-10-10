@@ -1,0 +1,210 @@
+/* Settled all-day holiday decor. Static, pure CSS, pointer-events: none.
+   HolidayFx.tsx sets <html data-holiday-decor="snow|leaves|eggs|webs"> (and data-holiday).
+   Only ::before (and ::after on non-buttons) is used: buttons keep their ::after touch-target. */
+
+/* Greeting flourish (Overview). Solid fallback first; gradient only where clipping is supported. */
+.holiday-greeting { color: var(--color-txt); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .holiday-greeting {
+    background-image: linear-gradient(90deg,
+      color-mix(in srgb, var(--color-hol-1) 78%, var(--color-txt)),
+      color-mix(in srgb, var(--color-hol-2) 78%, var(--color-txt)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    padding-right: 0.04em; /* keeps the last glyph's edge inside the clip box */
+  }
+}
+
+/* ───────── shared ───────── */
+:root[data-holiday-decor] {
+  --snow: color-mix(in srgb, var(--color-txt) 94%, #cfe3ff);
+  --snow-shade: color-mix(in srgb, var(--color-txt) 72%, #9db8e0);
+}
+@keyframes decor-in { from { opacity: 0; } }
+
+@layer base {
+  /* anchor for the pseudo-elements, only where nothing positions the element already */
+  :root[data-holiday-decor] :is(.panel, header, .header-tools > button:not(.icon-btn), .seg > button, .btn-primary):not(.absolute, .fixed, .sticky, .relative) {
+    position: relative;
+  }
+}
+
+/* ───────── snow ───────── */
+/* hang: flat top, lumpy underside, tapers to nothing at both ends (for clipped panels, header).
+   sit: flat bottom, rounded bumps on top, tapers at both ends (rests on an edge). */
+:root[data-holiday-decor="snow"] {
+  --drift-hang: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 10' preserveAspectRatio='none'%3E%3Cpath fill='black' d='M0 0H200C196 3 188 5 178 6C168 9 156 8 148 6C138 10 124 9 114 6C104 9 90 10 80 7C70 9 56 8 48 6C38 8 26 6 20 4C12 3 4 2 0 0Z'/%3E%3C/svg%3E");
+  --drift-sit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 10' preserveAspectRatio='none'%3E%3Cpath fill='black' d='M0 10C10 10 16 8 24 7C30 3 40 3 46 6C54 1 70 0 80 4C88 1 104 1 112 4C122 0 140 1 148 5C156 3 168 5 176 8C186 9 194 10 200 10Z'/%3E%3C/svg%3E");
+}
+:root[data-holiday-decor="snow"] :is(.panel, header.sticky, nav.sticky, .bottom-nav, .header-tools > button:not(.icon-btn), .seg > button, .btn-primary)::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 9px;
+  pointer-events: none;
+  z-index: 1;
+  /* bright crown, cooler and dimmer underside */
+  background: linear-gradient(180deg, var(--snow) 0%, var(--snow) 45%, var(--snow-shade) 100%);
+  -webkit-mask-image: var(--drift-hang); mask-image: var(--drift-hang);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-size: 78% 100%; mask-size: 78% 100%;
+  -webkit-mask-position: 14% 0; mask-position: 14% 0;
+  animation: decor-in 0.6s ease-out backwards;
+}
+/* panel variants: offset and width differ; every third card gets two small drifts */
+:root[data-holiday-decor="snow"] :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child)::before { -webkit-mask-size: 64% 100%; mask-size: 64% 100%; -webkit-mask-position: 90% 0; mask-position: 90% 0; height: 8px; }
+:root[data-holiday-decor="snow"] :is(.panel:nth-child(3n), :nth-child(3n) > .panel:only-child)::before {
+  -webkit-mask-image: var(--drift-hang), var(--drift-hang); mask-image: var(--drift-hang), var(--drift-hang);
+  -webkit-mask-size: 42% 100%, 30% 70%; mask-size: 42% 100%, 30% 70%;
+  -webkit-mask-position: 4% 0, 94% 0; mask-position: 4% 0, 94% 0;
+}
+/* header sits at the viewport top, so its drift hangs inside */
+:root[data-holiday-decor="snow"] header.sticky::before { height: 8px; -webkit-mask-size: 70% 100%; mask-size: 70% 100%; -webkit-mask-position: 85% 0; mask-position: 85% 0; }
+/* desktop tab bar and phone bar: snow rests on the top edge, bumps rise ~3px above it */
+:root[data-holiday-decor="snow"] nav.sticky::before {
+  top: -3px; height: 10px;
+  -webkit-mask-image: var(--drift-sit); mask-image: var(--drift-sit);
+  -webkit-mask-size: 52% 100%; mask-size: 52% 100%;
+  -webkit-mask-position: 8% 0; mask-position: 8% 0;
+}
+:root[data-holiday-decor="snow"] .bottom-nav::before {
+  top: -4px; left: 10px; right: 10px; height: 10px;
+  -webkit-mask-image: var(--drift-sit); mask-image: var(--drift-sit);
+  -webkit-mask-size: 74% 100%; mask-size: 74% 100%;
+  -webkit-mask-position: 80% 0; mask-position: 80% 0;
+}
+/* small controls: max ~5px */
+:root[data-holiday-decor="snow"] :is(.header-tools > button:not(.icon-btn), .seg > button, .btn-primary)::before {
+  top: -3px; left: 2px; right: 2px; height: 5px;
+  -webkit-mask-image: var(--drift-sit); mask-image: var(--drift-sit);
+  -webkit-mask-size: 80% 100%; mask-size: 80% 100%;
+  -webkit-mask-position: 30% 0; mask-position: 30% 0;
+}
+
+/* wide screens: fixed-width drifts (never stretched), two per wide card */
+@media (min-width: 641px) {
+  :root[data-holiday-decor="snow"]:not(#_) .panel::before { -webkit-mask-size: 320px 100%; mask-size: 320px 100%; -webkit-mask-position: 6% 0; mask-position: 6% 0; }
+  :root[data-holiday-decor="snow"]:not(#_) :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child)::before { -webkit-mask-size: 240px 100%; mask-size: 240px 100%; -webkit-mask-position: 62% 0; mask-position: 62% 0; }
+  :root[data-holiday-decor="snow"]:not(#_) :is(.panel:nth-child(3n), :nth-child(3n) > .panel:only-child)::before {
+    -webkit-mask-size: 200px 100%, 280px 100%; mask-size: 200px 100%, 280px 100%;
+    -webkit-mask-position: 38% 0, 92% 0; mask-position: 38% 0, 92% 0;
+  }
+  :root[data-holiday-decor="snow"]:not(#_) header.sticky::before { -webkit-mask-size: 360px 100%; mask-size: 360px 100%; -webkit-mask-position: 72% 0; mask-position: 72% 0; }
+  :root[data-holiday-decor="snow"]:not(#_) nav.sticky::before { -webkit-mask-size: 300px 100%; mask-size: 300px 100%; -webkit-mask-position: 5% 0; mask-position: 5% 0; }
+}
+@media (min-width: 900px) {
+  :root[data-holiday-decor="snow"]:not(#_) .panel:not(:nth-child(3n), :nth-child(3n) > .panel:only-child)::before {
+    -webkit-mask-image: var(--drift-hang), var(--drift-hang); mask-image: var(--drift-hang), var(--drift-hang);
+    -webkit-mask-size: 320px 100%, 220px 80%; mask-size: 320px 100%, 220px 80%;
+    -webkit-mask-position: 6% 0, 70% 0; mask-position: 6% 0, 70% 0;
+  }
+  :root[data-holiday-decor="snow"]:not(#_) :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child)::before {
+    -webkit-mask-size: 260px 100%, 340px 90%; mask-size: 260px 100%, 340px 90%;
+    -webkit-mask-position: 22% 0, 84% 0; mask-position: 22% 0, 84% 0;
+  }
+}
+
+/* ───────── leaves (Thanksgiving) ───────── */
+:root[data-holiday-decor="leaves"] {
+  --leaf: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 1c1 3 3 4 4 3 0 3 1 5 3 6-1 1-2 1-3 1 1 2 3 3 5 3-2 2-5 2-7 1v6h-2v-6c-2 1-5 1-7-1 2 0 4-1 5-3-1 0-2 0-3-1 2-1 3-3 3-6 1 1 3 0 4-3z'/%3E%3C/svg%3E");
+}
+:root[data-holiday-decor="leaves"] :is(:is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child), :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child), .bottom-nav)::before,
+:root[data-holiday-decor="leaves"] :is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child)::after {
+  content: "";
+  position: absolute;
+  bottom: 3px; top: auto; right: 10px;
+  width: 17px; height: 17px;
+  pointer-events: none;
+  z-index: 1;
+  background-color: var(--color-hol-1);
+  -webkit-mask: var(--leaf) center / contain no-repeat; mask: var(--leaf) center / contain no-repeat;
+  transform: rotate(24deg);
+  opacity: 0.9;
+  animation: decor-in 0.6s ease-out backwards;
+}
+:root[data-holiday-decor="leaves"] :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child)::before { background-color: var(--color-hol-2); transform: rotate(-30deg) scaleX(-1); right: 16px; width: 18px; height: 18px; }
+:root[data-holiday-decor="leaves"] :is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child)::after { background-color: var(--color-hol-2); right: 32px; bottom: 2px; width: 14px; height: 14px; transform: rotate(-52deg); }
+:root[data-holiday-decor="leaves"] .bottom-nav::before { top: -6px; bottom: auto; right: 22px; width: 15px; height: 15px; }
+
+/* ───────── eggs (Easter) ───────── */
+:root[data-holiday-decor="eggs"] {
+  --egg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30'%3E%3Cpath fill='black' d='M12 1C6 1 2 12 2 19c0 6 4.5 10 10 10s10-4 10-10C22 12 18 1 12 1z'/%3E%3C/svg%3E");
+}
+:root[data-holiday-decor="eggs"] :is(:is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child), :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child))::before,
+:root[data-holiday-decor="eggs"] :is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child)::after {
+  content: "";
+  position: absolute;
+  bottom: 4px; top: auto; right: 10px;
+  width: 14px; height: 18px;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, transparent 38%, color-mix(in srgb, var(--color-txt) 70%, transparent) 38% 50%, transparent 50% 62%, color-mix(in srgb, var(--color-txt) 45%, transparent) 62% 72%, transparent 72%),
+    color-mix(in srgb, var(--color-hol-1) 62%, var(--color-txt));
+  -webkit-mask: var(--egg) center / contain no-repeat; mask: var(--egg) center / contain no-repeat;
+  transform: rotate(14deg);
+  animation: decor-in 0.6s ease-out backwards;
+}
+:root[data-holiday-decor="eggs"] :is(.panel:nth-child(3n+2), :nth-child(3n+2) > .panel:only-child)::before { background-color: color-mix(in srgb, var(--color-hol-2) 62%, var(--color-txt)); transform: rotate(-12deg); right: 14px; }
+:root[data-holiday-decor="eggs"] :is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child)::after { right: 30px; bottom: 3px; top: auto; width: 11px; height: 14px; transform: rotate(-18deg);
+  background: linear-gradient(180deg, transparent 45%, color-mix(in srgb, var(--color-txt) 65%, transparent) 45% 62%, transparent 62%), color-mix(in srgb, var(--color-hol-3) 55%, var(--color-txt)); }
+/* pastel dotted garland along the phone bar's top edge */
+:root[data-holiday-decor="eggs"] .bottom-nav::before {
+  content: "";
+  position: absolute;
+  top: -3px; left: 14px; right: 14px; height: 6px;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 3px 3px, color-mix(in srgb, var(--color-hol-1) 60%, var(--color-txt)) 2.2px, transparent 2.6px) 0 0 / 30px 6px repeat-x,
+    radial-gradient(circle at 3px 3px, color-mix(in srgb, var(--color-hol-2) 60%, var(--color-txt)) 2.2px, transparent 2.6px) 10px 0 / 30px 6px repeat-x,
+    radial-gradient(circle at 3px 3px, color-mix(in srgb, var(--color-hol-3) 55%, var(--color-txt)) 2.2px, transparent 2.6px) 20px 0 / 30px 6px repeat-x;
+  animation: decor-in 0.6s ease-out backwards;
+}
+
+/* ───────── webs (Halloween) ───────── */
+:root[data-holiday-decor="webs"] {
+  --web: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='black' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M60 0L0 0M60 0L8 20M60 0L24 40M60 0L44 56M60 0L60 60'/%3E%3Cpath d='M44 0Q46 12 60 16M28 0Q34 24 60 30M12 0Q22 36 60 46'/%3E%3C/svg%3E");
+  --spider: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 30'%3E%3Cpath fill='none' stroke='black' stroke-width='1' d='M7 0V16'/%3E%3Cellipse cx='7' cy='21' rx='3.4' ry='4' fill='black'/%3E%3Cpath fill='none' stroke='black' stroke-width='0.9' d='M4 19L0 16M4 21L0 22M4 23L1 28M10 19L14 16M10 21L14 22M10 23L13 28'/%3E%3C/svg%3E");
+}
+:root[data-holiday-decor="webs"] :is(:is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child), :is(.panel:nth-child(3n), :nth-child(3n) > .panel:only-child), .bottom-nav)::before {
+  content: "";
+  position: absolute;
+  top: 0; right: 0;
+  width: 38px; height: 38px;
+  pointer-events: none;
+  z-index: 1;
+  background-color: var(--color-txt);
+  opacity: 0.16;
+  -webkit-mask: var(--web) top right / contain no-repeat; mask: var(--web) top right / contain no-repeat;
+  animation: decor-in 0.6s ease-out backwards;
+}
+/* cards: web sits in the bottom-right corner (flipped), clear of header text */
+:root[data-holiday-decor="webs"] :is(:is(.panel:nth-child(3n+1), :nth-child(3n+1) > .panel:only-child), :is(.panel:nth-child(3n), :nth-child(3n) > .panel:only-child))::before {
+  top: auto; bottom: 0; width: 28px; height: 28px; opacity: 0.14;
+  transform: scaleY(-1);
+}
+:root[data-holiday-decor="webs"] :is(.panel:nth-child(3n), :nth-child(3n) > .panel:only-child)::before { width: 26px; height: 26px; }
+/* tiny spider on a thread under the desktop tab bar */
+:root[data-holiday-decor="webs"] nav.sticky::after {
+  content: "";
+  position: absolute;
+  top: 100%; right: 150px;
+  width: 14px; height: 30px;
+  pointer-events: none;
+  background-color: var(--color-txt);
+  opacity: 0.4;
+  -webkit-mask: var(--spider) center / contain no-repeat; mask: var(--spider) center / contain no-repeat;
+  animation: decor-in 0.6s ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-holiday-decor] *::before, :root[data-holiday-decor] *::after { animation: none !important; }
+}
+@media print {
+  :root[data-holiday-decor] :is(.panel, header.sticky, nav.sticky, .bottom-nav, .header-tools > button:not(.icon-btn), .seg > button, .btn-primary)::before,
+  :root[data-holiday-decor] :is(.panel, nav.sticky)::after { display: none !important; }
+  .holiday-greeting { -webkit-text-fill-color: currentColor; color: inherit; background: none; }
+}

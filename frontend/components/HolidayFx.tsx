@@ -238,39 +238,117 @@ const snow: Factory = (w, h, k, col) => {
         if (y > h + 10) continue;
         const xx = ((x % (w + 80)) + (w + 80)) % (w + 80) - 40;
         const a = f.a * Math.min(1, t / 0.7);
-        c.globalAlpha = a * 0.22; c.beginPath(); c.arc(xx, y, f.r * 2.1, 0, 6.283); c.fill();
+        c.globalAlpha = a * 0.1; c.beginPath(); c.arc(xx, y, f.r * 1.6, 0, 6.283); c.fill();
         c.globalAlpha = a; c.beginPath(); c.arc(xx, y, f.r, 0, 6.283); c.fill();
       }
     },
   };
 };
 
-const FACTORIES: Record<Motion, Factory> = { fireworks, hearts, coins, bats, leaves, snow };
+// ── shared shapes (intro scenes and ambient layer) ──
+function leaf(c: Ctx, s: number) {
+  c.beginPath(); c.moveTo(0, -s);
+  c.bezierCurveTo(s * 0.95, -s * 0.5, s * 0.7, s * 0.55, 0, s);
+  c.bezierCurveTo(-s * 0.7, s * 0.55, -s * 0.95, -s * 0.5, 0, -s);
+}
+/** One notched cherry-blossom petal, pointing down. */
+function petal(c: Ctx, s: number) {
+  c.beginPath(); c.moveTo(0, s);
+  c.bezierCurveTo(s * 0.85, s * 0.3, s * 0.65, -s * 0.95, s * 0.1, -s * 0.7);
+  c.lineTo(0, -s * 0.55); c.lineTo(-s * 0.1, -s * 0.7);
+  c.bezierCurveTo(-s * 0.65, -s * 0.95, -s * 0.85, s * 0.3, 0, s);
+}
+/** Five-petal blossom with a small centre. `ctr` is the centre colour. */
+function blossom(c: Ctx, s: number, ctr: string) {
+  for (let i = 0; i < 5; i++) {
+    c.save(); c.rotate(i * 1.2566); c.translate(0, -s * 0.5); c.rotate(Math.PI); petal(c, s * 0.52); c.fill(); c.restore();
+  }
+  c.fillStyle = ctr; c.beginPath(); c.arc(0, 0, s * 0.16, 0, 6.283); c.fill();
+}
+function eggPath(c: Ctx, s: number) {
+  c.beginPath(); c.moveTo(0, -s * 1.1);
+  c.bezierCurveTo(s * 0.8, -s * 1.1, s * 0.98, s * 0.85, 0, s * 0.95);
+  c.bezierCurveTo(-s * 0.98, s * 0.85, -s * 0.8, -s * 1.1, 0, -s * 1.1);
+}
+function flake(c: Ctx, x: number, y: number, r: number) { c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill(); }
+
+// ── blossoms: pastel petals and blossoms twirling down, a few eggs tumbling in ──
+const blossoms: Factory = (w, h, k, col) => {
+  const ps = Array.from({ length: Math.round(38 * k) }, () => ({
+    x: rnd(-20, w + 20), vy: rnd(100, 180), delay: rnd(0, 1.6), s: rnd(7, 15), amp: rnd(20, 50), f: rnd(1, 2), ph: rnd(0, 6.28),
+    rot: rnd(0, 6.28), spin: rnd(-2.4, 2.4), c: pick(col), drift: rnd(-15, 25), flip: rnd(1.5, 3.5), whole: Math.random() < 0.35,
+  }));
+  const es = Array.from({ length: w < 500 ? 4 : 6 }, (_, i) => ({
+    x: rnd(w * 0.08, w * 0.92), y: -30, vx: rnd(-26, 26), vy: rnd(10, 60), s: rnd(11, 16), delay: 0.2 + i * 0.35 + rnd(0, 0.3),
+    rot: rnd(-0.6, 0.6), spin: rnd(-3, 3), c: col[i % col.length], band: i % 2, bounces: 0, floor: h - rnd(14, 70),
+  }));
+  return {
+    dur: 4.8,
+    draw(c, t, dt) {
+      for (const p of ps) {
+        const a = t - p.delay; if (a < 0) continue;
+        const y = -24 + p.vy * a; if (y > h + 30) continue;
+        const x = p.x + p.drift * a + Math.sin(a * p.f + p.ph) * p.amp;
+        c.save(); c.translate(x, y); c.rotate(p.rot + p.spin * a * 0.7 + Math.sin(a * p.f + p.ph) * 0.5);
+        c.scale(1, 0.5 + 0.5 * Math.abs(Math.cos(a * p.flip + p.ph)));
+        c.globalAlpha = Math.min(env(t, 4.8, 0.8), 1) * 0.92; c.fillStyle = p.c;
+        if (p.whole) blossom(c, p.s * 1.3, col[2]); else { petal(c, p.s); c.fill(); }
+        c.restore();
+      }
+      for (const e of es) {
+        const a = t - e.delay; if (a < 0) continue;
+        e.vy += 520 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+        if (e.y > e.floor && e.vy > 0 && e.bounces < 2) { e.y = e.floor; e.vy *= -0.35; e.vx *= 0.6; e.spin *= 0.4; e.bounces++; }
+        e.rot += e.spin * dt; if (e.bounces >= 2) e.spin *= 0.94;
+        c.save(); c.translate(e.x, e.y); c.rotate(e.rot); c.globalAlpha = Math.min(env(t, 4.8, 0.8), 1) * 0.95;
+        c.fillStyle = e.c; eggPath(c, e.s); c.fill(); c.clip();
+        c.strokeStyle = "rgb(255 255 255 / 0.7)"; c.lineWidth = e.s * 0.2; c.lineJoin = "round";
+        if (e.band) {
+          c.beginPath(); c.moveTo(-e.s, 0);
+          for (let i = 0; i < 6; i++) c.lineTo(-e.s + (i + 1) * (e.s / 3), i % 2 ? e.s * 0.1 : -e.s * 0.28);
+          c.stroke();
+        } else {
+          c.fillStyle = "rgb(255 255 255 / 0.7)";
+          for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * e.s * 0.5, -e.s * 0.1 + Math.abs(i) * e.s * 0.15, e.s * 0.14, 0, 6.283); c.fill(); }
+        }
+        c.restore();
+      }
+    },
+  };
+};
+
+const FACTORIES: Record<Motion, Factory> = { fireworks, hearts, coins, bats, leaves, snow, blossoms };
 // Leaves/coins/fireworks draw from the tokens in this order: hol-1, hol-2, hol-3.
 
-/** Runs a scene on the canvas; returns a stop() that cancels and clears everything. */
-function run(canvas: HTMLCanvasElement, motion: Motion): () => void {
+const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const tokenColors = () => {
+  const css = getComputedStyle(document.documentElement);
+  return ["--color-hol-1", "--color-hol-2", "--color-hol-3"].map((v) => css.getPropertyValue(v).trim() || "white");
+};
+
+/** Runs an intro scene on the canvas; returns a stop() that cancels and clears everything.
+ *  `onEnd` fires when the scene finishes (or the tab is hidden), not on an explicit stop(). */
+function run(canvas: HTMLCanvasElement, motion: Motion, onEnd?: () => void): () => void {
   const c = canvas.getContext("2d");
   if (!c) return () => {};
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = window.innerWidth, h = window.innerHeight;
   canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-  const css = getComputedStyle(document.documentElement);
-  const col = ["--color-hol-1", "--color-hol-2", "--color-hol-3"].map((v) => css.getPropertyValue(v).trim() || "white");
-  const scene = FACTORIES[motion](w, h, w < 500 ? 0.62 : 1, col);
+  const scene = FACTORIES[motion](w, h, w < 500 ? 0.62 : 1, tokenColors());
   let raf = 0, last = 0, t = 0, stopped = false;
   const clear = () => { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, canvas.width, canvas.height); };
   const stop = () => {
     if (stopped) return;
     stopped = true; cancelAnimationFrame(raf); document.removeEventListener("visibilitychange", onVis); clear();
   };
-  const onVis = () => { if (document.hidden) stop(); };
+  const finish = () => { if (stopped) return; stop(); onEnd?.(); };
+  const onVis = () => { if (document.hidden) finish(); };
   document.addEventListener("visibilitychange", onVis);
   const tick = (now: number) => {
     if (stopped) return;
     const dt = last ? Math.min((now - last) / 1000, 0.05) : 1 / 60;
     last = now; t += dt;
-    if (t >= scene.dur) { stop(); return; }
+    if (t >= scene.dur) { finish(); return; }
     clear(); c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.globalAlpha = 1;
     scene.draw(c, t, dt);
@@ -283,60 +361,225 @@ function run(canvas: HTMLCanvasElement, motion: Motion): () => void {
   return stop;
 }
 
+// ── ambient layer: a LIGHT, continuous version of the all-day motion ──
+// One fixed pool of particle objects, mutated in place (no per-frame allocation), 30fps,
+// DPR <= 1.5, no shadowBlur, and no loop at all while the tab is hidden.
+interface P { x: number; y: number; bx: number; vx: number; vy: number; s: number; ph: number; f: number; amp: number; rot: number; spin: number; fl: number; a: number; ci: number; k: number; wait: number; t: number; dur: number; dir: number }
+const mkP = (): P => ({ x: 0, y: 0, bx: 0, vx: 0, vy: 0, s: 1, ph: 0, f: 1, amp: 0, rot: 0, spin: 0, fl: 1, a: 1, ci: 0, k: 0, wait: 0, t: 0, dur: 1, dir: 1 });
+
+function ambientCount(kind: Motion, w: number): number {
+  const phone = w < 500;
+  switch (kind) {
+    case "snow": return phone ? 34 : 55;
+    case "leaves": return phone ? 5 : 8;
+    case "blossoms": return phone ? 6 : 10;
+    case "bats": return 1 + (phone ? 12 : 18); // index 0 is the bat, the rest embers
+    default: return 0;
+  }
+}
+
+function spawn(p: P, kind: Motion, i: number, w: number, h: number, first: boolean) {
+  p.ph = rnd(0, 6.28); p.f = rnd(0.5, 1.2); p.t = 0; p.wait = 0; p.ci = (Math.random() * 3) | 0;
+  switch (kind) {
+    case "snow":
+      p.bx = rnd(-10, w + 10); p.y = first ? rnd(0, h) : -6; p.vy = rnd(15, 40); p.s = rnd(1.2, 3.2); p.a = rnd(0.45, 0.9); p.amp = rnd(3, 10);
+      break;
+    case "leaves":
+      p.bx = rnd(0, w); p.vx = rnd(-6, 14); p.vy = rnd(22, 42); p.s = rnd(8, 13); p.amp = rnd(14, 32); p.f = rnd(0.7, 1.4);
+      p.rot = rnd(0, 6.28); p.spin = rnd(-1.2, 1.2); p.fl = rnd(1.2, 2.6); p.a = 0.85;
+      if (first && i % 2 === 0) p.y = rnd(0, h); else { p.y = -30; p.wait = first ? rnd(0, 5) : rnd(1, 7); }
+      break;
+    case "blossoms":
+      p.bx = rnd(0, w); p.vx = rnd(-4, 10); p.vy = rnd(16, 32); p.s = rnd(4, 8); p.amp = rnd(10, 24); p.f = rnd(0.7, 1.5);
+      p.rot = rnd(0, 6.28); p.spin = rnd(-1.4, 1.4); p.fl = rnd(1.5, 3); p.a = rnd(0.55, 0.85); p.k = Math.random() < 0.45 ? 1 : 0;
+      p.y = first ? rnd(0, h) : -14;
+      break;
+    case "bats":
+      if (i === 0) { // the bat: waits, crosses once, waits again
+        p.k = 3; p.wait = first ? rnd(2, 4) : rnd(8, 14); p.dur = rnd(6, 9); p.dir = Math.random() < 0.5 ? 1 : -1;
+        p.y = rnd(h * 0.15, h * 0.5); p.s = rnd(12, 18); p.amp = rnd(30, 70); p.fl = rnd(9, 13);
+      } else { // embers
+        p.k = 4; p.bx = rnd(0, w); p.y = first ? rnd(0, h) : h + 4; p.vy = rnd(12, 30); p.s = rnd(1.5, 2.5); p.amp = rnd(4, 12); p.a = rnd(0.35, 0.7); p.f = rnd(0.8, 2);
+      }
+      break;
+  }
+}
+
+function runAmbient(canvas: HTMLCanvasElement, kind: Motion): () => void {
+  const c = canvas.getContext("2d");
+  if (!c) return () => {};
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  let w = window.innerWidth, h = window.innerHeight;
+  const size = () => {
+    w = window.innerWidth; h = window.innerHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  size();
+  const col = tokenColors();
+  const n = ambientCount(kind, w);
+  const ps: P[] = Array.from({ length: n }, mkP);
+  ps.forEach((p, i) => spawn(p, kind, i, w, h, true));
+  let raf = 0, last = 0, t = 0, stopped = false;
+
+  const tick = (now: number) => {
+    raf = requestAnimationFrame(tick);
+    if (last && now - last < 28) return; // ~30fps
+    const dt = last ? Math.min((now - last) / 1000, 0.1) : 1 / 30;
+    last = now; t += dt;
+    const fade = Math.min(1, t / 1.5);
+    c.clearRect(0, 0, w, h);
+    for (let i = 0; i < n; i++) {
+      const p = ps[i];
+      if (p.wait > 0) { p.wait -= dt; if (p.wait > 0) continue; }
+      switch (kind) {
+        case "snow": {
+          p.y += p.vy * dt; if (p.y > h + 4) spawn(p, kind, i, w, h, false);
+          c.globalAlpha = p.a * fade; c.fillStyle = col[2];
+          flake(c, p.bx + Math.sin(t * p.f + p.ph) * p.amp, p.y, p.s);
+          break;
+        }
+        case "leaves": {
+          p.y += p.vy * dt; p.bx += p.vx * dt; p.rot += p.spin * dt;
+          if (p.y > h + 30) { spawn(p, kind, i, w, h, false); continue; }
+          c.save(); c.translate(p.bx + Math.sin(t * p.f + p.ph) * p.amp, p.y); c.rotate(p.rot + Math.sin(t * p.f + p.ph) * 0.5);
+          c.scale(1, 0.55 + 0.45 * Math.abs(Math.cos(t * p.fl + p.ph)));
+          c.globalAlpha = p.a * fade; c.fillStyle = col[p.ci]; leaf(c, p.s); c.fill(); c.restore();
+          break;
+        }
+        case "blossoms": {
+          p.y += p.vy * dt; p.bx += p.vx * dt; p.rot += p.spin * dt;
+          if (p.y > h + 16) { spawn(p, kind, i, w, h, false); continue; }
+          c.save(); c.translate(p.bx + Math.sin(t * p.f + p.ph) * p.amp, p.y); c.rotate(p.rot);
+          c.scale(1, 0.5 + 0.5 * Math.abs(Math.cos(t * p.fl + p.ph)));
+          c.globalAlpha = p.a * fade; c.fillStyle = col[p.ci];
+          if (p.k) blossom(c, p.s * 1.4, col[2]); else { petal(c, p.s); c.fill(); }
+          c.restore();
+          break;
+        }
+        case "bats": {
+          if (p.k === 3) {
+            p.t += dt; const q = p.t / p.dur;
+            if (q >= 1) { spawn(p, kind, i, w, h, false); continue; }
+            const x = p.dir > 0 ? -40 + (w + 80) * q : w + 40 - (w + 80) * q;
+            c.save(); c.translate(x, p.y - Math.sin(q * Math.PI) * p.amp + Math.sin(p.t * 5) * 6); c.scale(p.dir, 1);
+            c.globalAlpha = Math.min(1, q * 8, (1 - q) * 8) * 0.8 * fade;
+            bat(c, p.s, Math.sin(p.t * p.fl) * 0.75); c.fillStyle = col[1]; c.fill();
+            c.restore();
+          } else {
+            p.y -= p.vy * dt; if (p.y < -4) spawn(p, kind, i, w, h, false);
+            const ex = p.bx + Math.sin(t * p.f + p.ph) * p.amp, ea = p.a * (0.6 + 0.4 * Math.sin(t * 4 + p.ph)) * fade;
+            c.fillStyle = col[0];
+            c.globalAlpha = ea * 0.22; flake(c, ex, p.y, p.s * 2.4); // soft glow, no shadowBlur
+            c.globalAlpha = ea; flake(c, ex, p.y, p.s);
+          }
+          break;
+        }
+      }
+    }
+    c.globalAlpha = 1;
+  };
+
+  const onVis = () => {
+    if (stopped) return;
+    if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+    else if (!raf) { last = 0; raf = requestAnimationFrame(tick); }
+  };
+  const onResize = () => size();
+  document.addEventListener("visibilitychange", onVis);
+  window.addEventListener("resize", onResize);
+  if (!document.hidden) raf = requestAnimationFrame(tick);
+  return () => {
+    if (stopped) return;
+    stopped = true; cancelAnimationFrame(raf);
+    document.removeEventListener("visibilitychange", onVis); window.removeEventListener("resize", onResize);
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, canvas.width, canvas.height);
+  };
+}
+
+const SUB: Record<string, string> = {
+  snow: "Snow all day · tap to replay", leaves: "Falling leaves all day · tap to replay",
+  blossoms: "Blossoms all day · tap to replay", bats: "Spooky all day · tap to replay",
+};
+
 export default function HolidayFx() {
   const { off } = useHolidayFx();
   const canvas = useRef<HTMLCanvasElement>(null);
+  const ambCanvas = useRef<HTMLCanvasElement>(null);
   const stopRef = useRef<(() => void) | null>(null);
+  const ambRef = useRef<(() => void) | null>(null);
   const claimed = useRef<string | null>(null); // survives StrictMode's double effect
-  const pillTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const cardTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [hol, setHol] = useState<Holiday | null>(null);
-  const [pill, setPill] = useState(false);
+  const [card, setCard] = useState<0 | 1 | 2>(0); // hidden / in / out
+
+  const stopAmbient = useCallback(() => { ambRef.current?.(); ambRef.current = null; }, []);
+  const startAmbient = useCallback((h: Holiday) => {
+    stopAmbient();
+    if (!h.allDay || reducedMotion()) return;
+    const kind = h.allDay.ambient;
+    const t = setTimeout(() => { if (ambCanvas.current) ambRef.current = runAmbient(ambCanvas.current, kind); }, 50);
+    ambRef.current = () => clearTimeout(t);
+  }, [stopAmbient]);
 
   const play = useCallback((h: Holiday, delay = 0) => {
     stopRef.current?.(); stopRef.current = null;
-    clearTimeout(pillTimer.current);
-    setPill(true);
-    pillTimer.current = setTimeout(() => setPill(false), 4000 + delay);
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.hidden) return;
-    const start = () => { if (canvas.current && !document.hidden) stopRef.current = run(canvas.current, h.motion); };
+    stopAmbient();
+    cardTimers.current.forEach(clearTimeout);
+    setCard(1);
+    cardTimers.current = [setTimeout(() => setCard(2), 4800 + delay), setTimeout(() => setCard(0), 5150 + delay)];
+    if (reducedMotion() || document.hidden) return;
+    const start = () => {
+      if (canvas.current && !document.hidden) stopRef.current = run(canvas.current, h.motion, () => startAmbient(h));
+    };
     let idle = 0;
     const t = setTimeout(() => {
       if ("requestIdleCallback" in window) idle = window.requestIdleCallback(start, { timeout: 600 });
       else start();
     }, delay);
     stopRef.current = () => { clearTimeout(t); if (idle) window.cancelIdleCallback?.(idle); };
-  }, []);
+  }, [startAmbient, stopAmbient]);
 
   useEffect(() => {
     const preview = !!previewHoliday();
     const h = currentHoliday();
     if (!h || (off && !preview)) { setHol(null); return; }
     document.documentElement.dataset.holiday = h.key;
+    if (h.allDay) document.documentElement.dataset.holidayDecor = h.allDay.decor;
     setHol(h);
     const tag = `${h.key}:${preview ? "p" : "d"}`;
     if (claimed.current !== tag) claimed.current = preview || claimPlay(h) ? tag : `${tag}:no`;
     if (!claimed.current.endsWith(":no")) play(h, 400);
+    else startAmbient(h); // intro already played today: straight to the ambient layer
     return () => {
       delete document.documentElement.dataset.holiday;
-      stopRef.current?.(); stopRef.current = null; clearTimeout(pillTimer.current);
+      delete document.documentElement.dataset.holidayDecor;
+      stopRef.current?.(); stopRef.current = null; stopAmbient();
+      cardTimers.current.forEach(clearTimeout);
     };
-  }, [off, play]);
+  }, [off, play, startAmbient, stopAmbient]);
 
   if (!hol) return null;
   return (
     <>
       <div className="holiday-hairline" aria-hidden />
+      {/* z-20: above page cards, below the sticky header / tab bars (z-30/40), sheets and dialogs. */}
+      {hol.allDay && <canvas ref={ambCanvas} className="fixed inset-0 w-full h-full pointer-events-none z-20" aria-hidden />}
       <canvas ref={canvas} className="fixed inset-0 w-full h-full pointer-events-none z-[94]" aria-hidden />
-      <div aria-live="polite" className="fixed top-[calc(max(12px,env(safe-area-inset-top))+58px)] sm:top-[100px] left-1/2 -translate-x-1/2 z-[96] pointer-events-none">
-        {pill && (
+      <div aria-live="polite" className="fixed top-[calc(max(12px,env(safe-area-inset-top))+58px)] sm:top-[100px] left-1/2 -translate-x-1/2 z-[96] pointer-events-none max-w-[calc(100vw-32px)]">
+        {card > 0 && (
           <button
             type="button"
+            data-state={card === 1 ? "in" : "out"}
             onClick={() => play(hol)}
             aria-label={`${hol.greeting}. Replay animation`}
-            className="holiday-pill tab-enter pointer-events-auto min-h-10 px-4 py-2 rounded-full border bg-panel/95 backdrop-blur shadow-xl
-                       text-sm font-bold text-txt whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-hol-1)]"
+            className="holiday-card pointer-events-auto relative flex items-center gap-3 min-h-11 pl-2.5 pr-4 py-2 rounded-2xl bg-panel/90 backdrop-blur shadow-xl
+                       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-hol-1)]"
           >
-            {hol.emoji} {hol.greeting}
+            <span className="holiday-badge flex items-center justify-center size-9 shrink-0 rounded-full text-lg leading-none" aria-hidden>{hol.emoji}</span>
+            <span className="flex flex-col items-start text-left min-w-0">
+              <span className="text-sm font-bold text-txt leading-tight truncate max-w-full">{hol.greeting}</span>
+              <span className="text-[11px] text-dim leading-tight whitespace-nowrap">{hol.allDay ? SUB[hol.allDay.ambient] : "Tap to replay"}</span>
+            </span>
           </button>
         )}
       </div>
