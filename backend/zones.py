@@ -377,7 +377,9 @@ def _signals(kind: str, horizon: str, rows: list[dict]) -> list[dict]:
                         "note": "Price ÷ its 200-week average, the multi-year trend. Ranked against this asset's own past."})
         if kind == "crypto":
             if last.get("ath_pct") is not None:
-                out.append({"name": "From all-time high", "value": f"{last['ath_pct']:+.0f}% · high ${last['ath']:,.4g}",
+                a = last["ath"]
+                hi = f"{a:,.0f}" if a >= 1000 else f"{a:.2f}" if a >= 1 else f"{a:.4g}"
+                out.append({"name": "From all-time high", "value": f"{last['ath_pct']:+.0f}% · high ${hi}",
                             "note": "How much of its high it has won back. Crypto often returns to, and passes, the last cycle's high."})
             if last.get("months") is not None:
                 out.append({"name": "Halving cycle", "value": f"Month {last['months'] % CYCLE_MONTHS:.0f} of ~48",
@@ -420,6 +422,9 @@ def zone_chart(kind: str, symbol: str, rng: str = "1Y", horizon: str = "long") -
     all_rows = risk_series(kind, sym)
     if not all_rows:
         return out
+    # Reads for every horizon, even when this one has no reading yet (young coins, long term).
+    out["reads"] = reads(kind, all_rows[-1])
+    out["from_ath_pct"] = round(all_rows[-1]["ath_pct"], 1) if all_rows[-1].get("ath_pct") is not None else None
     rows = all_rows
     days = RANGE_DAYS.get(rng)
     if days is not None:
@@ -443,6 +448,4 @@ def zone_chart(kind: str, symbol: str, rng: str = "1Y", horizon: str = "long") -
         out["trough"] = dict(min(drawn, key=lambda p: p["risk"]))
     out["odds"] = _odds(kind, horizon, all_rows)
     out["signals"] = _signals(kind, horizon, all_rows)
-    out["reads"] = reads(kind, all_rows[-1])
-    out["from_ath_pct"] = round(all_rows[-1]["ath_pct"], 1) if all_rows[-1].get("ath_pct") is not None else None
     return out

@@ -144,6 +144,23 @@ def test_risk_series_no_network(monkeypatch):
     _ = _t
 
 
+def test_zone_chart_young_coin_has_reads_without_long(monkeypatch):
+    # A coin under a year old: no long-term reading yet, but the chart still carries per-horizon reads.
+    d, c = _path([("2025-12-09", 0.05), ("2025-12-21", 0.118), ("2026-06-01", 0.05), ("2026-10-10", 0.068)])
+    rows = zones.compute_rows("crypto", "NIGHT", d, c)
+    monkeypatch.setattr(zones, "risk_series", lambda kind, sym: rows)
+    out = zones.zone_chart("crypto", "NIGHT", "1Y", "long")
+    assert out["now"] is None and out["points"] == []
+    assert out["reads"]["long"]["text"] is None
+    assert out["reads"]["short"]["text"]
+    assert out["from_ath_pct"] < -40
+    sig = zones.zone_chart("crypto", "NIGHT", "1Y", "short")["signals"]
+    assert sig and out["reads"]["mid"]["risk"] is not None
+    long_sigs = {s["name"]: s["value"] for s in zones._signals("crypto", "long", rows)}
+    assert "e+" not in long_sigs["From all-time high"] and "high $0.1" in long_sigs["From all-time high"]
+    assert zones._signals("crypto", "long", [{**rows[-1], "ath": 130500.0}])[0]["value"].endswith("high $130,500")
+
+
 def test_night_registered():
     c = universe.coin("night")
     assert c == {"symbol": "NIGHT", "name": "Midnight", "id": "midnight-3", "yahoo": "NIGHT-USD"}
