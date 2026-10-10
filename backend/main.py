@@ -1895,6 +1895,10 @@ def get_search_index():
     for c in market_data.crypto_markets(15):
         sym = c["symbol"].upper()
         tickers.setdefault(sym, {"symbol": sym, "kind": "crypto", "name": c.get("name"), "owned": False})
+    for sym, name, _cg, _y in universe.COINS:  # always-searchable coins (e.g. NIGHT), even offline
+        t = tickers.setdefault(sym, {"symbol": sym, "kind": "crypto", "name": name, "owned": False})
+        if t["kind"] == "crypto":
+            t["name"] = t.get("name") or name
     for sym in _load_list(OPTIONS_FILE, DEFAULT_OPTIONS) + _load_list(STOCKS_FILE, DEFAULT_STOCKS):
         tickers.setdefault(sym, {"symbol": sym, "kind": "stock", "name": None, "owned": False})
     labels = sorted({h.get("label") for h in hs if h.get("label")})
