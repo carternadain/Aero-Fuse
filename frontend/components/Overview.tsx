@@ -82,10 +82,10 @@ function Customize({ onClose }: { onClose: () => void }) {
 
 // Plain-language "what's in here" for every tab, so it's obvious where to go.
 const GUIDE: Record<Exclude<TabKey, "home">, { what: string; when: string }> = {
-  trading: { what: "Buy & Sell (risk score and sell plan for what you own), trade log, P&L calendar, signals and sizing.", when: "When you're about to enter or exit a trade" },
-  markets: { what: "Ideas (swing setups and hot sectors), Stocks (options watch, compare) and Crypto (liquidation heatmap, coins).", when: "Looking for your next contract" },
+  markets: { what: "Check any stock or crypto for a buy/wait verdict, see your holdings' risk and sell plans, find ideas, crypto.", when: "Before you buy or sell something" },
   news: { what: "Headlines for what you own, upcoming earnings and the macro calendar.", when: "Before earnings or a big move" },
   wealth: { what: "Goals, net worth by account, risk, savings plan, dividends, stress test, FIRE and budget.", when: "Weekly check-in on the big picture" },
+  trading: { what: "Trade log, signals and paper bot.", when: "When you're running trades" },
 };
 
 function greeting(): string {
@@ -185,7 +185,7 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       <div>
         <div className="hidden lg:block text-[10px] font-bold tracking-widest text-faint mb-2">WHERE TO GO</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {TABS.filter((t) => t.key !== "home").map(({ key, label, icon: Icon }) => {
+          {TABS.filter((t) => t.key !== "home" && (t.key !== "trading" || prefs.botTools)).map(({ key, label, icon: Icon }) => {
             const g = GUIDE[key as Exclude<TabKey, "home">];
             return (
               <button key={key} onClick={() => onNavigate(key)}

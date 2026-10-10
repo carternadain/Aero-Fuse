@@ -6,10 +6,10 @@
 import { useSyncExternalStore } from "react";
 
 export type Mode = "simple" | "pro";
-interface Prefs { mode: Mode; collapsed: string[]; home: Record<string, boolean> }
+interface Prefs { mode: Mode; collapsed: string[]; home: Record<string, boolean>; botTools: boolean }
 
 const KEY = "view-prefs-v1";
-const DEFAULT: Prefs = { mode: "simple", collapsed: [], home: {} };
+const DEFAULT: Prefs = { mode: "simple", collapsed: [], home: {}, botTools: false };
 
 let prefs: Prefs = DEFAULT;
 let loaded = false;
@@ -40,6 +40,10 @@ export function usePrefs(): Prefs & { revealed: Set<string> } {
 
 export function setMode(mode: Mode) { load(); save({ ...prefs, mode }); }
 export function getMode(): Mode { load(); return prefs.mode; }
+
+/** Trading-bot tools (the Bot tab) are off unless switched on. */
+export function setBotTools(on: boolean) { load(); save({ ...prefs, botTools: on }); }
+export function getBotTools(): boolean { load(); return prefs.botTools; }
 
 export function toggleCollapsed(id: string) {
   load();

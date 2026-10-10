@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bell, Layers, CornerDownLeft, Eye, FileBarChart, Hash, Search, Star, Wallet, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Bot, Layers, CornerDownLeft, Eye, FileBarChart, Hash, Search, Star, Wallet, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { haptic, navigate, on, openAlerts, openReport, openTicker, type Kind } from "@/lib/bus";
 import { accountAnchor } from "@/lib/live";
 import { isHidden, setHidden } from "@/lib/privacy";
 import { useStars } from "@/lib/stars";
-import { getMode, setMode } from "@/lib/prefs";
+import { getMode, setMode, setBotTools, usePrefs } from "@/lib/prefs";
 
 interface IndexTicker { symbol: string; kind: Kind; name: string | null; sector?: string; owned: boolean }
 
@@ -24,20 +24,21 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Your week", "home", undefined, "sec-week", "recap weekly"],
   ["Your accounts", "home", undefined, "sec-accounts", "holdings positions"],
   ["Starred watchlist", "markets", "ideas", "sec-starred", "favorites stars watch"],
-  ["Compare tickers", "markets", "stocks", "sec-compare", "overlay vs versus"],
+  ["Compare tickers", "markets", "ideas", "sec-compare", "overlay vs versus"],
   ["Sector map", "markets", "ideas", "sec-sectors", "energy space heatmap"],
   ["Swing ideas", "markets", "ideas", "sec-swing", "energy nuclear space defense ai"],
-  ["Risk score (buy & sell zones)", "trading", undefined, "sec-topbuys", "top buys best scores overbought accumulate exit desk overheated heat stop trailing trim"],
-  ["Sell plan", "trading", undefined, "sec-exitplan", "sell ladder take profit budget sells simulator exit desk overheated heat stop trailing trim"],
-  ["Options watch", "markets", "stocks", "sec-options", "contracts calls puts"],
-  ["Tech stock screener", "markets", "stocks", "sec-screener", ""],
+  ["Check a stock or crypto", "markets", "check", "sec-topbuys", "risk score buy sell zones should I buy overheated estimate top buys best scores overbought accumulate exit desk overheated heat stop trailing trim"],
+  ["Your holdings risk", "markets", "mine", "sec-holdrisk", "risk what I own overheated heat stop trailing trim"],
+  ["Sell plan", "markets", "mine", "sec-exitplan", "sell ladder take profit budget sells simulator exit desk overheated heat stop trailing trim"],
+  ["Options watch", "markets", "ideas", "sec-options", "contracts calls puts"],
+  ["Tech stock screener", "markets", "ideas", "sec-screener", ""],
   ["BTC liquidation heatmap", "markets", "crypto", "sec-liqmap", "coinglass liquidity leverage bitcoin"],
   ["Crypto markets", "markets", "crypto", "sec-crypto", "coins bitcoin"],
   ["Narratives", "markets", "crypto", "sec-narratives", "categories"],
   ["News for my holdings", "news", undefined, "sec-news", "headlines"],
   ["Earnings calendar", "news", undefined, "sec-earnings", ""],
   ["Economic calendar", "news", undefined, "sec-econ", "fed cpi fomc jobs"],
-  ["Options you hold", "trading", undefined, "sec-optplan", "options decay expiry exit desk take profit"],
+  ["Options you hold", "markets", "mine", "sec-optplan", "options decay expiry exit desk take profit"],
   ["Trade log", "trading", undefined, "sec-trades", "journal"],
   ["Trading calendar & streaks", "trading", undefined, "sec-tradecal", "p&l pnl win rate"],
   ["Position sizing", "trading", undefined, "sec-riskdesk", "position size"],
@@ -62,6 +63,8 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Backup & export", "wealth", undefined, "sec-backup", "download csv json database restore"],
 ];
 
+
+
 let indexCache: { tickers: IndexTicker[]; accounts: string[] } | null = null;
 
 function score(q: string, text: string): number {
@@ -85,6 +88,7 @@ export default function CommandPalette() {
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const { items: stars } = useStars();
+  const { botTools } = usePrefs();
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -125,7 +129,8 @@ export default function CommandPalette() {
       });
     }
     for (const [label, tab, sub, anchor, kw] of PLACES) {
-      out.push({ id: `p:${label}`, group: "Go to", label, hint: tab === "markets" ? `Markets · ${sub}` : tab[0].toUpperCase() + tab.slice(1),
+      if (!botTools && tab === "trading") continue;
+      out.push({ id: `p:${label}`, group: "Go to", label, hint: tab === "markets" ? `Invest · ${sub![0].toUpperCase() + sub!.slice(1)}` : tab === "trading" ? "Bot" : tab[0].toUpperCase() + tab.slice(1),
                  icon: ArrowRight, keywords: kw, run: () => navigate({ tab, sub, anchor }) });
     }
     for (const a of index?.accounts ?? []) {
@@ -137,11 +142,16 @@ export default function CommandPalette() {
         run: () => setHidden(!isHidden()) },
       { id: "x:mode", group: "Actions", label: getMode() === "simple" ? "Switch to Pro mode (show everything)" : "Switch to Simple mode",
         icon: Layers, keywords: "simple pro advanced declutter view", run: () => setMode(getMode() === "simple" ? "pro" : "simple") },
+      { id: "x:bot", group: "Actions", label: botTools ? "Hide trading bot tools" : "Show trading bot tools", icon: Bot,
+        keywords: "bot trade log signals paper simbot switch", run: () => {
+          setBotTools(!botTools);
+          if (botTools && window.location.hash.startsWith("#trading")) navigate({ tab: "home" });
+        } },
       { id: "x:alert", group: "Actions", label: "New price alert", icon: Bell, keywords: "notify ping", run: () => openAlerts() },
       { id: "x:report", group: "Actions", label: "Monthly report", icon: FileBarChart, keywords: "recap summary month", run: () => openReport() },
     );
     return out;
-  }, [index, stars]);
+  }, [index, stars, botTools]);
 
   const ql = q.trim().toLowerCase();
   const results = useMemo(() => {

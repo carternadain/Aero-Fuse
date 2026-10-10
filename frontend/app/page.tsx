@@ -27,7 +27,7 @@ import TradeCalendar from "@/components/TradeCalendar";
 import LiqHeatmap from "@/components/LiqHeatmap";
 import Panes from "@/components/Panes";
 import Section, { ProHint } from "@/components/Section";
-import { reveal } from "@/lib/prefs";
+import { getBotTools, reveal, usePrefs } from "@/lib/prefs";
 import StatsBar from "@/components/StatsBar";
 import NewsFeed from "@/components/NewsFeed";
 import TradeTracker from "@/components/TradeTracker";
@@ -37,7 +37,8 @@ import Portfolio from "@/components/Portfolio";
 import RiskDesk from "@/components/RiskDesk";
 import Analytics from "@/components/Analytics";
 import SimBot from "@/components/SimBot";
-import BuyZones from "@/components/BuyZones";
+import CheckTicker from "@/components/CheckTicker";
+import HoldingsRisk from "@/components/HoldingsRisk";
 import ExitPlanner from "@/components/ExitPlanner";
 import OptionsPlan from "@/components/OptionsPlan";
 import SwingIdeas from "@/components/SwingIdeas";
@@ -63,15 +64,15 @@ const PARENT: Record<string, string> = {
   "sec-tradelist": "sec-trades", "sec-tradecal": "sec-trades",
   "sec-signallog": "sec-signals", "sec-levels": "sec-signals", "sec-positions": "sec-signals",
   "sec-riskdesk": "sec-edge", "sec-analytics": "sec-edge", "sec-simbot": "sec-edge",
-  "sec-topbuys": "sec-exits", "sec-exitplan": "sec-exits", "sec-optplan": "sec-exits", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
+  "sec-holdrisk": "sec-exits", "sec-exitplan": "sec-exits", "sec-optplan": "sec-exits", "sec-swing": "sec-ideas", "sec-sectors": "sec-ideas",
   "sec-compare": "sec-research", "sec-screener": "sec-research",
   "sec-coins": "sec-crypto", "sec-narratives": "sec-crypto",
   "sec-earnings": "sec-calendar", "sec-econ": "sec-calendar",
 };
 
-// Swipe order on phones: Markets' sub-tabs sit in the middle of the sequence.
+// Swipe order on phones: Invest's sub-tabs sit together; the Bot tab is last and only when switched on.
 const SEQ: { tab: TabKey; sub?: MarketsSub }[] = [
-  { tab: "home" }, { tab: "trading" }, { tab: "markets", sub: "ideas" }, { tab: "markets", sub: "stocks" },
+  { tab: "home" }, { tab: "markets", sub: "check" }, { tab: "markets", sub: "mine" }, { tab: "markets", sub: "ideas" },
   { tab: "markets", sub: "crypto" }, { tab: "news" }, { tab: "wealth" },
 ];
 
@@ -87,8 +88,11 @@ function inHScroll(el: HTMLElement | null): boolean {
 
 export default function Dashboard() {
   const [tab, setTabState] = useState<TabKey>("home");
-  const [sub, setSubState] = useState<MarketsSub>("ideas");
+  const [sub, setSubState] = useState<MarketsSub>("check");
   const [wealthPage, setWealthPage] = useState<WealthPage | null>(null);
+  const { botTools } = usePrefs();
+  const botRef = useRef(botTools);
+  botRef.current = botTools;
   const [, setPrivacyTick] = useState(0); // re-render everything when "hide balances" flips
   useEffect(() => {
     const on = () => setPrivacyTick((n) => n + 1);
@@ -118,6 +122,7 @@ export default function Dashboard() {
   wpRef.current = wealthPage;
   const listScroll = useRef(0);
   const go = useCallback((t: TabKey, s?: MarketsSub, anchor?: string) => {
+    if (t === "trading" && !getBotTools()) { t = "markets"; s = "mine"; anchor = undefined; } // bot tools are switched off
     setTabState(t);
     if (s) setSubState(s);
     const page = t === "wealth" && anchor ? WEALTH_ANCHOR[anchor] ?? null : null;
@@ -155,6 +160,10 @@ export default function Dashboard() {
     }
     hadPage.current = !!wealthPage;
   }, [wealthPage, tab]);
+  // Landing on #trading (old link, refresh) with bot tools off, or switching them off while there
+  useEffect(() => {
+    if (tab === "trading" && !getBotTools()) go("markets", "mine");
+  }, [tab, botTools, go]);
   const setTab = (t: TabKey) => go(t);
   const setSub = (s: MarketsSub) => go("markets", s);
 
@@ -177,8 +186,9 @@ export default function Dashboard() {
       if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5 || Date.now() - t0 > 700) return;
       const cur = pos.current;
       if (cur.tab === "wealth" && wpRef.current && dx > 0) { haptic(); closeWealthPage(); return; } // swipe back, not a tab change
-      const i = SEQ.findIndex((x) => x.tab === cur.tab && (x.tab !== "markets" || x.sub === cur.sub));
-      const next = SEQ[i + (dx < 0 ? 1 : -1)];
+      const seq = botRef.current ? [...SEQ, { tab: "trading" as TabKey }] : SEQ;
+      const i = seq.findIndex((x) => x.tab === cur.tab && (x.tab !== "markets" || x.sub === cur.sub));
+      const next = seq[i + (dx < 0 ? 1 : -1)];
       if (!next) return;
       haptic();
       go(next.tab, next.sub);
@@ -228,20 +238,27 @@ export default function Dashboard() {
     setNewsLoading(true);
     try {
       setNews(await api.get<NewsResponse>(`/api/news${force ? "?refresh=true" : ""}`));
+      setBackendDown(false);
     } catch {
-      /* backend banner already covers this */
+      setBackendDown(true); // the core poll only runs with bot tools on, so news doubles as the health check
     } finally {
       setNewsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refreshCore();
     refreshNews();
-    const core = setInterval(refreshCore, 15000); // signals/trades poll
     const newsT = setInterval(() => refreshNews(), 5 * 60000);
-    return () => { clearInterval(core); clearInterval(newsT); };
-  }, [refreshCore, refreshNews]);
+    return () => clearInterval(newsT);
+  }, [refreshNews]);
+
+  // Trades, signals, levels and positions only feed the Bot tab, so poll them only while it's switched on.
+  useEffect(() => {
+    if (!botTools) return;
+    refreshCore();
+    const core = setInterval(refreshCore, 15000);
+    return () => clearInterval(core);
+  }, [botTools, refreshCore]);
 
   return (
     <div className="min-h-screen">
@@ -265,17 +282,10 @@ export default function Dashboard() {
 
         {tab === "home" && <Overview onNavigate={setTab} />}
 
-        {/* ── Trading ── */}
-        {tab === "trading" && (
+        {/* ── Bot (trading tools, only when switched on) ── */}
+        {tab === "trading" && botTools && (
           <>
             <StatsBar stats={stats} edge={edge} />
-            <Section id="sec-exits" title="Buy" accent="& Sell" hint="risk score for what you own · your sell plan">
-              <Panes items={[
-                { id: "sec-topbuys", label: "Risk", node: <BuyZones /> },
-                { id: "sec-exitplan", label: "Sell plan", node: <ExitPlanner /> },
-                ...(hasOptions ? [{ id: "sec-optplan", label: "Options", node: <OptionsPlan /> }] : []),
-              ]} />
-            </Section>
             <Section id="sec-trades" title="Trade" accent="Log" hint="open + closed trades · P&L calendar">
               <Panes items={[
                 { id: "sec-tradelist", label: "Trades", node: <TradeTracker trades={trades} onChanged={refreshCore} /> },
@@ -300,21 +310,29 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* ── Markets: Ideas / Stocks / Crypto ── */}
+        {/* ── Invest: Check / Mine / Ideas / Crypto ── */}
         {tab === "markets" && (
           <>
             <SubTabs value={sub} onChange={setSub} />
-            <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>
-            {sub === "ideas" && (
-              <Section id="sec-ideas" title="New" accent="Ideas" hint="swing setups · hot sectors">
+            {sub === "ideas" && <div id="sec-starred" className="scroll-mt-28"><StarredList /></div>}
+            {sub === "check" && <div id="sec-topbuys" className="scroll-mt-28"><CheckTicker /></div>}
+            {sub === "mine" && (
+              <div id="sec-exits" className="scroll-mt-28">
                 <Panes items={[
-                  { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
-                  { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
+                  { id: "sec-holdrisk", label: "Risk", node: <HoldingsRisk /> },
+                  { id: "sec-exitplan", label: "Sell plan", node: <ExitPlanner /> },
+                  ...(hasOptions ? [{ id: "sec-optplan", label: "Options", node: <OptionsPlan /> }] : []),
                 ]} />
-              </Section>
+              </div>
             )}
-            {sub === "stocks" && (
+            {sub === "ideas" && (
               <>
+                <Section id="sec-ideas" title="New" accent="Ideas" hint="swing setups · hot sectors">
+                  <Panes items={[
+                    { id: "sec-swing", label: "Swing", node: <SwingIdeas /> },
+                    { id: "sec-sectors", label: "Sectors", node: <SectorMap /> },
+                  ]} />
+                </Section>
                 <Section id="sec-options" title="Options" accent="Watch" hint="your stocks · live signals"><OptionsWatch /></Section>
                 <Section id="sec-research" title="Stock" accent="Research" hint="compare tickers · tech screener">
                   <Panes items={[
@@ -361,7 +379,7 @@ export default function Dashboard() {
           <WealthPages page={wealthPage} onOpen={openWealthPage} onClose={closeWealthPage} />
         )}
 
-        {tab === "trading" && (
+        {tab === "trading" && botTools && (
           <footer className="pb-4 pt-2 text-center text-[10px] text-faint font-medium">
             Quality over quantity · Confluence + sweep + 2:1 RR minimum · 70% win rate target
           </footer>

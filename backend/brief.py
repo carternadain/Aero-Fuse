@@ -48,24 +48,24 @@ def build(holdings: list[dict], goals: list[dict]) -> dict:
     for r in desk["rows"]:
         for hit in r["hits"]:
             items.append({"prio": 95, "icon": "target", "tone": hit["tone"], "text": f"{r['display']}: {hit['text']}",
-                          "go": {"tab": "trading", "anchor": "sec-exits"}})
+                          "go": {"tab": "markets", "sub": "mine", "anchor": "sec-exits"}})
     hot = [r for r in desk["rows"] if (r["heat"]["overall"] or 0) >= 70]
     if hot:
         names = ", ".join(f"{r['display']} ({r['heat']['overall']:.0f})" for r in hot[:3])
         items.append({"prio": 80, "icon": "flame", "tone": "amber",
                       "text": f"Running hot: {names}" + (f" +{len(hot) - 3} more" if len(hot) > 3 else ""),
-                      "sub": "Heat ≥ 70 on the Exit Desk: stretched vs. its own history", "go": {"tab": "trading", "anchor": "sec-exits"}})
+                      "sub": "Running hot: stretched vs. its own history", "go": {"tab": "markets", "sub": "mine", "anchor": "sec-exits"}})
     cold = [r for r in desk["rows"] if r["heat"]["overall"] is not None and r["heat"]["overall"] < 25]
     if cold:
         items.append({"prio": 40, "icon": "snow", "tone": "cyan",
                       "text": "Washed out: " + ", ".join(f"{r['display']} ({r['heat']['overall']:.0f})" for r in cold[:3]),
-                      "go": {"tab": "trading", "anchor": "sec-exits"}})
+                      "go": {"tab": "markets", "sub": "mine", "anchor": "sec-exits"}})
     for r in desk["rows"]:
         o = r.get("option")
         if o and o.get("dte") is not None and o["dte"] <= 60:
             items.append({"prio": 90 if o["dte"] <= 21 else 75, "icon": "clock", "tone": "down",
                           "text": f"{r['display']} expires in {o['dte']} days" + (f", {o['time_value_share']:.0f}% of its price is time value" if o.get("time_value_share") else ""),
-                          "go": {"tab": "trading", "anchor": "sec-exits"}})
+                          "go": {"tab": "markets", "sub": "mine", "anchor": "sec-exits"}})
 
     # 3) alerts fired in the last day
     cutoff = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -104,7 +104,7 @@ def build(holdings: list[dict], goals: list[dict]) -> dict:
     if fg and fg.get("week_ago") is not None and abs(fg["value"] - fg["week_ago"]) >= 10:
         items.append({"prio": 45, "icon": "gauge", "tone": "flat",
                       "text": f"Crypto mood moved {fg['week_ago']} → {fg['value']} ({fg['label']}) this week",
-                      "go": {"tab": "trading", "anchor": "sec-exits"}})
+                      "go": {"tab": "markets", "sub": "mine", "anchor": "sec-exits"}})
 
     # 6) goals behind pace
     behind = [g for g in goals if g.get("on_pace") is False and g.get("pct", 0) < 100]
