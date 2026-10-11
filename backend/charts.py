@@ -164,12 +164,15 @@ def _ffill(s: Series, grid: list[float]) -> list[float | None]:
     return out
 
 
-def portfolio_chart(holdings: list[dict], rng: str, offset: float = 0.0) -> dict:
+def portfolio_chart(holdings: list[dict], rng: str, offset: float = 0.0,
+                    fills: list[dict] | None = None) -> dict:
     """Sum of qty × price over time for every live holding (options held flat).
 
     `offset` adds a constant (manual account balances minus debts) so the same
-    curve can be drawn as total net worth.
+    curve can be drawn as total net worth. `fills` (auto-invest buys) shrink a
+    holding's qty before each buy date instead of assuming today's qty all along.
     """
+    from nw_backfill import _fills_by_holding, qty_on  # lazy: nw_backfill imports this module
     if rng not in RANGES:
         return {"range": rng, "points": []}
     _, span, *_rest, step = RANGES[rng]
@@ -182,11 +185,13 @@ def portfolio_chart(holdings: list[dict], rng: str, offset: float = 0.0) -> dict
     now = time.time()
     grid = [now - span + i * step for i in range(int(span // step) + 1)]
     total = [flat] * len(grid)
-    for h, s in zip(live, all_s):
+    days = [datetime.fromtimestamp(t, timezone.utc).date().isoformat() for t in grid]
+    for h, s, buys in zip(live, all_s, _fills_by_holding(live, fills)):
         mult = h.get("multiplier", 1)
         vals = _ffill(s, grid) if s else [h["price"]] * len(grid)
         for i, v in enumerate(vals):
-            total[i] += h["qty"] * mult * (v if v is not None else h["price"])
+            q = qty_on(h["qty"], buys, days[i]) if buys else h["qty"]
+            total[i] += q * mult * (v if v is not None else h["price"])
     current = flat + sum(h["value"] for h in live)
     pts = [(t, v) for t, v in zip(grid, total)] + [(now, current)]
     base = pts[0][1]

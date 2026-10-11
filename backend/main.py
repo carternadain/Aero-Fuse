@@ -943,7 +943,8 @@ def get_networth_chart(range: str = "1D"):
         raise HTTPException(400, f"range one of {list(NW_RANGES)}")
     accounts = db.list_accounts()
     manual = sum(a["balance"] for a in accounts if a["kind"] == "asset") -         sum(a["balance"] for a in accounts if a["kind"] == "liability")
-    out = charts.portfolio_chart(valued_holdings()["holdings"], NW_RANGES[range], offset=manual)
+    out = charts.portfolio_chart(valued_holdings()["holdings"], NW_RANGES[range], offset=manual,
+                                 fills=autoinvest.ledger())
     snaps = db.list_snapshots()
     out["backfilled"] = range in ("1Y", "ALL")
     out["history_since"] = snaps[0]["date"] if snaps else None
