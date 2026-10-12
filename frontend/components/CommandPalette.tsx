@@ -49,6 +49,7 @@ const PLACES: [string, string, string | undefined, string | undefined, string][]
   ["Paper bot", "trading", undefined, "sec-simbot", "paper trading"],
   ["Trading stats", "trading", undefined, "sec-analytics", "expectancy"],
   ["Goals", "wealth", undefined, "sec-goals", "target progress"],
+  ["Cash", "wealth", undefined, "sec-cash", "cash checking spent paycheck bills move savings invest robinhood weekly"],
   ["Net worth by account", "wealth", undefined, "sec-wealth", "edit balances"],
   ["Net worth over time", "wealth", undefined, "sec-nwhistory", "history chart daily snapshots debts cash property"],
   ["Auto-invest (recurring buys)", "wealth", undefined, "sec-autoinvest", "recurring buy deposits dca dollar cost averaging robinhood schedule weekly monthly invest automatically"],

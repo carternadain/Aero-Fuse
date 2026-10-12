@@ -320,14 +320,17 @@ def create_rule(data: dict, add_past: bool = True, today: date | None = None) ->
     recorded (for net worth history), not added again."""
     today = today or today_utc()
     d = _clean(data)
+    cash_id = data.get("cash_account_id") or None  # paid from this account (fills from today on)
     now = db.utcnow()
     with db.conn() as c:
         cur = c.execute(
             "INSERT INTO autoinvest_rules (symbol, kind, amount, frequency, day, start_date, end_date, label,"
-            " paused, track_from, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,0,?,?,?)",
+            " paused, track_from, cash_account_id, cash_from, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?)",
             (d["symbol"], d.get("kind", "stock"), d["amount"], d.get("frequency", "monthly"), int(d.get("day", 1)),
              d["start_date"], d.get("end_date"), d.get("label", ""),
-             None if add_past else today.isoformat(), now, now))
+             None if add_past else today.isoformat(),
+             cash_id, today.isoformat() if cash_id else None, now, now))
         rid = cur.lastrowid
     return rid
 
@@ -359,6 +362,9 @@ def update_rule(rule_id: int, data: dict, apply_to: str = "future", today: date 
             sets["resume_from"] = None
         elif changed and has_fills:
             sets["resume_from"] = today.isoformat()
+        if "cash_account_id" in data and (data["cash_account_id"] or None) != r.get("cash_account_id"):
+            sets["cash_account_id"] = data["cash_account_id"] or None
+            sets["cash_from"] = today.isoformat() if data["cash_account_id"] else None
         if paused is not None and bool(paused) != bool(r["paused"]):
             sets["paused"] = 1 if paused else 0
             if paused:

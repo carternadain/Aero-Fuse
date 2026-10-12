@@ -50,6 +50,7 @@ import leaps
 import liqmap
 import exits
 import brief
+import cashflow
 import market_data
 import news
 import nw_history
@@ -605,6 +606,7 @@ class AccountIn(BaseModel):
     category: str = "cash"
     kind: str = "asset"
     balance: float = 0
+    rate: float | None = None        # APR % for loans / cards
 
 
 class HoldingIn(BaseModel):
@@ -659,6 +661,7 @@ class AccountPatch(BaseModel):
     category: str | None = None
     kind: str | None = None
     balance: float | None = None
+    rate: float | None = None
 
 
 class TransactionIn(BaseModel):
@@ -857,6 +860,7 @@ def remove_position(pos_id: int):
 
 @app.get("/api/accounts")
 def get_accounts():
+    cashflow.safe_sync()  # post paychecks / bills / transfers that have come due
     return {"accounts": db.list_accounts(), "totals": db.networth_totals(valued_holdings()["value"])}
 
 
@@ -1093,6 +1097,7 @@ class AutoInvestIn(BaseModel):
     end_date: str | None = None
     label: str = ""
     add_past: bool = True          # False: past buys are already in the holding's qty
+    cash_account_id: int | None = None  # paid from this account (fills from today on)
 
 
 class AutoInvestPatch(BaseModel):
@@ -1105,6 +1110,7 @@ class AutoInvestPatch(BaseModel):
     end_date: str | None = None
     label: str | None = None
     paused: bool | None = None
+    cash_account_id: int | None = None   # null: no longer paid from an account
     apply_to: str = "future"       # future | all: whether schedule edits rewrite past buys
 
 
@@ -1127,6 +1133,11 @@ def _check_rule(r: dict):
             raise HTTPException(400, "end_date is before start_date")
 
 
+def _check_cash_account(acc_id: int | None):
+    if acc_id is not None and not any(a["id"] == acc_id for a in db.list_accounts()):
+        raise HTTPException(400, "That account doesn't exist")
+
+
 @app.get("/api/autoinvest")
 def get_autoinvest():
     return autoinvest.list_rules()
@@ -1145,6 +1156,7 @@ def post_autoinvest(body: AutoInvestIn):
     data = body.model_dump()
     data["symbol"] = data["symbol"].upper().strip()
     _check_rule(data)
+    _check_cash_account(data.get("cash_account_id"))
     rid = autoinvest.create_rule(data, add_past=body.add_past)
     autoinvest.safe_apply(rule_ids=[rid])  # backfill past buys from price history
     return autoinvest.get_rule(rid)
@@ -1163,8 +1175,9 @@ def patch_autoinvest(rule_id: int, body: AutoInvestPatch):
     if body.apply_to not in ("future", "all"):
         raise HTTPException(400, "apply_to must be 'future' or 'all'")
     raw = body.model_dump(exclude={"apply_to"}, exclude_unset=True)
-    fields = {k: v for k, v in raw.items() if v is not None or k == "end_date"}
-    _check_rule({**cur, **{k: v for k, v in fields.items() if k != "paused"},
+    fields = {k: v for k, v in raw.items() if v is not None or k in ("end_date", "cash_account_id")}
+    _check_cash_account(fields.get("cash_account_id"))
+    _check_rule({**cur, **{k: v for k, v in fields.items() if k not in ("paused", "cash_account_id")},
                  "symbol": (fields.get("symbol") or cur["symbol"])})
     autoinvest.update_rule(rule_id, fields, apply_to=body.apply_to)
     autoinvest.safe_apply(rule_ids=[rule_id])
@@ -1326,7 +1339,9 @@ def post_transaction(tx: TransactionIn):
     data = tx.model_dump()
     data["category"] = category
     data["amount"] = round(-tx.amount if (tx.refund and tx.kind == "expense") else tx.amount, 2)
-    return db.create_transaction(data)
+    out = db.create_transaction(data)
+    cashflow.apply_new_tx(out["id"])  # typed-in spending / income moves Cash too
+    return out
 
 
 @app.post("/api/transactions/bulk")
@@ -1337,7 +1352,7 @@ def bulk_transactions(body: TransactionsBulkIn):
     if not (body.ids or body.month or body.batch):
         raise HTTPException(400, "Say which transactions: ids, a month or an import batch.")
     if body.action == "delete":
-        return {"deleted": db.delete_transactions(body.ids, body.month, body.batch)}
+        return {"deleted": cashflow.delete_transactions(body.ids, body.month, body.batch)}
     if body.action == "move":
         return {"moved": db.move_transactions(body.budget_month, body.ids, body.month, body.batch)}
     raise HTTPException(400, "action must be delete or move")
@@ -1485,10 +1500,12 @@ def patch_transaction(tx_id: int, body: TransactionPatch):
         fields["amount"] = round(-abs(fields["amount"]) if tx["amount"] < 0 else abs(fields["amount"]), 2)
     if fields:
         tx = db.update_transaction(tx_id, fields)
+        cashflow.reapply_tx(tx_id)
     if body.category is None:
         return {"transaction": tx, "rule": None, "updated": 0}
     _check_category(body.category, body.kind)
     tx = db.update_transaction_category(tx_id, body.category, body.kind)
+    cashflow.reapply_tx(tx_id)  # the kind may have flipped between spending and income
     updated = 0
     rule = None
     if body.remember and tx.get("merchant"):
@@ -1517,7 +1534,7 @@ def put_recurring(merchant: str, body: RecurringIn):
 
 @app.delete("/api/transactions/{tx_id}")
 def remove_transaction(tx_id: int):
-    if not db.delete_transaction(tx_id):
+    if not cashflow.delete_transaction(tx_id):
         raise HTTPException(404, "Transaction not found")
     return {"ok": True}
 
@@ -1970,6 +1987,7 @@ class GoalIn(BaseModel):
     target: float
     date: str | None = None
     metric: str = "net_worth"  # net_worth | invested | cash
+    account_id: int | None = None  # track one account's balance instead of a metric
 
 
 def _goal_values() -> dict[str, float]:
@@ -1991,16 +2009,27 @@ def _goal_monthly(metric: str) -> float:
 
 @app.get("/api/goals")
 def get_goals():
+    cashflow.safe_sync()
     vals = _goal_values()
-    return {"goals": [extras.goal_progress(g, vals.get(g.get("metric", "net_worth"), 0.0),
-                                           _goal_monthly(g.get("metric", "net_worth")))
-                      for g in extras.goals()]}
+    accts = {a["id"]: a for a in db.list_accounts()}
+    out = []
+    for g in extras.goals():
+        g = {**g, "account_id": g.get("account_id")}
+        if g["account_id"] is not None:
+            a = accts.get(g["account_id"])
+            out.append(extras.goal_progress(g, a["balance"] if a else 0.0, cashflow.account_monthly(g["account_id"])))
+        else:
+            out.append(extras.goal_progress(g, vals.get(g.get("metric", "net_worth"), 0.0),
+                                            _goal_monthly(g.get("metric", "net_worth"))))
+    return {"goals": out}
 
 
 @app.post("/api/goals")
 def post_goal(body: GoalIn):
     if body.target <= 0 or body.metric not in ("net_worth", "invested", "cash"):
         raise HTTPException(400, "target > 0, metric net_worth|invested|cash")
+    if body.account_id is not None and not any(a["id"] == body.account_id for a in db.list_accounts()):
+        raise HTTPException(400, "That account doesn't exist")
     extras.save_goal(body.model_dump())
     return get_goals()
 
@@ -2009,6 +2038,176 @@ def post_goal(body: GoalIn):
 def delete_goal(goal_id: str):
     extras.delete_goal(goal_id)
     return get_goals()
+
+
+# ── Cash (checking balance that keeps itself up to date) ──
+
+class CashSetupIn(BaseModel):
+    account_id: int | None = None
+    new_account_name: str | None = None
+    balance: float | None = None
+
+
+class CashBalanceIn(BaseModel):
+    account_id: int
+    balance: float
+
+
+class CashItemIn(BaseModel):
+    name: str
+    type: str
+    amount: float
+    frequency: str
+    day: int | None = None
+    day2: int | None = None
+    interval: int | None = None
+    start_date: str
+    end_date: str | None = None
+    category: str | None = None
+    account_id: int | None = None
+    varies: bool = False
+    note: str = ""
+    track_from: str | None = None
+
+
+class CashItemPatch(BaseModel):
+    name: str | None = None
+    type: str | None = None
+    amount: float | None = None
+    frequency: str | None = None
+    day: int | None = None
+    day2: int | None = None
+    interval: int | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    category: str | None = None
+    account_id: int | None = None
+    varies: bool | None = None
+    paused: bool | None = None
+    note: str | None = None
+    track_from: str | None = None
+
+
+class CashMoveIn(BaseModel):
+    from_account_id: int
+    to_account_id: int
+    amount: float
+    date: str | None = None
+    note: str = ""
+
+
+class CashInvestIn(BaseModel):
+    account_id: int
+    symbol: str
+    kind: str = "stock"
+    amount: float
+    date: str | None = None
+    price: float | None = None
+    label: str | None = None
+
+
+class CashSnoozeIn(BaseModel):
+    account_id: int
+
+
+class CashPlanIn(BaseModel):
+    plan: dict
+    skip: list[str] = []
+
+
+def _cash_call(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except cashflow.Invalid as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/cash")
+def get_cash():
+    return cashflow.payload()
+
+
+@app.put("/api/cash/setup")
+def put_cash_setup(body: CashSetupIn):
+    _cash_call(cashflow.setup, body.account_id, body.new_account_name, body.balance)
+    return cashflow.payload()
+
+
+@app.post("/api/cash/balance")
+def post_cash_balance(body: CashBalanceIn):
+    _cash_call(cashflow.set_balance, body.account_id, body.balance)
+    return cashflow.payload()
+
+
+@app.post("/api/cash/items")
+def post_cash_item(body: CashItemIn):
+    _cash_call(cashflow.create_item, body.model_dump())
+    return cashflow.payload()
+
+
+@app.patch("/api/cash/items/{item_id}")
+def patch_cash_item(item_id: int, body: CashItemPatch):
+    sent = body.model_fields_set
+    patch = {k: getattr(body, k) for k in sent if k != "paused" or body.paused is not None}
+    if not _cash_call(cashflow.update_item, item_id, patch):
+        raise HTTPException(404, "Item not found")
+    return cashflow.payload()
+
+
+@app.delete("/api/cash/items/{item_id}")
+def delete_cash_item(item_id: int):
+    if not cashflow.delete_item(item_id):
+        raise HTTPException(404, "Item not found")
+    return cashflow.payload()
+
+
+@app.post("/api/cash/move")
+def post_cash_move(body: CashMoveIn):
+    _cash_call(cashflow.move_money, body.from_account_id, body.to_account_id, body.amount, body.date, body.note)
+    return cashflow.payload()
+
+
+@app.post("/api/cash/invest")
+def post_cash_invest(body: CashInvestIn):
+    logged = _cash_call(cashflow.log_invest, body.account_id, body.symbol, body.kind, body.amount, body.date,
+                        body.price, body.label)
+    return {**cashflow.payload(), "logged": logged}
+
+
+@app.delete("/api/cash/moves/{move_id}")
+def delete_cash_move(move_id: int):
+    if not _cash_call(cashflow.undo_move, move_id):
+        raise HTTPException(404, "That entry wasn't found")
+    return cashflow.payload()
+
+
+@app.post("/api/cash/snooze")
+def post_cash_snooze(body: CashSnoozeIn):
+    cashflow.snooze(body.account_id)
+    return cashflow.payload()
+
+
+@app.get("/api/cash/plan-template")
+def get_cash_plan_template():
+    return cashflow.plan_template()
+
+
+def _plan_rule_check(data: dict):
+    _check_rule({**data, "kind": data.get("kind")})
+
+
+@app.post("/api/cash/import/preview")
+def post_cash_import_preview(body: CashPlanIn):
+    rows, errors, _ = cashflow.analyze(body.plan, (), _plan_rule_check)
+    return {"rows": rows, "errors": errors}
+
+
+@app.post("/api/cash/import")
+def post_cash_import(body: CashPlanIn):
+    res = _cash_call(cashflow.import_plan, body.plan, body.skip, _plan_rule_check)
+    if res["new_rule_ids"]:
+        autoinvest.safe_apply(rule_ids=res["new_rule_ids"])
+    return {"created": res["created"], "updated": res["updated"], "cash": cashflow.payload()}
 
 
 # ── Income, ticker insight, compare ───────────────────────

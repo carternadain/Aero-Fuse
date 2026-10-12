@@ -118,6 +118,31 @@ input, select, textarea {
 .field:focus {
   border-color: var(--color-up);
 }
+.field:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-up) 28%, transparent);
+}
+.field[aria-invalid="true"] {
+  border-color: var(--color-down);
+}
+/* Native date pickers: iOS Safari collapses empty ones to a short, centred box and ignores
+   width, so they overflow narrow grid columns. Make them behave like any other text field. */
+.field[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  text-align: left;
+  line-height: 1.3;
+}
+.field[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.3em;
+  margin: 0;
+}
+.field[type="date"]::-webkit-datetime-edit { padding: 0; }
+.field[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.6; cursor: pointer; }
 
 .btn {
   display: inline-flex;
@@ -266,7 +291,7 @@ input, select, textarea {
   /* List rows that end in a × / edit icon: tall enough that stacked rows' icons don't share a finger */
   div.flex:has(> .icon-btn:last-child) { min-height: 40px; }
   /* Inputs can't carry a ::after, so they get real height. 16px text also stops iOS zooming in on focus. */
-  .field { min-height: 40px; font-size: 16px; }
+  .field, .field[type="date"] { min-height: 40px; font-size: 16px; }
   select.field { padding-top: 0; padding-bottom: 0; }
   input[type="range"] { height: 40px; }
   .field-label { font-size: 11px; color: var(--color-dim); }

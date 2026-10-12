@@ -23,7 +23,10 @@ export interface Rule {
   start_date: string; end_date: string | null; paused: boolean; label: string;
   buys: number; invested: number; qty: number; added_qty: number; pending: number; next_date: string | null;
   fills?: Fill[];
+  cash_account_id?: number | null;
 }
+
+interface CashAccount { id: number; name: string }
 
 interface IndexTicker { symbol: string; kind: AssetKind | "option"; name: string | null }
 
@@ -58,6 +61,17 @@ export function scheduleText(r: Pick<Rule, "frequency" | "day">): string {
 }
 
 const perMonth = (r: Rule) => r.amount * (r.frequency === "weekly" ? 52 / 12 : r.frequency === "biweekly" ? 26 / 12 : 1);
+
+/** "$1,200.50" -> 1200.5. Returns an error message instead of silently producing NaN. */
+export function parseAmount(raw: string): { value: number; error: null } | { value: null; error: string } {
+  const t = raw.trim().replace(/^\$\s*/, "").replace(/,/g, "").replace(/\s+/g, "");
+  if (!t) return { value: null, error: "Enter an amount, like $200." };
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(t)) return { value: null, error: "Use numbers only, like $200 or $1,200.50." };
+  const n = Number(t);
+  if (!(n > 0)) return { value: null, error: "Amount has to be more than $0." };
+  if (n > 1e9) return { value: null, error: "That amount looks too large." };
+  return { value: Math.round(n * 100) / 100, error: null };
+}
 
 let indexCache: { tickers: IndexTicker[]; accounts: string[] } | null = null;
 
@@ -159,14 +173,15 @@ function RuleRow({ r, onOpen }: { r: Rule; onOpen: () => void }) {
 
 interface Form {
   symbol: string; kind: AssetKind; amount: string; frequency: Freq; day: number;
-  start_date: string; end_date: string; label: string; add_past: boolean; paused: boolean;
+  start_date: string; end_date: string; label: string; add_past: boolean; paused: boolean; cash: string;
 }
 
 const fromRule = (r: Rule | null): Form => r
   ? { symbol: r.symbol, kind: r.kind, amount: String(r.amount), frequency: r.frequency, day: r.day,
-      start_date: r.start_date, end_date: r.end_date ?? "", label: r.label, add_past: false, paused: r.paused }
+      start_date: r.start_date, end_date: r.end_date ?? "", label: r.label, add_past: false, paused: r.paused,
+      cash: r.cash_account_id != null ? String(r.cash_account_id) : "" }
   : { symbol: "", kind: "stock", amount: "", frequency: "monthly", day: new Date().getDate(),
-      start_date: todayIso(), end_date: "", label: "", add_past: false, paused: false };
+      start_date: todayIso(), end_date: "", label: "", add_past: false, paused: false, cash: "" };
 
 function Seg<T extends string | number>({ value, options, onChange, label }: {
   value: T; options: [T, string][]; onChange: (v: T) => void; label: string;
@@ -201,6 +216,11 @@ function Toggle({ label, sub, checked, onChange }: { label: string; sub?: string
 }
 
 const SCHEDULE_KEYS: (keyof Form)[] = ["symbol", "kind", "amount", "frequency", "day", "start_date", "end_date", "label"];
+const normSymbol = (s: string) => s.trim().toUpperCase();
+
+function FieldError({ id, msg }: { id: string; msg?: string | null }) {
+  return msg ? <p id={id} role="alert" className="text-[13px] leading-snug text-down">{msg}</p> : null;
+}
 
 function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () => void; onSaved: () => void }) {
   usePrivacy();
@@ -211,20 +231,31 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [tried, setTried] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [cashAccts, setCashAccts] = useState<CashAccount[]>([]);
   const first = useRef<HTMLInputElement>(null);
   const isNew = !rule;
 
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  // Runs once per open: the parent passes a fresh onClose every render, which used to re-run this
+  // (refetching, and yanking focus back to the symbol field while you typed elsewhere).
   useEffect(() => {
     if (!indexCache) api.get<{ tickers: IndexTicker[]; accounts: string[] }>("/api/search/index")
       .then((i) => { indexCache = i; setIndex(i); }).catch(() => {});
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    api.get<{ accounts: { id: number; name: string; category: string; kind: string }[] }>("/api/accounts")
+      .then((r) => setCashAccts((r.accounts ?? []).filter((a) => a.kind === "asset" && a.category === "cash").map((a) => ({ id: a.id, name: a.name }))))
+      .catch(() => {});
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") closeRef.current(); };
     window.addEventListener("keydown", k);
     document.body.style.overflow = "hidden";
-    if (isNew) setTimeout(() => first.current?.focus(), 50);
-    return () => { window.removeEventListener("keydown", k); document.body.style.overflow = ""; };
-  }, [onClose, isNew]);
+    const t = isNew ? setTimeout(() => first.current?.focus(), 50) : undefined;
+    return () => { window.removeEventListener("keydown", k); document.body.style.overflow = ""; if (t) clearTimeout(t); };
+  }, [isNew]);
 
-  const q = f.symbol.trim().toUpperCase();
+  const q = normSymbol(f.symbol);
   const matches = useMemo(() => {
     if (!q || !index) return [];
     const t = index.tickers.filter((x) => x.kind !== "option");
@@ -234,6 +265,12 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
       .map((x) => ({ x, s: x.symbol === q ? 100 : x.symbol.startsWith(q) ? 60 : (x.name ?? "").toUpperCase().includes(q) ? 20 : 0 }))
       .filter((m) => m.s > 0).sort((a, b) => b.s - a.s || a.x.symbol.localeCompare(b.x.symbol)).slice(0, 5).map((m) => m.x);
   }, [q, index, focus]);
+  const showList = focus && matches.length > 0;
+  const pick = (m: IndexTicker) => {
+    haptic();
+    setF((cur) => ({ ...cur, symbol: m.symbol, kind: m.kind as AssetKind }));
+    setActive(-1); setFocus(false);
+  };
   const accounts = useMemo(() => Array.from(new Set(index?.accounts ?? [])).slice(0, 20), [index]);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((cur) => ({ ...cur, [k]: v }));
@@ -243,23 +280,36 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
       : (cur.frequency === "monthly" ? (parseDay(cur.start_date).getDay() + 6) % 7 : cur.day),
   }));
 
-  const amount = parseFloat(f.amount.replace(/[$,\s]/g, ""));
+  const parsed = parseAmount(f.amount);
+  const amount = parsed.value ?? 0;
   const original = fromRule(rule);
   const scheduleChanged = !!rule && SCHEDULE_KEYS.some((k) => String(f[k]) !== String(original[k]));
   const pastStart = f.start_date < todayIso();
-  const valid = !!q && amount > 0 && !!f.start_date && (!f.end_date || f.end_date >= f.start_date);
+  const cashChanged = !!rule && f.cash !== original.cash;
+  const errs = {
+    symbol: q ? (/^[A-Z0-9.\-]{1,15}$/.test(q) ? null : "Tickers use letters and numbers only, like VOO or BRK.B.") : "Enter a ticker, like VOO.",
+    amount: parsed.error,
+    start: f.start_date ? null : "Pick a start date.",
+    end: f.end_date && f.start_date && f.end_date < f.start_date ? "The end date has to be after the start date." : null,
+  };
+  const valid = !errs.symbol && !errs.amount && !errs.start && !errs.end;
+  const show = (k: keyof typeof errs, touched: boolean) => (tried || touched) ? errs[k] : null;
+  const [touchedAmt, setTouchedAmt] = useState(false);
 
   const save = async () => {
-    if (!valid || busy) return;
+    if (busy) return;
+    setTried(true);
+    if (!valid) return;
     setBusy(true); setErr(null);
     const body = {
       symbol: q, kind: f.kind, amount, frequency: f.frequency, day: f.day,
       start_date: f.start_date, end_date: f.end_date || null, label: f.label.trim(),
     };
+    const cash_account_id = f.cash ? Number(f.cash) : null;
     try {
-      if (isNew) await api.post("/api/autoinvest", { ...body, add_past: f.add_past });
+      if (isNew) await api.post("/api/autoinvest", { ...body, add_past: f.add_past, cash_account_id });
       else await api.patch(`/api/autoinvest/${rule!.id}`, {
-        ...(scheduleChanged ? body : {}), paused: f.paused, apply_to: applyTo,
+        ...(scheduleChanged ? { ...body, apply_to: applyTo } : {}), paused: f.paused, cash_account_id,
       });
       haptic();
       onSaved();
@@ -298,33 +348,54 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
           )}
 
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-            <label className="field-wrap relative">
-              <span className="field-label">Symbol</span>
-              <input ref={first} className="field uppercase" placeholder="VOO" autoComplete="off" autoCapitalize="characters"
-                     spellCheck={false} enterKeyHint="next" value={f.symbol} aria-autocomplete="list"
-                     onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 120)}
+            <div className="field-wrap">
+              <label htmlFor="ai-symbol" className="field-label">Symbol</label>
+              <input id="ai-symbol" ref={first} className="field uppercase" placeholder="VOO" autoComplete="off" autoCapitalize="characters"
+                     autoCorrect="off" spellCheck={false} enterKeyHint="next" value={f.symbol}
+                     role="combobox" aria-expanded={showList} aria-controls="ai-suggest" aria-autocomplete="list"
+                     aria-activedescendant={showList && active >= 0 ? `ai-opt-${active}` : undefined}
+                     aria-invalid={!!show("symbol", false)} aria-describedby={show("symbol", false) ? "ai-symbol-err" : undefined}
+                     onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)}
+                     onKeyDown={(e) => {
+                       if (!showList) return;
+                       if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (i + 1) % matches.length); }
+                       else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? matches.length - 1 : i - 1)); }
+                       else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(matches[active]); }
+                       else if (e.key === "Escape") { e.stopPropagation(); setFocus(false); }
+                     }}
                      onChange={(e) => {
-                       const v = e.target.value.toUpperCase();
-                       const hit = index?.tickers.find((x) => x.symbol === v.trim() && x.kind !== "option");
+                       // Keep exactly what was typed: rewriting the value mid-composition duplicates
+                       // letters on Android keyboards and moves the caret on iOS. CSS shows it uppercase.
+                       const v = e.target.value;
+                       const n = normSymbol(v);
+                       const hit = index?.tickers.find((x) => x.symbol === n && x.kind !== "option");
+                       setActive(-1);
                        setF((cur) => ({ ...cur, symbol: v, kind: hit ? (hit.kind as AssetKind) : cur.kind }));
                      }} />
-            </label>
-            <label className="field-wrap">
-              <span className="field-label">Amount per buy</span>
-              <input className="field tabular-nums" placeholder="$200" inputMode="decimal" autoComplete="off" enterKeyHint="next"
-                     value={f.amount} onChange={(e) => set("amount", e.target.value)} />
-            </label>
-            {focus && matches.length > 0 && (
-              <ul className="col-span-2 -mt-2 rounded-[10px] border border-edge2 bg-bg overflow-hidden divide-y divide-edge" role="listbox" aria-label="Matching tickers">
-                {matches.map((m) => (
-                  <li key={`${m.kind}-${m.symbol}`}>
-                    <button type="button" role="option" aria-selected={m.symbol === q}
+              <FieldError id="ai-symbol-err" msg={show("symbol", false)} />
+            </div>
+            <div className="field-wrap">
+              <label htmlFor="ai-amount" className="field-label">Amount per buy</label>
+              <input id="ai-amount" className="field tabular-nums" placeholder="$200" type="text" inputMode="decimal" autoComplete="off"
+                     autoCorrect="off" spellCheck={false} enterKeyHint="next" value={f.amount}
+                     aria-invalid={!!show("amount", touchedAmt)} aria-describedby={show("amount", touchedAmt) ? "ai-amount-err" : undefined}
+                     onBlur={() => { if (f.amount) setTouchedAmt(true); }}
+                     onChange={(e) => set("amount", e.target.value)} />
+              <FieldError id="ai-amount-err" msg={show("amount", touchedAmt)} />
+            </div>
+            {showList && (
+              <ul id="ai-suggest" className="col-span-2 -mt-1 rounded-[10px] border border-edge2 bg-bg overflow-hidden divide-y divide-edge" role="listbox" aria-label="Matching tickers">
+                {matches.map((m, i) => (
+                  <li key={`${m.kind}-${m.symbol}`} role="presentation">
+                    <button type="button" id={`ai-opt-${i}`} role="option" aria-selected={i === active} tabIndex={-1}
+                            // pointerdown fires before blur: preventing it keeps the input focused so the tap can't lose to the blur timeout
+                            onPointerDown={(e) => e.preventDefault()}
                             onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { setF((cur) => ({ ...cur, symbol: m.symbol, kind: m.kind as AssetKind })); setFocus(false); }}
-                            className="w-full min-h-10 flex items-center gap-2 px-3 py-1.5 text-left hover:bg-panel2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan">
+                            onClick={() => pick(m)}
+                            className={`w-full min-h-11 flex items-center gap-2 px-3 py-1.5 text-left active:bg-panel2 [@media(hover:hover)]:hover:bg-panel2 ${i === active ? "bg-panel2" : ""}`}>
                       <span className="text-[14px] font-semibold text-txt w-16 shrink-0">{m.symbol}</span>
-                      <span className="text-[12px] text-dim truncate flex-1">{m.name ?? ""}</span>
-                      <span className="text-[11px] text-faint shrink-0">{m.kind === "crypto" ? "Crypto" : "Stock"}</span>
+                      <span className="text-[13px] text-dim truncate flex-1">{m.name ?? ""}</span>
+                      <span className="text-[12px] text-faint shrink-0">{m.kind === "crypto" ? "Crypto" : "Stock"}</span>
                     </button>
                   </li>
                 ))}
@@ -353,10 +424,10 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
             <label className="field-wrap">
               <span className="field-label">Starting</span>
-              <input type="date" className="field tabular-nums" value={f.start_date} required
+              <input type="date" className="field tabular-nums" value={f.start_date} required aria-invalid={!!show("start", false)}
                      onChange={(e) => {
                        const v = e.target.value;
                        // the first buy's date sets the day it repeats on (still changeable below)
@@ -366,9 +437,12 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
             </label>
             <label className="field-wrap">
               <span className="field-label">Ending (optional)</span>
-              <input type="date" className="field tabular-nums" value={f.end_date} min={f.start_date}
+              <input type="date" className="field tabular-nums" value={f.end_date} min={f.start_date} aria-invalid={!!show("end", false)}
                      onChange={(e) => set("end_date", e.target.value)} />
             </label>
+            {(show("start", false) || show("end", false)) && (
+              <div className="col-span-2"><FieldError id="ai-date-err" msg={show("start", false) ?? show("end", false)} /></div>
+            )}
           </div>
 
           <label className="field-wrap">
@@ -376,6 +450,16 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
             <input className="field" list="ai-accounts" placeholder="Robinhood" autoComplete="off" enterKeyHint="done"
                    value={f.label} onChange={(e) => set("label", e.target.value)} />
             <datalist id="ai-accounts">{accounts.map((a) => <option key={a} value={a} />)}</datalist>
+          </label>
+
+          <label className="field-wrap">
+            <span className="field-label">Paid from</span>
+            <select className="field" value={f.cash} onChange={(e) => set("cash", e.target.value)}>
+              <option value="">Not tracked</option>
+              {cashAccts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {f.cash && !cashAccts.some((a) => String(a.id) === f.cash) && <option value={f.cash}>Linked account</option>}
+            </select>
+            <span className="text-[12px] text-dim leading-snug mt-0.5">Each buy comes out of this account&apos;s balance.</span>
           </label>
 
           {isNew && pastStart && (
@@ -401,7 +485,7 @@ function RuleSheet({ rule, onClose, onSaved }: { rule: Rule | null; onClose: () 
 
           {err && <p role="alert" className="text-[13px] text-down">{err}</p>}
 
-          <button type="submit" disabled={!valid || busy || (!isNew && !scheduleChanged && f.paused === rule!.paused)}
+          <button type="submit" disabled={busy || (!isNew && !scheduleChanged && !cashChanged && f.paused === rule!.paused)}
                   className="btn btn-primary w-full !min-h-11 !text-[15px] disabled:opacity-40">
             {busy ? "Saving…" : isNew ? (pastStart && f.add_past ? "Add and catch up" : "Add recurring buy") : "Save changes"}
           </button>
