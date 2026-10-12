@@ -9,8 +9,8 @@ import { usePrefs } from "@/lib/prefs";
 export type TabKey = "home" | "trading" | "markets" | "news" | "wealth";
 export type MarketsSub = "check" | "mine" | "ideas" | "crypto";
 /** Pages inside the Wealth tab, addressed as #wealth/<page>. */
-export type WealthPage = "accounts" | "budget" | "bills" | "dividends" | "taxes" | "goals" | "whatif";
-export const WEALTH_PAGES: WealthPage[] = ["accounts", "budget", "bills", "dividends", "taxes", "goals", "whatif"];
+export type WealthPage = "accounts" | "cash" | "budget" | "bills" | "dividends" | "taxes" | "goals" | "whatif";
+export const WEALTH_PAGES: WealthPage[] = ["accounts", "cash", "budget", "bills", "dividends", "taxes", "goals", "whatif"];
 /** Pages that were renamed or merged, so old links and home-screen relaunches still land. */
 const WEALTH_ALIAS: Record<string, WealthPage> = { spending: "budget", plan: "goals" };
 

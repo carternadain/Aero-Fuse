@@ -18,6 +18,7 @@ import Goals from "./Goals";
 import { ReportBanner } from "./MonthlyReport";
 import type { Section } from "@/lib/live";
 import TodayBrief from "./TodayBrief";
+import { CashInvestPrompts } from "./CashInvestPrompt";
 import Panes, { type Pane } from "./Panes";
 import { usePrefs, type Mode } from "@/lib/prefs";
 import { openSettings } from "@/lib/bus";
@@ -181,6 +182,8 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
       </div>
 
       <ReportBanner />
+
+      <CashInvestPrompts />
 
       {on("brief") && <TodayBrief />}
 

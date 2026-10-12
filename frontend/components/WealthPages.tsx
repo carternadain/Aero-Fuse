@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
-  CalendarClock, ChevronLeft, ChevronRight, Coins, FlaskConical, Landmark, Receipt, Target, WalletCards,
+  CalendarClock, ChevronLeft, ChevronRight, Coins, FlaskConical, Landmark, Receipt, Target, Wallet, WalletCards,
   type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -27,6 +27,7 @@ import IncomeTracker from "./IncomeTracker";
 import RiskRating from "./RiskRating";
 import SavingsPlan from "./SavingsPlan";
 import AutoInvest from "./AutoInvest";
+import Cash from "./Cash";
 import MoneyLab from "./MoneyLab";
 import StressTest from "./StressTest";
 import FireCalc from "./FireCalc";
@@ -43,6 +44,7 @@ const TINT: Record<Tint, string> = {
 /** `sub` is the fallback line; once data loads each row shows a live summary instead. */
 const META: Record<WealthPage, { title: string; sub: string; icon: LucideIcon; tint: Tint }> = {
   accounts: { title: "Accounts", sub: "Balances and risk", icon: Landmark, tint: "up" },
+  cash: { title: "Cash", sub: "Paychecks, bills and what's left", icon: Wallet, tint: "up" },
   budget: { title: "Budget & spending", sub: "Import statements, set limits", icon: WalletCards, tint: "down" },
   bills: { title: "Bills", sub: "Subscriptions and what's due", icon: CalendarClock, tint: "warn" },
   dividends: { title: "Dividends", sub: "Payouts and yield", icon: Coins, tint: "up" },
@@ -52,7 +54,7 @@ const META: Record<WealthPage, { title: string; sub: string; icon: LucideIcon; t
 };
 
 const GROUPS: WealthPage[][] = [
-  ["accounts"],
+  ["accounts", "cash"],
   ["budget", "bills", "dividends", "taxes"],
   ["goals", "whatif"],
 ];
@@ -61,6 +63,7 @@ const GROUPS: WealthPage[][] = [
 export const WEALTH_ANCHOR: Record<string, WealthPage | null> = {
   "sec-nwhistory": null,
   "sec-wealth": "accounts", "sec-autoinvest": "accounts", "sec-risk": "accounts", "sec-nwcal": "accounts",
+  "sec-cash": "cash",
   "sec-cashflow": "budget", "sec-spending": "budget", "sec-budget": "budget",
   "sec-bills": "bills",
   "sec-income": "dividends",
@@ -75,7 +78,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 async function loadSummaries(): Promise<Partial<Record<WealthPage, string>>> {
   const get = <T,>(u: string) => api.get<T>(u).catch(() => null);
-  const [acc, risk, plan, bills, inc, tax, goals] = await Promise.all([
+  const [acc, risk, plan, bills, inc, tax, goals, cash] = await Promise.all([
     get<{ accounts: unknown[] }>("/api/accounts"),
     get<{ label?: string }>("/api/networth/risk"),
     get<{ totals: { target: number; spent: number; left: number } }>("/api/budget/plan"),
@@ -83,11 +86,19 @@ async function loadSummaries(): Promise<Partial<Record<WealthPage, string>>> {
     get<{ annual: number }>("/api/income"),
     get<{ summary: { est_tax: number }; harvest_total?: { est_saved: number } }>("/api/taxes"),
     get<{ goals: { name: string; pct: number }[] }>("/api/goals"),
+    get<{ setup: { account_id: number | null }; cash: { balance: number } | null; to_invest: { balance: number; snoozed: boolean }[] }>("/api/cash"),
   ]);
   const out: Partial<Record<WealthPage, string>> = {};
   if (acc?.accounts) {
     const n = acc.accounts.length;
     out.accounts = n ? [plural(n, "account"), risk?.label ? `${risk.label} risk` : ""].filter(Boolean).join(" · ") : "Add your first account";
+  }
+  if (cash) {
+    if (cash.setup?.account_id == null || !cash.cash) out.cash = "Set up your cash";
+    else {
+      const wait = (cash.to_invest ?? []).filter((t) => !t.snoozed).reduce((s, t) => s + t.balance, 0);
+      out.cash = `${usd(cash.cash.balance)}${wait >= 1 ? ` · ${usd(wait)} to invest` : ""}`;
+    }
   }
   if (plan?.totals) {
     const t = plan.totals;
@@ -136,6 +147,7 @@ function PageBody({ page }: { page: WealthPage }) {
           <ProHint what="the net worth calendar" />
         </div>
       );
+    case "cash": return <div id="sec-cash" className="scroll-mt-28"><Cash /></div>;
     case "budget":
       return (
         <div id="sec-cashflow" className="scroll-mt-28">

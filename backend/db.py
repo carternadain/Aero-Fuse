@@ -295,6 +295,63 @@ def migrate():
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_fill_rule_date "
                   "ON autoinvest_fills(rule_id, sched_date) WHERE rule_id IS NOT NULL")
 
+        # Cash (cashflow.py): loan/card APR, cash-funded auto-invest, the plan, and its ledger.
+        acols = {r["name"] for r in c.execute("PRAGMA table_info(accounts)").fetchall()}
+        if acols and "rate" not in acols:
+            c.execute("ALTER TABLE accounts ADD COLUMN rate REAL")
+        rcols = {r["name"] for r in c.execute("PRAGMA table_info(autoinvest_rules)").fetchall()}
+        for name, decl in {"cash_account_id": "INTEGER", "cash_from": "TEXT"}.items():
+            if rcols and name not in rcols:
+                c.execute(f"ALTER TABLE autoinvest_rules ADD COLUMN {name} {decl}")
+        tcols2 = {r["name"] for r in c.execute("PRAGMA table_info(transactions)").fetchall()}
+        if tcols2 and "cash_applied" not in tcols2:
+            c.execute("ALTER TABLE transactions ADD COLUMN cash_applied REAL")  # signed $ applied to Cash; NULL = not
+        c.execute("""CREATE TABLE IF NOT EXISTS cash_items (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL CHECK (type IN ('income','bill','debt','save','invest')),
+                        amount REAL NOT NULL,
+                        frequency TEXT NOT NULL CHECK (frequency IN
+                            ('weekly','biweekly','semimonthly','monthly','every_n_months','once')),
+                        interval INTEGER NOT NULL DEFAULT 1,
+                        day INTEGER,
+                        day2 INTEGER,
+                        start_date TEXT NOT NULL,
+                        end_date TEXT,
+                        track_from TEXT,
+                        category TEXT,
+                        account_id INTEGER,
+                        varies INTEGER NOT NULL DEFAULT 0,
+                        paused INTEGER NOT NULL DEFAULT 0,
+                        note TEXT DEFAULT '',
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS cash_moves (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date TEXT NOT NULL,
+                        kind TEXT NOT NULL CHECK (kind IN
+                            ('income','bill','debt','transfer','invest','adjust','autoinvest')),
+                        item_id INTEGER,
+                        fill_id INTEGER,
+                        from_account_id INTEGER,
+                        to_account_id INTEGER,
+                        amount REAL NOT NULL,
+                        principal REAL,
+                        interest REAL,
+                        symbol TEXT,
+                        kind_asset TEXT,
+                        qty REAL,
+                        price REAL,
+                        holding_id INTEGER,
+                        label TEXT,
+                        tx_id INTEGER,
+                        note TEXT DEFAULT '',
+                        created_at TEXT NOT NULL)""")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_move_item_date "
+                  "ON cash_moves(item_id, date) WHERE item_id IS NOT NULL")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_move_fill "
+                  "ON cash_moves(fill_id) WHERE fill_id IS NOT NULL")
+
 
 def migrate_refunds(c) -> int:
     """Idempotent: imported 'income' rows that are really merchant refunds become negative
@@ -700,9 +757,9 @@ def delete_position(pos_id: int) -> bool:
 def create_account(data: dict) -> dict:
     with conn() as c:
         cur = c.execute(
-            "INSERT INTO accounts (name, category, kind, balance, updated_at) VALUES (?,?,?,?,?)",
+            "INSERT INTO accounts (name, category, kind, balance, rate, updated_at) VALUES (?,?,?,?,?,?)",
             (data["name"], data.get("category", "cash"), data.get("kind", "asset"),
-             data.get("balance", 0), utcnow()),
+             data.get("balance", 0), data.get("rate"), utcnow()),
         )
         row = c.execute("SELECT * FROM accounts WHERE id=?", (cur.lastrowid,)).fetchone()
         return row_to_dict(row)
@@ -715,7 +772,7 @@ def list_accounts() -> list[dict]:
 
 
 def update_account(acc_id: int, fields: dict) -> dict | None:
-    allowed = {"name", "category", "kind", "balance"}
+    allowed = {"name", "category", "kind", "balance", "rate"}
     sets, params = [], []
     for k, v in fields.items():
         if k in allowed:
