@@ -68,6 +68,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 # ── Optional: richer crypto news (Google News RSS is the free fallback) ──
 CRYPTOPANIC_API_KEY=
 
+# ── Optional: Binance BTCUSDT data for the liquidation heatmap from a US server (free key at coinalyze.net) ──
+COINALYZE_API_KEY=
+
 # ── Login + webhook lock — REQUIRED before the app is reachable from the internet ──
 # Generate both with:  cd backend ; ..\.venv\Scripts\python auth.py hash-password
 APP_PASSWORD_HASH=scrypt$32768$8$1$...
@@ -81,6 +84,7 @@ WEBHOOK_SECRET=...
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | already set | Signal pings + `close`/`status` commands |
 | `ANTHROPIC_API_KEY` | **for AI features** | News sentiment **and** the per-signal Claude verdict / edge report. Without it, signals still log — they just show "awaiting" instead of a take/skip verdict. |
 | `CRYPTOPANIC_API_KEY` | no | Crypto-native news feed; falls back to free Google News RSS |
+| `COINALYZE_API_KEY` | no | Binance BTCUSDT data for the BTC liquidation heatmap when Binance refuses the server's US IP. Without it the heatmap falls back to OKX and says so |
 | `APP_PASSWORD_HASH` | **when hosted** | Turns on the login page. Unset = no login (fine on localhost only — the backend logs a loud warning). Changing it signs out every device. |
 | `WEBHOOK_SECRET` | **when hosted** | TradingView alerts must carry it (see §6). With login on but no secret, `/webhook` rejects everything. |
 
