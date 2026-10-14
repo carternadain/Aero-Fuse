@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import Skeleton from "./Skeleton";
 
 interface Liq {
-  range: string; source: string; step: number; error?: string;
+  range: string; source: string; fallback?: boolean; step: number; error?: string;
   times: number[]; candles: [number, number, number, number][];
   price_lo: number; price_hi: number; bins: number; peak_usd: number; matrix: number[][];
   liq_long: number[]; liq_short: number[];
@@ -267,8 +267,11 @@ export default function LiqHeatmap() {
               ))}
             </div>
           ))}
+          {d.fallback && (
+            <p className="col-span-2 text-[11px] text-warn">Binance data isn&apos;t reachable right now, so this map uses OKX instead.</p>
+          )}
           <p className="col-span-2 text-[10px] text-faint">
-            Model estimate, updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+            Model of {d.source}, updated {new Date(d.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
           </p>
         </div>
       )}

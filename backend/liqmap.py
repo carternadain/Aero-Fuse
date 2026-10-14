@@ -1,46 +1,61 @@
-"""Estimated BTC liquidation heatmap (Coinglass-style), built from free OKX data.
+"""Estimated BTC liquidation heatmap (Coinglass-style) for Binance's BTCUSDT perpetual.
 
 Exchanges don't publish where traders' liquidation prices sit, so every public
 heatmap is a model. This one follows the usual approach:
 
   * When open interest rises during a candle, those new positions were opened
-    near that candle's typical price. The taker buy/sell ratio splits them into
-    longs and shorts.
+    near that candle's typical price. The taker buy/sell split decides how much
+    of it is longs vs shorts.
   * Each new position gets a spread of leverage (5x … 100x), which puts its
     liquidation price a fixed distance below (longs) or above (shorts) entry.
   * Levels persist to the right until price trades through them (liquidated),
     and shrink proportionally when open interest falls (positions closed).
 
 The model runs over twice the visible window so the left edge isn't empty.
-Binance and Bybit block US IPs, so OKX's BTC-USDT perpetual is the source.
+
+Data is Binance BTCUSDT perp, the market Coinglass's default heatmap shows. Sources, in order:
+  1. Binance's free public futures API (fapi.binance.com). It refuses US IPs (HTTP 451).
+  2. Coinalyze's free API for the same Binance contract, when COINALYZE_API_KEY is set
+     (free key at coinalyze.net). Works from the US.
+  3. OKX's BTC-USDT perp as a last resort, flagged in the payload as a fallback.
 """
 
 from __future__ import annotations
 
+import os
 import time
 
 import requests
 
 from market_data import _get, _set
 
-OKX = "https://www.okx.com/api/v5"
-INST = "BTC-USDT-SWAP"
 UA = {"User-Agent": "swing-terminal/1.0"}
+OKX = "https://www.okx.com/api/v5"
+OKX_INST = "BTC-USDT-SWAP"
+BINANCE = "https://fapi.binance.com"
+COINALYZE = "https://api.coinalyze.net/v1"
+COINALYZE_SYMBOL = "BTCUSDT_PERP.A"  # .A = Binance
 
-# range -> (okx bar/period, bar seconds, visible bars, cache ttl)
+# range -> (bar, bar seconds, visible bars, cache ttl)
 RANGES = {
     "24h": ("5m", 300, 288, 120),
     "3d": ("15m", 900, 288, 300),
     "1w": ("30m", 1800, 336, 600),
 }
+COINALYZE_INTERVAL = {"5m": "5min", "15m": "15min", "30m": "30min"}
 # share of new open interest at each leverage (rough retail perp mix)
 LEVERAGE = [(5, 0.08), (10, 0.22), (20, 0.22), (25, 0.16), (50, 0.17), (100, 0.15)]
-MMR = 0.005  # maintenance margin
+MMR = 0.004  # Binance BTCUSDT maintenance margin, lowest tier
 BINS = 220
 KERNEL = [(-2, 0.1), (-1, 0.22), (0, 0.36), (1, 0.22), (2, 0.1)]
 
+# Each fetcher returns (candles, oi_by, taker_by):
+#   candles  [[open_time_s, o, h, l, c], ...] oldest first
+#   oi_by    {open_time_s: open interest in USD}
+#   taker_by {open_time_s: (sell, buy)} taker volume
 
-def _pages(path: str, params: dict, cursor: str, need: int, per: int) -> list[list[str]]:
+
+def _okx_pages(path: str, params: dict, cursor: str, need: int, per: int) -> list[list[str]]:
     """OKX returns newest first; walk backwards with `cursor` (after/end) until `need` rows."""
     out: list[list[str]] = []
     last = None
@@ -61,18 +76,112 @@ def _pages(path: str, params: dict, cursor: str, need: int, per: int) -> list[li
     return out
 
 
-def _fetch(bar: str, n: int) -> tuple[list, dict, dict]:
-    candles = _pages("/market/history-candles", {"instId": INST, "bar": bar}, "after", n, 300)
-    oi = _pages("/rubik/stat/contracts/open-interest-history", {"instId": INST, "period": bar}, "end", n, 100)
+def _fetch_okx(bar: str, step: int, n: int) -> tuple[list, dict, dict]:
+    candles = _okx_pages("/market/history-candles", {"instId": OKX_INST, "bar": bar}, "after", n, 300)
+    oi = _okx_pages("/rubik/stat/contracts/open-interest-history", {"instId": OKX_INST, "period": bar}, "end", n, 100)
     try:
-        taker = _pages("/rubik/stat/taker-volume-contract", {"instId": INST, "period": bar, "unit": "2"}, "end", n, 100)
+        taker = _okx_pages("/rubik/stat/taker-volume-contract", {"instId": OKX_INST, "period": bar, "unit": "2"}, "end", n, 100)
     except Exception as e:  # nice to have; without it new OI splits 50/50
-        print(f"[liqmap] taker volume error: {e}")
+        print(f"[liqmap] okx taker volume error: {e}")
         taker = []
     c = sorted(([int(r[0]) // 1000, float(r[1]), float(r[2]), float(r[3]), float(r[4])] for r in candles), key=lambda x: x[0])
     oi_by = {int(r[0]) // 1000: float(r[3]) for r in oi}  # oiUsd
     tk_by = {int(r[0]) // 1000: (float(r[1]), float(r[2])) for r in taker}  # (sell, buy)
     return c, oi_by, tk_by
+
+
+def parse_binance(klines: list, oi_rows: list, step: int) -> tuple[list, dict, dict]:
+    """Klines carry taker buy volume (field 9), so no separate taker call is needed.
+    openInterestHist rows are snapshots at `timestamp`; the one at t+step is the open
+    interest at the close of the candle that opened at t, so it's keyed to t."""
+    c, tk_by = [], {}
+    for k in klines:
+        t = int(k[0]) // 1000
+        c.append([t, float(k[1]), float(k[2]), float(k[3]), float(k[4])])
+        vol, buy = float(k[5]), float(k[9])
+        tk_by[t] = (max(0.0, vol - buy), buy)
+    oi_by = {int(r["timestamp"]) // 1000 - step: float(r["sumOpenInterestValue"]) for r in oi_rows}
+    c.sort(key=lambda x: x[0])
+    return c, oi_by, tk_by
+
+
+def _fetch_binance(bar: str, step: int, n: int) -> tuple[list, dict, dict]:
+    def get(path: str, params: dict):
+        r = requests.get(f"{BINANCE}{path}", params=params, headers=UA, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    klines = get("/fapi/v1/klines", {"symbol": "BTCUSDT", "interval": bar, "limit": min(1500, n)})
+    oi: list[dict] = []
+    end = None
+    for _ in range(6):  # max 500 rows per call, oldest first; page backwards with endTime
+        p = {"symbol": "BTCUSDT", "period": bar, "limit": 500}
+        if end:
+            p["endTime"] = end
+        rows = get("/futures/data/openInterestHist", p)
+        if not rows:
+            break
+        oi = rows + oi
+        end = int(rows[0]["timestamp"]) - 1
+        if len(oi) >= n or len(rows) < 500:
+            break
+        time.sleep(0.1)
+    return parse_binance(klines, oi, step)
+
+
+def parse_coinalyze(ohlcv: list, oi: list) -> tuple[list, dict, dict]:
+    """Coinalyze bars are keyed by open time; an OI bar's `c` is open interest at its close.
+    `bv` is taker buy volume, `v` total volume."""
+    def hist(rows: list) -> list:
+        return (rows[0].get("history") or []) if rows else []
+
+    c, tk_by = [], {}
+    for b in hist(ohlcv):
+        t = int(b["t"])
+        c.append([t, float(b["o"]), float(b["h"]), float(b["l"]), float(b["c"])])
+        v, bv = float(b.get("v") or 0), float(b.get("bv") or 0)
+        if v > 0:
+            tk_by[t] = (max(0.0, v - bv), bv)
+    oi_by = {int(b["t"]): float(b["c"]) for b in hist(oi)}
+    c.sort(key=lambda x: x[0])
+    return c, oi_by, tk_by
+
+
+def _fetch_coinalyze(bar: str, step: int, n: int) -> tuple[list, dict, dict]:
+    key = os.getenv("COINALYZE_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("COINALYZE_API_KEY not set")
+    now = int(time.time())
+    base = {"symbols": COINALYZE_SYMBOL, "interval": COINALYZE_INTERVAL[bar], "from": now - n * step, "to": now}
+
+    def get(path: str, extra: dict | None = None):
+        r = requests.get(f"{COINALYZE}{path}", params={**base, **(extra or {})},
+                         headers={**UA, "api_key": key}, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    return parse_coinalyze(get("/ohlcv-history"), get("/open-interest-history", {"convert_to_usd": "true"}))
+
+
+SOURCES = [
+    ("Binance BTCUSDT perpetual", _fetch_binance),
+    ("Binance BTCUSDT perpetual (via Coinalyze)", _fetch_coinalyze),
+    ("OKX BTC-USDT perpetual", _fetch_okx),
+]
+
+
+def _fetch(bar: str, step: int, n: int) -> tuple[str, list, dict, dict]:
+    """First source that answers with usable data wins."""
+    errors = []
+    for name, fn in SOURCES:
+        try:
+            c, oi_by, tk_by = fn(bar, step, n)
+            if sum(1 for x in c if x[0] in oi_by) >= 10:
+                return name, c, oi_by, tk_by
+            errors.append(f"{name}: too little data")
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    raise RuntimeError("; ".join(errors))
 
 
 def heatmap(rng: str = "24h") -> dict:
@@ -85,16 +194,17 @@ def heatmap(rng: str = "24h") -> dict:
         return hit  # type: ignore[return-value]
 
     try:
-        candles, oi_by, tk_by = _fetch(bar, visible * 2)
+        source, candles, oi_by, tk_by = _fetch(bar, step, visible * 2)
     except Exception as e:
         print(f"[liqmap] fetch error: {e}")
         stale = _get(f"{key}:stale", 6 * 3600)
         if stale is not None:
             return stale  # type: ignore[return-value]
-        return {"range": rng, "error": "Couldn't reach OKX right now", "times": [], "candles": [], "matrix": []}
-    candles = [c for c in candles if c[0] in oi_by]
-    if len(candles) < 10:
-        return {"range": rng, "error": "Not enough data yet", "times": [], "candles": [], "matrix": []}
+        return {"range": rng, "error": "Couldn't reach the exchange right now", "times": [], "candles": [], "matrix": []}
+    # drop leading candles from before the open-interest history starts; a candle with no
+    # OI yet (the one still forming) just adds nothing new
+    first_oi = min(oi_by)
+    candles = [c for c in candles if c[0] >= first_oi]
 
     shown = candles[-visible:]
     lo_px = min(c[3] for c in shown)
@@ -125,8 +235,10 @@ def heatmap(rng: str = "24h") -> dict:
             if shorts[i] and px <= h:
                 ls += shorts[i]; shorts[i] = 0.0
         # 2) open-interest change: add new positions, or shrink existing ones
-        cur = oi_by[t]
-        if prev_oi:
+        cur = oi_by.get(t)
+        if cur is None:
+            cur = prev_oi
+        elif prev_oi:
             d = cur - prev_oi
             if d > 0:
                 sell, buy = tk_by.get(t, (1.0, 1.0))
@@ -170,7 +282,7 @@ def heatmap(rng: str = "24h") -> dict:
         return [{"price": round(p, 1), "usd": round(v), "dist_pct": round((p / price - 1) * 100, 2)} for p, v in picked]
 
     out = {
-        "range": rng, "source": "OKX BTC-USDT perpetual", "bar": bar, "step": step,
+        "range": rng, "source": source, "fallback": not source.startswith("Binance"), "bar": bar, "step": step,
         "times": [c[0] for c in shown],
         "candles": [[c[1], c[2], c[3], c[4]] for c in shown],
         "price_lo": round(lo, 2), "price_hi": round(hi, 2), "bins": BINS,
