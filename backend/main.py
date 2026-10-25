@@ -42,6 +42,7 @@ import spend_alerts
 import charts
 import claude_ai
 import db
+import demo
 import econ_calendar
 import extras
 import importer
@@ -57,6 +58,7 @@ import nw_history
 import nw_backfill
 import risk
 import scoring
+import seed_demo
 import taxes
 import universe
 import zones
@@ -493,10 +495,20 @@ AUTH_OPEN = {"/api/auth/login", "/api/auth/logout", "/api/auth/check"}
 @app.middleware("http")
 async def require_session(request: Request, call_next):
     path = request.url.path
-    if auth.enabled() and path.startswith("/api/") and path not in AUTH_OPEN:
-        if not auth.valid_token(request.cookies.get(auth.COOKIE_NAME)):
-            return JSONResponse({"detail": "Not signed in"}, status_code=401)
-    return await call_next(request)
+    if not (auth.enabled() and path.startswith("/api/") and path not in AUTH_OPEN):
+        return await call_next(request)
+    kind = auth.token_kind(request.cookies.get(auth.COOKIE_NAME))
+    if kind is None:
+        return JSONResponse({"detail": "Not signed in"}, status_code=401)
+    if kind == "owner":
+        return await call_next(request)
+    if demo.blocked(request.method, path):
+        return JSONResponse({"detail": "Not available in the demo"}, status_code=403)
+    tok = demo.active.set(True)  # the endpoint (and its threadpool) runs on demo.db
+    try:
+        return await call_next(request)
+    finally:
+        demo.active.reset(tok)
 
 
 class LoginIn(BaseModel):
@@ -510,12 +522,16 @@ def auth_login(body: LoginIn, request: Request, response: Response):
     ip = auth.client_ip(request.headers, request.client.host if request.client else "?")
     if auth.locked_out(ip):
         raise HTTPException(429, "Too many attempts — wait 15 minutes")
+    is_demo = False
     if not auth.verify_password(body.password, auth.password_hash()):
-        auth.record_failure(ip)
-        raise HTTPException(401, "Wrong password")
+        if not (auth.demo_hash() and auth.verify_password(body.password, auth.demo_hash())):
+            auth.record_failure(ip)
+            raise HTTPException(401, "Wrong password")
+        is_demo = True
+        seed_demo.rebuild()  # every demo sign-in starts from the same fresh fake data
     auth.clear_failures(ip)
     response.set_cookie(
-        auth.COOKIE_NAME, auth.issue_token(), max_age=auth.SESSION_TTL,
+        auth.COOKIE_NAME, auth.issue_token(demo=is_demo), max_age=auth.SESSION_TTL,
         httponly=True, secure=auth.cookie_secure(), samesite="lax", path="/",
     )
     return {"ok": True, "auth": True}
@@ -530,9 +546,10 @@ def auth_logout(response: Response):
 @app.get("/api/auth/check")
 def auth_check(request: Request):
     """200 when signed in (or auth is off); 401 otherwise. Used by the Next middleware."""
-    if auth.enabled() and not auth.valid_token(request.cookies.get(auth.COOKIE_NAME)):
+    kind = auth.token_kind(request.cookies.get(auth.COOKIE_NAME)) if auth.enabled() else "owner"
+    if kind is None:
         raise HTTPException(401, "Not signed in")
-    return {"ok": True, "auth": auth.enabled()}
+    return {"ok": True, "auth": auth.enabled(), "demo": kind == "demo"}
 
 
 # ── Models ────────────────────────────────────────────────

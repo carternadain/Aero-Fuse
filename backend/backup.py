@@ -27,7 +27,7 @@ def _today() -> str:
 
 
 def _open_ro() -> sqlite3.Connection:
-    c = sqlite3.connect(db.DB_PATH)
+    c = sqlite3.connect(db.path())
     c.row_factory = sqlite3.Row
     return c
 

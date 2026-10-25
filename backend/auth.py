@@ -63,6 +63,11 @@ def enabled() -> bool:
     return bool(password_hash())
 
 
+def demo_hash() -> str:
+    """Optional second password that signs into the demo (fake data). Only works with login on."""
+    return os.getenv("DEMO_PASSWORD_HASH", "").strip() if enabled() else ""
+
+
 def cookie_secure() -> bool:
     """Secure cookies by default; COOKIE_SECURE=0 only for plain-http LAN testing."""
     return os.getenv("COOKIE_SECURE", "1") != "0"
@@ -79,21 +84,33 @@ def _sign(payload: str) -> str:
     return _b64(hmac.new(_key(), payload.encode(), hashlib.sha256).digest())
 
 
-def issue_token() -> str:
+def issue_token(demo: bool = False) -> str:
+    """Owner: "<exp>.<sig>". Demo: "demo.<exp>.<sig>", signed over "demo:<exp>" so an
+    owner signature can't be reused for a demo token or the other way round."""
     exp = str(int(time.time()) + SESSION_TTL)
-    return f"{exp}.{_sign(exp)}"
+    return f"demo.{exp}.{_sign('demo:' + exp)}" if demo else f"{exp}.{_sign(exp)}"
+
+
+def token_kind(token: str | None) -> str | None:
+    """'owner', 'demo', or None when the token is missing, forged or expired."""
+    if not token or "." not in token:
+        return None
+    kind = "owner"
+    if token.startswith("demo."):
+        if not demo_hash():
+            return None  # demo switched off: its sessions stop working
+        kind, token = "demo", token[5:]
+    exp, _, sig = token.partition(".")
+    if not hmac.compare_digest(sig, _sign(("demo:" if kind == "demo" else "") + exp)):
+        return None
+    try:
+        return kind if int(exp) > time.time() else None
+    except ValueError:
+        return None
 
 
 def valid_token(token: str | None) -> bool:
-    if not token or "." not in token:
-        return False
-    exp, sig = token.split(".", 1)
-    if not hmac.compare_digest(sig, _sign(exp)):
-        return False
-    try:
-        return int(exp) > time.time()
-    except ValueError:
-        return False
+    return token_kind(token) is not None
 
 
 # ── Login rate limiting ───────────────────────────────────
@@ -143,7 +160,11 @@ def webhook_ok(provided: str | None) -> bool:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["hash-password"]:
+    if sys.argv[1:] == ["hash-demo-password"]:
+        pw = secrets.token_urlsafe(9)
+        print(f"Demo password: {pw}\n\nAdd this line to .env:\n")
+        print(f"DEMO_PASSWORD_HASH={hash_password(pw)}")
+    elif sys.argv[1:] == ["hash-password"]:
         import getpass
         pw = getpass.getpass("New password: ")
         if len(pw) < 12:
@@ -154,4 +175,4 @@ if __name__ == "__main__":
         print(f"APP_PASSWORD_HASH={hash_password(pw)}")
         print(f"WEBHOOK_SECRET={secrets.token_urlsafe(24)}")
     else:
-        sys.exit("usage: python auth.py hash-password")
+        sys.exit("usage: python auth.py hash-password | hash-demo-password")

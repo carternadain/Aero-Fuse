@@ -15,6 +15,11 @@ export default function Header() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [prev, setPrev] = useState<Record<string, number>>({});
   const ref = useRef<HTMLElement>(null);
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    api.get<{ demo?: boolean }>("/api/auth/check").then((r) => setDemo(!!r.demo)).catch(() => {});
+  }, []);
 
   // The desktop tab bar sticks right under the header, so publish the header's real height
   // (it changes with the safe-area inset and window width) for it to use.
@@ -50,6 +55,12 @@ export default function Header() {
       <h1 className="flex items-center gap-2.5 shrink-0 h-10 font-display text-[20px] sm:text-[22px] leading-none text-txt whitespace-nowrap">
         <AeroMark size={22} />
         Aero
+        {demo && (
+          <span className="rounded-full border border-amber/40 bg-amber/10 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber"
+                title="Made-up data. Changes reset at the next demo sign-in.">
+            Demo
+          </span>
+        )}
       </h1>
 
       <div className="hidden sm:flex flex-1 min-w-0 items-center gap-4 overflow-x-auto [scrollbar-width:none]" data-noswipe>
