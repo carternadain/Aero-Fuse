@@ -87,6 +87,7 @@ WEBHOOK_SECRET=...
 | `COINALYZE_API_KEY` | no | Binance BTCUSDT data for the BTC liquidation heatmap when Binance refuses the server's US IP. Without it the heatmap falls back to OKX and says so |
 | `APP_PASSWORD_HASH` | **when hosted** | Turns on the login page. Unset = no login (fine on localhost only — the backend logs a loud warning). Changing it signs out every device. |
 | `WEBHOOK_SECRET` | **when hosted** | TradingView alerts must carry it (see §6). With login on but no secret, `/webhook` rejects everything. |
+| `DEMO_PASSWORD_HASH` | no | A second password that opens a demo with made-up data (its own `backend/demo.db`, rebuilt at every demo sign-in; exports, backups and push are off). Generate with `python auth.py hash-demo-password`, which prints the password and the line to add. Remove the line to turn the demo off. |
 
 ### How the login works
 - One password, stored only as an **scrypt hash** — the plain password is never on disk.

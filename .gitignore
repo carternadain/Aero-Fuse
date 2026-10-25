@@ -5,6 +5,7 @@
 .venv/
 __pycache__/
 backend/terminal.db*
+backend/demo.db*
 *.db-journal
 *.db-wal
 *.db-shm

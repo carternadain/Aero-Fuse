@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import exits
 import extras
+import demo
 import market_data
 
 
@@ -18,7 +19,8 @@ def _money(v: float) -> str:
 
 
 def build(holdings: list[dict], goals: list[dict]) -> dict:
-    hit = market_data._get("brief", 180)
+    key = "brief:demo" if demo.on() else "brief"  # built from the signed-in user's holdings
+    hit = market_data._get(key, 180)
     if hit is not None:
         return hit  # type: ignore[return-value]
     items: list[dict] = []  # {prio, icon, tone, text, sub?, go?}
@@ -123,5 +125,5 @@ def build(holdings: list[dict], goals: list[dict]) -> dict:
 
     items.sort(key=lambda i: -i["prio"])
     out = {"items": items[:6], "more": max(0, len(items) - 6), "generated": int(now.timestamp())}
-    market_data._set("brief", out)
+    market_data._set(key, out)
     return out

@@ -10,7 +10,15 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import demo
+
 DB_PATH = Path(__file__).parent / "terminal.db"
+DEMO_DB_PATH = Path(__file__).parent / "demo.db"
+
+
+def path() -> Path:
+    """The database for this request: demo.db for a demo session, else the real one."""
+    return DEMO_DB_PATH if demo.on() else DB_PATH
 
 
 def utcnow() -> str:
@@ -19,7 +27,7 @@ def utcnow() -> str:
 
 @contextmanager
 def conn():
-    c = sqlite3.connect(DB_PATH)
+    c = sqlite3.connect(path())
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
     try:
