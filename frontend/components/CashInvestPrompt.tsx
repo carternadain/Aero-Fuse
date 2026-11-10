@@ -40,7 +40,7 @@ export function CashInvestPrompt({ entry, onDone }: { entry: ToInvest; onDone: (
       <div className="flex items-start gap-3">
         <span className="shrink-0 size-9 rounded-[10px] flex items-center justify-center bg-up/15 text-up"><CircleDollarSign size={19} strokeWidth={2.2} /></span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[16px] font-semibold text-txt leading-tight tabular-nums">{entry.name}: {money(entry.balance)} waiting</h3>
+          <h2 className="text-[16px] font-semibold text-txt leading-tight tabular-nums">{entry.name}: {money(entry.balance)} waiting</h2>
           <p className="text-[13px] text-dim mt-1 leading-snug">
             Did you invest it?{entry.last_deposit ? <span className="text-faint"> Last deposit {dayLabel(entry.last_deposit)}.</span> : null}
           </p>

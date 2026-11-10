@@ -18,7 +18,8 @@ const signed = (n: number) => (isHidden() ? "•••" : `${n >= 0 ? "+" : "−
 /** "Your week" card: the move, who drove it, and what you put away. */
 export default function WeekRecap() {
   const [r, setR] = useState<Recap | null>(null);
-  useEffect(() => { api.get<Recap>("/api/recap/week").then(setR).catch(() => {}); }, []);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { api.get<Recap>("/api/recap/week").then(setR).catch(() => setFailed(true)); }, []);
 
   const Row = ({ icon, k, v, sub, tone }: { icon: React.ReactNode; k: string; v: React.ReactNode; sub?: string; tone?: string }) => (
     <div className="flex items-center gap-3 py-2 border-t border-edge/60 first:border-t-0">
@@ -38,7 +39,9 @@ export default function WeekRecap() {
         {r && <span className="text-[10px] text-faint">{r.up_count} up · {r.down_count} down</span>}
       </div>
       <div className="px-4 py-3">
-        {!r ? (
+        {!r && failed ? (
+          <p className="py-2 text-[13px] text-dim">Couldn&apos;t load your week. Refresh to try again.</p>
+        ) : !r ? (
           <div className="space-y-3">
             <Skeleton className="h-9 w-40" />
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-8" />)}

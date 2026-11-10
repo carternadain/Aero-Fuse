@@ -54,7 +54,7 @@ export default function EarningsCalendar() {
         </button>
       </div>
 
-      <div className="overflow-y-auto max-h-[640px]">
+      <div className="overflow-y-auto max-h-[640px]" tabIndex={0} role="region" aria-label="Upcoming earnings">
         {rows.length === 0 && (
           <p className="p-4 text-xs text-dim">{loading ? "Loading earnings…" : "No data — try refresh."}</p>
         )}

@@ -38,7 +38,7 @@ function Slider({
         <span className="text-amber font-bold tabular-nums">{fmt(value)}</span>
       </div>
       <input
-        type="range" min={min} max={max} step={step} value={value}
+        type="range" aria-label={label} min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="w-full h-1 accent-up cursor-pointer"
       />

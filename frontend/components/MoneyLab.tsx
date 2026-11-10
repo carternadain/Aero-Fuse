@@ -120,7 +120,7 @@ export default function MoneyLab() {
           <span className="text-xs text-dim">If you invest</span>
           <span className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-faint text-sm">$</span>
-            <input className="field !w-28 max-sm:!w-32 !pl-5 !py-1 sm:!text-sm font-bold tabular-nums" inputMode="decimal" autoComplete="off"
+            <input className="field !w-28 max-sm:!w-32 !pl-5 !py-1 sm:!text-sm font-bold tabular-nums" inputMode="decimal" autoComplete="off" aria-label="Amount to invest, in dollars"
                    value={amount} onChange={(e) => setAmount(e.target.value)} />
           </span>
           <span className="text-xs text-dim">
@@ -152,7 +152,7 @@ export default function MoneyLab() {
 
       {/* 2 — The +$X effect */}
       <Card icon={<Rocket size={14} />} title={`What an extra ${fmtUsd(extra)}/month does`}>
-        <input type="range" min={25} max={1500} step={25} value={extra}
+        <input type="range" aria-label="Extra invested per month, in dollars" min={25} max={1500} step={25} value={extra}
                onChange={(e) => setExtra(parseFloat(e.target.value))} className="w-full h-1 accent-up cursor-pointer" />
         <div className="space-y-2">
           {[10, 20, 30].map((y) => {

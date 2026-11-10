@@ -51,7 +51,7 @@ export default function SignalLog({ signals, onChanged }: { signals: Signal[]; o
               <th className="px-2 py-2 text-right hidden sm:table-cell">Price</th>
               <th className="px-2 py-2 text-left">AI</th>
               <th className="px-2 py-2 text-left">Status</th>
-              <th className="px-2 py-2 hidden sm:table-cell" />
+              <th className="px-2 py-2 hidden sm:table-cell"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>

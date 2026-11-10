@@ -9,7 +9,7 @@
   --color-edge2: #564e44;
   --color-txt: #fbf7f0;
   --color-dim: #c4baab;
-  --color-faint: #8d8475;
+  --color-faint: #a89f8f; /* AA (4.5:1+) on bg, panel and panel2 */
   /* Gains / losses. Default palette is "Calm" (blue / soft orange) — see palettes below */
   --color-up: #6cb4ff;
   --color-down: #f4a261;
