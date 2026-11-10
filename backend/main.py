@@ -96,9 +96,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # ── Watchlist ─────────────────────────────────────────────
 
 def load_watchlist() -> list[str]:
-    if WATCHLIST_FILE.exists():
-        return json.loads(WATCHLIST_FILE.read_text())
-    return DEFAULT_WATCHLIST[:]
+    return _load_list(WATCHLIST_FILE, DEFAULT_WATCHLIST)  # falls back if the file is corrupt
 
 
 def save_watchlist(symbols: list[str]):
@@ -1869,7 +1867,7 @@ def get_prices():
 
 @app.post("/webhook")
 async def tradingview_webhook(request: Request, token: str | None = Query(None)):
-    """TradingView alert webhook. Message body should be the JSON template from SETUP.md.
+    """TradingView alert webhook. Message body should be the JSON template from RUNBOOK.md §6.
 
     With WEBHOOK_SECRET set, the alert must carry it — either as ?token=... on the
     webhook URL or as a "secret" field in the JSON message.

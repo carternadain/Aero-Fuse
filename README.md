@@ -2,22 +2,25 @@
 
 An all-in-one personal finance & trading terminal. Tracks live TradingView signals,
 scores stocks & crypto for long-term buy/overbought timing, surfaces crypto narratives
-and earnings projections, and manages your net worth, FIRE plan, and budget — all in one
+and earnings projections, and manages your net worth, cash flow, budget, taxes and FIRE plan — all in one
 brighter-dark dashboard you can run on your phone.
 
 > **Full operations guide → [RUNBOOK.md](RUNBOOK.md)** (setup, API keys, database, deployment, day-2 ops).
 
 ---
 
-## The five tabs
+## The tabs
 
 | Tab | What it does |
 |---|---|
-| **Trading** | Stats + AI edge report · news sentiment · trade tracker · signal log (with per-signal AI verdict) · key levels · portfolio |
-| **Stocks** | Options Watch (your tickers + live TradingView confluence) · Tech Screener (long-term buy/overbought score, click for history chart) |
-| **Crypto** | Top-15 screener with sparklines + long-term score (click a row for its score-history chart) · live "what's moving" narratives |
-| **News** | Upcoming earnings + bullish/bearish analyst projections · headline sentiment |
-| **Wealth** | Net worth tracker · FIRE calculator · budget tracker |
+| **Home** | Greeting + Today's Brief (what matters right now) · net worth and allocation · starred tickers · week recap |
+| **Invest** | **Check** any stock or crypto for a buy/wait verdict (plus LEAP checker) · **Mine**: holdings risk, sell plans, options plan · **Ideas**: swing ideas, sectors, compare, options watch, tech screener · **Crypto**: screener with long-term score, liquidation heatmap, narratives |
+| **News** | Headline sentiment for what you own · upcoming earnings · macro calendar |
+| **Wealth** | Accounts + auto-invest + risk · Cash (paychecks, bills, what's left) · Budget & spending (statement import, limits, alerts) · Bills · Dividends · Taxes · Goals & savings plan · What-if (crash test, FIRE, money lab) |
+| **Bot** *(optional, off by default — switch on in Settings)* | Trade tracker + calendar · signal log with per-signal AI verdict · key levels · positions · sizing, stats and the paper bot |
+
+The Settings sheet switches between Simple and Pro mode, the colour palette, and backups.
+A second "demo" password can open the app on made-up data — see RUNBOOK §3.
 
 ## How it finds an edge
 

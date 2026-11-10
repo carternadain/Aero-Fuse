@@ -17,7 +17,6 @@ from datetime import date, datetime, timezone
 import requests
 
 import charts
-import db
 import market_data
 import scoring
 from extras import _jget, _jset
