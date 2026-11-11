@@ -17,6 +17,7 @@ import { setHolidayFxOff, useHolidayFx } from "@/lib/holidays";
 import { isShown, setBotTools, setHomeCard, setMode, setPanel, usePrefs } from "@/lib/prefs";
 import { HOME_CARDS, cardOn } from "./Overview";
 import PalettePicker from "./PalettePicker";
+import ThemePicker from "./ThemePicker";
 import BackupPanel from "./BackupPanel";
 
 /** Invest/News panels you can switch on or off. `pro` = hidden by default in Simple view. */
@@ -126,6 +127,9 @@ function Root({ go, close, authOn }: { go: (p: SettingsPage) => void; close: (th
       <Group title="Customize">
         <NavRow icon={LayoutGrid} label="Home screen" sub={`${homeOn} of ${HOME_CARDS.length} cards showing`} onClick={() => go("home")} />
         <NavRow icon={PanelsTopLeft} label="Invest and News" sub={`${panelsOn} of ${PANELS.length} extra panels showing`} onClick={() => go("panels")} />
+      </Group>
+      <Group title="Appearance">
+        <ThemePicker />
       </Group>
       <Group title="Gain and loss colors">
         <PalettePicker />

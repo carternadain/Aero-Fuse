@@ -20,15 +20,15 @@ export interface RiskReport {
 
 // Categorical, deliberately not green/red — allocation isn't good/bad, just different.
 export const BUCKET_COLORS: Record<string, string> = {
-  cash: "#9ccfe6",
-  retirement: "#6c9cff",
-  broad: "#8fb8ff",
-  stocks: "#b08bd9",
-  crypto_major: "#ffc24d",
-  crypto_alt: "#f4a261",
-  options: "#e98cb4",
-  leveraged: "#d46a9f",
-  other: "#9b9285",
+  cash: "var(--color-cat-10)",
+  retirement: "var(--color-cat-11)",
+  broad: "var(--color-cat-12)",
+  stocks: "var(--color-cat-5)",
+  crypto_major: "var(--color-amber)",
+  crypto_alt: "var(--color-cat-14)",
+  options: "var(--color-cat-4)",
+  leveraged: "var(--color-cat-13)",
+  other: "var(--color-cat-9)",
 };
 
 export function riskColor(score: number): string {

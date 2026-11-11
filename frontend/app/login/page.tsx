@@ -37,7 +37,7 @@ export default function Login() {
       <form onSubmit={submit} className="w-full max-w-[320px] flex flex-col gap-4">
         <div className="flex flex-col items-center text-center mb-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-192.png" alt="" width={76} height={76} className="w-[76px] h-[76px] shadow-[0_10px_30px_rgba(0,0,0,0.45)] rounded-[17px] ring-1 ring-edge" />
+          <img src="/icon-192.png" alt="" width={76} height={76} className="w-[76px] h-[76px] shadow-[0_10px_30px_var(--color-shade-float)] rounded-[17px] ring-1 ring-edge" />
           <h1 className="font-display text-[28px] font-semibold tracking-tight leading-none text-txt mt-5">Aero</h1>
           <p className="text-[13px] text-dim mt-2 flex items-center gap-1.5">
             <Lock size={12} aria-hidden="true" /> Private. Sign in to continue.

@@ -77,7 +77,7 @@ export default function TabNav({
 
       {/* Phone: thumb-reachable bottom bar, clear of the home indicator */}
       <nav className="bottom-nav sm:hidden fixed inset-x-2 z-40 bottom-[max(8px,env(safe-area-inset-bottom))]
-                      rounded-2xl border border-edge2/70 bg-panel/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
+                      rounded-2xl border border-edge2/70 bg-panel/80 backdrop-blur-xl shadow-[0_8px_30px_var(--color-shade-float)]">
         <div className="grid px-1 py-1.5" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map(({ key, short, icon: Icon }) => {
             const on = active === key;

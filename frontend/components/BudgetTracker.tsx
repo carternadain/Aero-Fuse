@@ -41,7 +41,7 @@ interface BudgetSummary {
   recent_income: { name: string; amount: number; date: string }[];
 }
 
-const PIE_COLORS = ["#e3a83c", "#56b8a4", "#6cb4ff", "#e98cb4", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
+const PIE_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `var(--color-cat-${n})`); // theme tokens, see globals.css
 const FIRST_ROWS = 25;
 
 const isMoved = (t: Tx) => !!t.budget_month && t.budget_month !== t.date.slice(0, 7);

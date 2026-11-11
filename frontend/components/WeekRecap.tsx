@@ -19,7 +19,8 @@ const signed = (n: number) => (isHidden() ? "•••" : `${n >= 0 ? "+" : "−
 export default function WeekRecap() {
   const [r, setR] = useState<Recap | null>(null);
   const [failed, setFailed] = useState(false);
-  useEffect(() => { api.get<Recap>("/api/recap/week").then(setR).catch(() => setFailed(true)); }, []);
+  const load = () => { setFailed(false); api.get<Recap>("/api/recap/week").then(setR).catch(() => setFailed(true)); };
+  useEffect(load, []);
 
   const Row = ({ icon, k, v, sub, tone }: { icon: React.ReactNode; k: string; v: React.ReactNode; sub?: string; tone?: string }) => (
     <div className="flex items-center gap-3 py-2 border-t border-edge/60 first:border-t-0">
@@ -40,7 +41,10 @@ export default function WeekRecap() {
       </div>
       <div className="px-4 py-3">
         {!r && failed ? (
-          <p className="py-2 text-[13px] text-dim">Couldn&apos;t load your week. Refresh to try again.</p>
+          <div className="py-2">
+            <p className="text-[13px] text-dim">Couldn&apos;t load your week.</p>
+            <button className="btn min-h-10 mt-2" onClick={load}>Try again</button>
+          </div>
         ) : !r ? (
           <div className="space-y-3">
             <Skeleton className="h-9 w-40" />

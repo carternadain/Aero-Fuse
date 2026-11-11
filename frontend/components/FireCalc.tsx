@@ -162,21 +162,21 @@ export default function FireCalc() {
           <AreaChart data={calc.data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="fireFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#e3a83c" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#e3a83c" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="var(--color-cat-1)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="var(--color-cat-1)" stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="contribFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#56b8a4" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#56b8a4" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--color-cat-2)" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="var(--color-cat-2)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="#2b2723" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="age" stroke="#645e53" fontSize={9} tickLine={false}
+            <CartesianGrid stroke="var(--color-edge)" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="age" stroke="var(--color-faint)" fontSize={9} tickLine={false}
                    tickFormatter={(a: number) => `${a}`} />
-            <YAxis stroke="#645e53" fontSize={9} tickLine={false} width={52}
+            <YAxis stroke="var(--color-faint)" fontSize={9} tickLine={false} width={52}
                    tickFormatter={(v: number) => fmtUsd(v)} />
             <Tooltip
-              contentStyle={{ background: "#221f1c", border: "1px solid #3b3631", borderRadius: 10, fontSize: 11 }}
+              contentStyle={{ background: "var(--color-bg)", border: "1px solid var(--color-edge2)", borderRadius: 10, fontSize: 11 }}
               labelFormatter={(a) => `Age ${a}`}
               formatter={(v, name) => [fmtUsd(Number(v)), name === "nw" ? "Net worth (real $)" : "Contributions"]}
             />
@@ -186,8 +186,8 @@ export default function FireCalc() {
               <ReferenceLine x={calc.fireAge} stroke="var(--color-up)" strokeDasharray="2 4"
                              label={{ value: `${calc.fireAge}`, fill: "var(--color-up)", fontSize: 10, position: "top" }} />
             )}
-            <Area type="monotone" dataKey="contributions" stroke="#56b8a4" strokeWidth={1} fill="url(#contribFill)" />
-            <Area type="monotone" dataKey="nw" stroke="#e3a83c" strokeWidth={2} fill="url(#fireFill)" />
+            <Area type="monotone" dataKey="contributions" stroke="var(--color-cat-2)" strokeWidth={1} fill="url(#contribFill)" />
+            <Area type="monotone" dataKey="nw" stroke="var(--color-cat-1)" strokeWidth={2} fill="url(#fireFill)" />
           </AreaChart>
         </ResponsiveContainer>
       </div>

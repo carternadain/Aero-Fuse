@@ -76,7 +76,12 @@ export default function TaxCenter() {
 
   if (!d) {
     return err
-      ? <p className="panel px-4 py-5 text-[12px] text-dim">Couldn&apos;t load tax estimates.</p>
+      ? (
+        <div className="panel px-4 py-5">
+          <p className="text-[13px] text-dim">Couldn&apos;t load tax estimates.</p>
+          <button className="btn min-h-10 mt-2" onClick={() => { setErr(false); load(year); }}>Try again</button>
+        </div>
+      )
       : <div className="space-y-3"><Skeleton className="h-16" /><Skeleton className="h-40" /></div>;
   }
   const s = d.summary;

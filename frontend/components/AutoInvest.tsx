@@ -107,7 +107,10 @@ export default function AutoInvest() {
       </div>
 
       {rules == null ? (
-        <p className="px-4 py-5 text-[13px] text-dim">{failed ? "Couldn't load your recurring buys." : "Loading…"}</p>
+        <div className="px-4 py-5">
+          <p className="text-[13px] text-dim">{failed ? "Couldn't load your recurring buys." : "Loading…"}</p>
+          {failed && <button className="btn min-h-10 mt-2" onClick={() => { setFailed(false); refresh(); }}>Try again</button>}
+        </div>
       ) : rules.length === 0 ? (
         <div className="px-4 py-5 space-y-3">
           <p className="text-[13px] text-dim leading-snug max-w-sm">

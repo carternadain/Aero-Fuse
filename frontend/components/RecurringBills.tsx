@@ -140,7 +140,12 @@ export default function RecurringBills() {
         <span className="panel-title"><CalendarClock size={14} />Bills &amp; subscriptions</span>
       </div>
 
-      {failed && !data && <p className="p-3 text-[11px] text-dim">Couldn&apos;t load your bills. Try again in a moment.</p>}
+      {failed && !data && (
+        <div className="p-3">
+          <p className="text-[13px] text-dim">Couldn&apos;t load your bills.</p>
+          <button className="btn min-h-10 mt-2" onClick={() => { setFailed(false); refresh(); }}>Try again</button>
+        </div>
+      )}
 
       {data && visible.length === 0 && hidden.length === 0 && (
         <p className="p-4 text-[12px] text-dim text-center">
