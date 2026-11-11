@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarRange, Flame, PiggyBank, TrendingDown, TrendingUp } from "lucide-react";
+import { CalendarRange, Flame, PiggyBank, Share, TrendingDown, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
+import { haptic, toast } from "@/lib/bus";
+import { shareWeekCard } from "@/lib/shareCard";
 import { fmtCents, isHidden } from "@/lib/privacy";
 import Skeleton from "./Skeleton";
 
@@ -22,6 +24,20 @@ export default function WeekRecap() {
   const load = () => { setFailed(false); api.get<Recap>("/api/recap/week").then(setR).catch(() => setFailed(true)); };
   useEffect(load, []);
 
+  const share = async () => {
+    if (!r) return;
+    haptic();
+    const rows = [
+      r.best && r.best.usd > 0 ? { label: "Carried me", name: r.best.display, pct: r.best.pct } : null,
+      r.worst && r.worst.usd < 0 ? { label: "Dragged me", name: r.worst.display, pct: r.worst.pct } : null,
+      r.hottest && r.hottest.symbol !== r.best?.symbol && r.hottest.pct > 0 ? { label: "Hottest mover", name: r.hottest.display, pct: r.hottest.pct } : null,
+    ].filter((x): x is { label: string; name: string; pct: number } => x != null);
+    try {
+      const how = await shareWeekCard({ pct: r.nw_change_pct, rows, up: r.up_count, down: r.down_count });
+      if (how === "downloaded") toast("Saved my-week.png. It shows percentages only.");
+    } catch { toast("Couldn't make the image. Try again."); }
+  };
+
   const Row = ({ icon, k, v, sub, tone }: { icon: React.ReactNode; k: string; v: React.ReactNode; sub?: string; tone?: string }) => (
     <div className="flex items-center gap-3 py-2 border-t border-edge/60 first:border-t-0">
       <span className="rounded-lg bg-panel2 p-1.5 text-dim shrink-0">{icon}</span>
@@ -37,7 +53,15 @@ export default function WeekRecap() {
     <section className="panel">
       <div className="panel-head">
         <span className="panel-title"><CalendarRange size={14} />Your Week</span>
-        {r && <span className="text-[10px] text-faint">{r.up_count} up · {r.down_count} down</span>}
+        {r && (
+          <span className="flex items-center gap-1">
+            <span className="text-[10px] text-faint">{r.up_count} up · {r.down_count} down</span>
+            <button type="button" onClick={share} aria-label="Share your week as an image" title="Share (percentages only)"
+                    className="w-10 h-10 -my-2 -mr-2 grid place-items-center rounded-full text-dim hover:text-txt hover:bg-panel2 transition-colors focus-visible:outline-2 focus-visible:outline-up">
+              <Share size={16} aria-hidden />
+            </button>
+          </span>
+        )}
       </div>
       <div className="px-4 py-3">
         {!r && failed ? (

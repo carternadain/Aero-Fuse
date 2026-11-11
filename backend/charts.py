@@ -109,6 +109,72 @@ def crypto_daily_fallback(sym: str, span_days: int) -> Series:
     return []
 
 
+OHLC = list[tuple[float, float, float, float, float]]  # (unix seconds, open, high, low, close), ascending
+
+
+def _coinbase_ohlc(sym: str, gran: int, span: int) -> OHLC:
+    end = int(time.time())
+    out: dict[int, tuple[float, float, float, float, float]] = {}
+    t = end - span
+    while t < end:
+        t2 = min(end, t + gran * 300)  # Coinbase returns at most 300 candles per request
+        params = {"granularity": gran,
+                  "start": datetime.fromtimestamp(t, timezone.utc).isoformat(),
+                  "end": datetime.fromtimestamp(t2, timezone.utc).isoformat()}
+        r = requests.get(f"{CB}/products/{sym}-USD/candles", params=params, headers=UA, timeout=12)
+        if not r.ok:
+            break
+        for c in r.json():  # [time, low, high, open, close, volume]
+            out[int(c[0])] = (float(c[0]), float(c[3]), float(c[2]), float(c[1]), float(c[4]))
+        t = t2
+    return [out[k] for k in sorted(out)]
+
+
+def _yahoo_ohlc(sym: str, period: str, interval: str) -> OHLC:
+    yf = market_data._yf()
+    if yf is None:
+        return []
+    hist = yf.Ticker(sym).history(period=period, interval=interval, prepost=False)
+    hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
+    return [(ts.timestamp(), float(r["Open"]), float(r["High"]), float(r["Low"]), float(r["Close"]))
+            for ts, r in hist.iterrows()]
+
+
+def bucket_ohlc(bars: OHLC, n: int) -> OHLC:
+    """Merge bars into at most `n` candles: first open, highest high, lowest low, last close."""
+    if len(bars) <= n:
+        return bars
+    size = -(-len(bars) // n)  # ceil
+    out: OHLC = []
+    for i in range(0, len(bars), size):
+        chunk = bars[i:i + size]
+        out.append((chunk[0][0], chunk[0][1], max(b[2] for b in chunk), min(b[3] for b in chunk), chunk[-1][4]))
+    return out
+
+
+def ohlc(kind: str, sym: str, rng: str) -> OHLC:
+    """Cached open/high/low/close bars for one asset (the candlestick view)."""
+    if rng not in RANGES or kind == "option":
+        return []
+    gran, span, period, interval, ttl, _ = RANGES[rng]
+    key = f"ohlc:{kind}:{sym}:{rng}"
+    hit = _get(key, ttl)
+    if hit is not None:
+        return hit  # type: ignore[return-value]
+    try:
+        bars = _coinbase_ohlc(sym, gran, span) if kind == "crypto" else _yahoo_ohlc(sym, period, interval)
+        if rng == "LIVE":
+            cutoff = time.time() - span
+            bars = [b for b in bars if b[0] >= cutoff]
+    except Exception as e:
+        print(f"[charts] ohlc {kind} {sym} {rng} error: {e}")
+        bars = _get(f"{key}:stale", 86_400) or []  # type: ignore[assignment]
+    if bars:
+        _set(key, bars)
+        _set(f"{key}:stale", bars)
+    return bars
+
+
 def series(kind: str, sym: str, rng: str) -> Series:
     """Cached price series for one asset."""
     if rng not in RANGES or kind == "option":
@@ -134,7 +200,48 @@ def series(kind: str, sym: str, rng: str) -> Series:
     return s
 
 
-def asset_chart(kind: str, sym: str, rng: str) -> dict:
+MAX_CANDLES = 72  # about 5px each on a phone
+
+
+def position_overlay(start: float, lots: list[dict], buys: list[dict]) -> dict:
+    """What you own, for drawing on a price chart: average cost per unit across your lots
+    (None when no lot has a cost basis) and the recorded buys that fall inside the range."""
+    costed = [h for h in lots if h.get("cost_basis") and h.get("qty")]
+    qty = sum(h["qty"] for h in costed)
+    out = []
+    for b in buys:
+        if not b.get("price") or not b.get("date"):
+            continue
+        try:
+            # noon UTC: a daily fill has no time of day, and noon lands inside its bar
+            t = datetime.fromisoformat(b["date"][:10]).replace(tzinfo=timezone.utc).timestamp() + 43_200
+        except ValueError:
+            continue
+        if t >= start:
+            out.append({"t": int(t), "price": round(b["price"], 6), "qty": b["qty"], "amount": b.get("amount")})
+    return {"avg_cost": round(sum(h["qty"] * h["cost_basis"] for h in costed) / qty, 6) if qty else None,
+            "buys": out}
+
+
+def asset_chart(kind: str, sym: str, rng: str, candles: bool = False,
+                lots: list[dict] | None = None, buys: list[dict] | None = None) -> dict:
+    out = _asset_line(kind, sym, rng)
+    if candles:
+        out["candles"] = [{"t": int(t), "o": round(o, 6), "h": round(h, 6), "l": round(lo, 6), "c": round(c, 6)}
+                          for t, o, h, lo, c in bucket_ohlc(ohlc(kind, sym, rng), MAX_CANDLES)]
+    if lots or buys:
+        start = out["points"][0]["t"] if out["points"] else time.time() - RANGES[rng][1]
+        out.update(position_overlay(start, lots or [], buys or []))
+    return out
+
+
+def benchmark(days: int, sym: str = "SPY") -> list[dict]:
+    """Daily closes of the S&P 500 ETF covering the last `days` days, for an indexed comparison line."""
+    rng = "3M" if days <= 85 else "1Y" if days <= 360 else "5Y"
+    return [{"t": int(t), "p": round(p, 4)} for t, p in series("stock", sym, rng)]
+
+
+def _asset_line(kind: str, sym: str, rng: str) -> dict:
     s = series(kind, sym, rng)
     q = market_data.live_quote(sym, kind)
     pts = _downsample(s, 240)

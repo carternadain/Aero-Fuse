@@ -97,6 +97,22 @@ WEBHOOK_SECRET=...
   skips the login page. The page redirect itself is in `frontend/middleware.ts`.
 - 5 wrong passwords from one IP (or 30 total) → locked for 15 minutes.
 
+### Face ID / Touch ID sign-in (passkeys)
+
+Settings → Sign-in → "Sign in with Face ID on this device" adds a passkey for the device you
+are holding. After that the sign-in page shows a Face ID button above the password box.
+
+- The password keeps working. A passkey is a shortcut, not a replacement.
+- It needs https (or `localhost`). A passkey is tied to the hostname it was made on, so one made
+  on `aero.example.com` won't be offered on another address, and a new domain means adding it again.
+- Only the owner can add or remove passkeys. The demo login can't.
+- Wrong or unknown passkeys count toward the same 15-minute lockout as wrong passwords.
+- The server stores only the public half (table `passkeys`). Remove a lost device's passkey in Settings.
+- Optional: set `PASSKEY_ORIGIN=https://your-host` in `.env` to pin the site instead of reading it
+  from the browser's `Origin` header.
+- Needs the `webauthn` Python package (in `requirements.txt`; `deploy.sh` installs it). Without it
+  the app runs normally and the option simply doesn't appear.
+
 ---
 
 ## 4. The database

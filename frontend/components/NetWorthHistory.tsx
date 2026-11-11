@@ -39,6 +39,7 @@ const RANGES: { key: HRange; label: string; days: number | null }[] = [
 ];
 const HIST = RANGES.filter((r) => !isLiveRange(r.key));
 const KEY = "nwh-range";
+const BENCH_KEY = "nwh-bench";
 const DAY = 86_400_000;
 const MAX_POINTS = 420; // long ranges are thinned to about weekly so the line stays light
 
@@ -46,6 +47,7 @@ const ms = (d: string) => Date.parse(`${d}T00:00:00Z`);
 const unix = (d: string) => ms(d) / 1000;
 const hasSplit = (r: Row) => r.investments != null && r.cash != null && r.property != null;
 const isEst = (r: Row | null | undefined) => r?.source === "estimate";
+const fmtSignedPct = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`;
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -69,6 +71,22 @@ export default function NetWorthHistory() {
   const [live, setLive] = useState<NwChart | null>(null);
   const [hasLive, setHasLive] = useState(false); // intraday data actually varies (live-priced holdings)
   const picked = useRef(false);
+  const [bench, setBench] = useState(false);                          // compare to the S&P 500
+  const [spy, setSpy] = useState<{ t: number; p: number }[] | null>(null);
+  useEffect(() => { try { setBench(localStorage.getItem(BENCH_KEY) === "1"); } catch { /* private mode */ } }, []);
+  useEffect(() => {
+    if (!bench || spy) return;
+    let alive = true;
+    api.get<{ points: { t: number; p: number }[] }>("/api/benchmark?days=1830")
+      .then((d) => { if (alive) setSpy(d.points ?? []); })
+      .catch(() => { if (alive) setSpy([]); });
+    return () => { alive = false; };
+  }, [bench, spy]);
+  const toggleBench = () => {
+    const on = !bench;
+    setBench(on);
+    try { localStorage.setItem(BENCH_KEY, on ? "1" : "0"); } catch { /* private mode */ }
+  };
 
   useEffect(() => {
     try {
@@ -153,6 +171,25 @@ export default function NetWorthHistory() {
     const change = points[points.length - 1].p - base;
     return { points, baseline: base, change, change_pct: base ? (change / Math.abs(base)) * 100 : null };
   }, [inRange]);
+
+  // S&P 500 on the same scale: indexed so it starts where your line does on the first day both have.
+  // One axis, two lines. It answers "what if that starting balance had simply tracked the index".
+  const ghost = useMemo(() => {
+    if (!bench || !spy?.length || inRange.length < 2) return null;
+    let j = 0, close: number | null = null;
+    const closes = inRange.map((r) => {
+      const end = unix(r.date) + 86_400; // any close stamped on that calendar day counts
+      while (j < spy.length && spy[j].t < end) { close = spy[j].p; j++; }
+      return close;
+    });
+    const k = closes.findIndex((c) => c != null);
+    if (k < 0 || k > inRange.length - 2 || inRange[k].net_worth <= 0) return null;
+    const scale = inRange[k].net_worth / closes[k]!;
+    const line = closes.map((c) => (c == null ? null : c * scale));
+    const lastClose = closes[closes.length - 1]!;
+    return { line, pct: (lastClose / closes[k]! - 1) * 100,
+             yours: (inRange[inRange.length - 1].net_worth / inRange[k].net_worth - 1) * 100, from: inRange[k].date };
+  }, [bench, spy, inRange]);
 
   // Where estimated days end, as a fraction of the chart width (the chart spaces points evenly).
   const estEnd = useMemo(() => {
@@ -250,7 +287,8 @@ export default function NetWorthHistory() {
             </div>
 
             <div className="mt-3 -mx-1 relative">
-              <PriceChart data={liveMode ? live : chart} range={liveMode ? (eff as Range) : "1Y"} height={190} onScrub={setScrub} />
+              <PriceChart data={liveMode ? live : chart} range={liveMode ? (eff as Range) : "1Y"} height={190} onScrub={setScrub}
+                          ghost={liveMode ? null : ghost?.line} label="Net worth over time" />
               {estFrom && (
                 // estimated days sit left of this line
                 <div aria-hidden className="absolute top-2 bottom-0 border-l border-dashed border-faint/50 pointer-events-none"
@@ -260,6 +298,33 @@ export default function NetWorthHistory() {
             {estFrom && (
               <p className="px-1 mt-1 text-[10px] leading-[14px] text-faint truncate">
                 {scrubEst ? "Estimated from today’s holdings" : `Estimated before ${fmtDate(estFrom)}`}
+              </p>
+            )}
+
+            {!liveMode && chart && (
+              <div className="px-1 mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] text-dim tabular-nums">
+                <button type="button" onClick={toggleBench} aria-pressed={bench}
+                        className={`min-h-10 px-3 -ml-2 rounded-full font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-up ${
+                          bench ? "bg-up/15 text-up" : "text-dim hover:text-txt"
+                        }`}>
+                  vs S&amp;P 500
+                </button>
+                {bench && ghost && (
+                  <>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-4 border-t-2 ${(chart.change ?? 0) >= 0 ? "border-up" : "border-down"}`} aria-hidden />You <span className="text-txt font-semibold">{fmtSignedPct(ghost.yours)}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-4 border-t-2 border-dotted border-dim" aria-hidden />S&amp;P 500 <span className="text-txt font-semibold">{fmtSignedPct(ghost.pct)}</span>
+                    </span>
+                  </>
+                )}
+                {bench && !ghost && <span>{spy == null ? "Loading the index…" : "No index data for this range right now."}</span>}
+              </div>
+            )}
+            {bench && ghost && !liveMode && (
+              <p className="px-1 text-[10px] leading-[14px] text-faint">
+                The dotted line is your {fmtDate(ghost.from)} balance if it had tracked the S&amp;P 500 (SPY). Your line also includes money you added or spent.
               </p>
             )}
 

@@ -406,6 +406,14 @@ def delete_rule(rule_id: int, keep_shares: bool = True) -> bool:
     return True
 
 
+def buys(kind: str, symbol: str) -> list[dict]:
+    """Recorded buys of one asset that carry a price, oldest first (markers on its price chart)."""
+    with db.conn() as c:
+        return [{"date": r["trade_date"] or r["sched_date"], "qty": r["qty"], "price": r["price"], "amount": r["amount"]}
+                for r in c.execute("SELECT * FROM autoinvest_fills WHERE kind=? AND symbol=? AND price IS NOT NULL "
+                                   "AND status IN ('filled','existing') ORDER BY sched_date", (kind, symbol))]
+
+
 def ledger() -> list[dict]:
     """Every settled buy that's part of a holding's qty (filled or existing), for history."""
     with db.conn() as c:

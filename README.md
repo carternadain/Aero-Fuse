@@ -19,7 +19,9 @@ brighter-dark dashboard you can run on your phone.
 | **Wealth** | Accounts + auto-invest + risk · Cash (paychecks, bills, what's left) · Budget & spending (statement import, limits, alerts) · Bills · Dividends · Taxes · Goals & savings plan · What-if (crash test, FIRE, money lab) |
 | **Bot** *(optional, off by default — switch on in Settings)* | Trade tracker + calendar · signal log with per-signal AI verdict · key levels · positions · sizing, stats and the paper bot |
 
-The Settings sheet switches between Simple and Pro mode, the colour palette, and backups.
+The Settings sheet switches between Simple and Pro mode, light and dark, the colour palette,
+Face ID sign-in (a passkey) and backups. Price charts toggle between a line and candles and mark
+your buys and average cost; the net worth chart can overlay the S&P 500.
 A second "demo" password can open the app on made-up data — see RUNBOOK §3.
 
 ## How it finds an edge

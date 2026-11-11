@@ -300,6 +300,11 @@ input, select, textarea {
   pointer-events: none;
 }
 
+/* Away from the app (lib/privacy.ts): blur everything so the app-switcher snapshot shows no balances */
+:root[data-away] body > * {
+  filter: blur(22px) saturate(0.6);
+}
+
 /* Switching theme: one soft cross-fade of the whole page (View Transitions), nothing if motion is reduced */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.28s; }
 @media (prefers-reduced-motion: reduce) {

@@ -7,17 +7,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Bell, Bot, ChevronLeft, ChevronRight, Download, EyeOff, LayoutGrid, LogOut, PanelsTopLeft, PartyPopper, X,
+  Bell, Bot, ChevronLeft, ChevronRight, Download, EyeOff, LayoutGrid, LogOut, PanelsTopLeft, PartyPopper, ScanEye, X,
   type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { haptic, navigate, on, openAlerts, type SettingsPage } from "@/lib/bus";
-import { isHidden, setHidden } from "@/lib/privacy";
+import { getCoverAway, isHidden, setCoverAway, setHidden } from "@/lib/privacy";
 import { setHolidayFxOff, useHolidayFx } from "@/lib/holidays";
 import { isShown, setBotTools, setHomeCard, setMode, setPanel, usePrefs } from "@/lib/prefs";
 import { HOME_CARDS, cardOn } from "./Overview";
 import PalettePicker from "./PalettePicker";
 import ThemePicker from "./ThemePicker";
+import PasskeySettings from "./PasskeySettings";
 import BackupPanel from "./BackupPanel";
 
 /** Invest/News panels you can switch on or off. `pro` = hidden by default in Simple view. */
@@ -109,6 +110,13 @@ function HidePref() {
   return <Switch icon={EyeOff} label="Hide balances" sub="Masks dollar amounts everywhere" checked={hide} onChange={(v) => setHidden(v)} />;
 }
 
+function AwayPref() {
+  const [on, setOn] = useState(true);
+  useEffect(() => setOn(getCoverAway()), []);
+  return <Switch icon={ScanEye} label="Blur when I leave" sub="Hides the screen in the app switcher"
+                 checked={on} onChange={(v) => { setOn(v); setCoverAway(v); }} />;
+}
+
 function Root({ go, close, authOn }: { go: (p: SettingsPage) => void; close: (then?: () => void) => void; authOn: boolean }) {
   const p = usePrefs();
   const fx = useHolidayFx();
@@ -123,6 +131,7 @@ function Root({ go, close, authOn }: { go: (p: SettingsPage) => void; close: (th
       <Group note="Simple hides advanced tools. Search still finds everything.">
         <ViewRow />
         <HidePref />
+        <AwayPref />
       </Group>
       <Group title="Customize">
         <NavRow icon={LayoutGrid} label="Home screen" sub={`${homeOn} of ${HOME_CARDS.length} cards showing`} onClick={() => go("home")} />
@@ -147,7 +156,8 @@ function Root({ go, close, authOn }: { go: (p: SettingsPage) => void; close: (th
         <NavRow icon={Download} label="Backup and export" sub="Download everything, automatic backups" onClick={() => go("backup")} />
       </Group>
       {authOn && (
-        <Group>
+        <Group title="Sign-in">
+          <PasskeySettings />
           <button onClick={logout} className={`${ROW} justify-center text-[14px] font-semibold text-down`}>
             <LogOut size={16} aria-hidden /> Log out
           </button>
