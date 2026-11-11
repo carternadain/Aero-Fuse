@@ -6,7 +6,7 @@ import { api, fmtPrice } from "@/lib/api";
 import { on, openAlerts, type Kind, type TickerTarget } from "@/lib/bus";
 import { useLive } from "@/lib/live";
 import { fmtCents, fmtQty } from "@/lib/privacy";
-import PriceChart, { ASSET_RANGES, POLL_MS, RANGE_LABEL, RangeTabs, fmtTime, type ChartData, type Range } from "./PriceChart";
+import PriceChart, { ASSET_RANGES, ChartModeToggle, POLL_MS, PositionNote, RANGE_LABEL, RangeTabs, fmtTime, useChartMode, type ChartData, type Range } from "./PriceChart";
 import ScoreHistoryChart from "./ScoreHistoryChart";
 import StarButton from "./StarButton";
 import Skeleton from "./Skeleton";
@@ -40,6 +40,7 @@ function Sheet({ target, onClose }: { target: TickerTarget; onClose: () => void 
   const [range, setRange] = useState<Range>("1D");
   const [data, setData] = useState<ChartData | null>(null);
   const [scrub, setScrub] = useState<{ t: number; p: number } | null>(null);
+  const [mode, setMode] = useChartMode();
   const [history, setHistory] = useState(false);
   const { holdings } = useLive();
 
@@ -51,14 +52,14 @@ function Sheet({ target, onClose }: { target: TickerTarget; onClose: () => void 
   useEffect(() => {
     if (!kind) return;
     let alive = true;
-    const load = () => api.get<ChartData>(`/api/chart/${kind}/${encodeURIComponent(sym)}?range=${range}`)
+    const load = () => api.get<ChartData>(`/api/chart/${kind}/${encodeURIComponent(sym)}?range=${range}${mode === "candles" ? "&candles=1" : ""}`)
       .then((d) => { if (alive) setData(d); }).catch(() => {});
-    setData(null);
+    setData((d) => (d && mode === "candles" && !d.candles ? d : null)); // keep the line up while candles load
     load();
     const ms = POLL_MS[range];
     const t = ms ? setInterval(load, ms) : undefined;
     return () => { alive = false; if (t) clearInterval(t); };
-  }, [kind, sym, range]);
+  }, [kind, sym, range, mode]);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -77,6 +78,7 @@ function Sheet({ target, onClose }: { target: TickerTarget; onClose: () => void 
   const mine = holdings.filter((h) => h.symbol === sym && h.kind === kind);
   const mineQty = mine.reduce((t, h) => t + h.qty, 0);
   const mineVal = mine.reduce((t, h) => t + (h.value ?? 0), 0);
+  const minePriced = mine.some((h) => h.value != null); // no price right now: show a dash, not $0.00
 
   const Stat = ({ k, v, tone }: { k: string; v: React.ReactNode; tone?: string }) => (
     <div className="rounded-lg bg-panel2/50 px-3 py-2">
@@ -118,16 +120,18 @@ function Sheet({ target, onClose }: { target: TickerTarget; onClose: () => void 
         </div>
 
         <div className="mt-3" data-noswipe>
-          <PriceChart data={data} range={range} height={220} onScrub={setScrub} />
-          <div className="px-2 mt-2 border-t border-edge/60 pt-2">
-            <RangeTabs value={range} onChange={setRange} ranges={ASSET_RANGES} />
+          <PriceChart data={data} range={range} height={220} onScrub={setScrub} mode={mode} label={`${sym} price, ${RANGE_LABEL[range].toLowerCase()}`} />
+          <div className="pl-2 pr-1 mt-2 border-t border-edge/60 pt-1 flex items-center gap-1">
+            <div className="flex-1 min-w-0"><RangeTabs value={range} onChange={setRange} ranges={ASSET_RANGES} /></div>
+            <ChartModeToggle mode={mode} onChange={setMode} />
           </div>
+          <PositionNote data={data} price={last} />
         </div>
 
         {mine.length > 0 && (
           <div className="mx-4 mt-4 rounded-xl border border-edge bg-panel2/30 px-4 py-3 flex justify-between text-[13px]">
             <span className="text-dim">You own {fmtQty(mineQty, 4)} {kind === "crypto" ? sym : mineQty === 1 ? "share" : "shares"}</span>
-            <span className="font-bold tabular-nums text-txt">{fmtCents(mineVal)}</span>
+            <span className="font-bold tabular-nums text-txt">{minePriced ? fmtCents(mineVal) : "—"}</span>
           </div>
         )}
 

@@ -104,7 +104,7 @@ export default function Portfolio({
           <span className={`text-xs font-bold tabular-nums ${totalUsd > 0 ? "text-up" : totalUsd < 0 ? "text-down" : "text-dim"}`}>
             {isHidden() ? MASK : <>{totalUsd >= 0 ? "+" : "−"}${Math.abs(Math.round(totalUsd)).toLocaleString()}</>}
           </span>
-          <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)}>
+          <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)} aria-label="Add a position" aria-expanded={adding}>
             <Plus size={12} strokeWidth={3} />
           </button>
         </div>

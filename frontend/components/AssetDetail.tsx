@@ -6,7 +6,7 @@ import { openAlerts, openTicker } from "@/lib/bus";
 import StarButton from "./StarButton";
 import { api, fmtPrice } from "@/lib/api";
 import { fmtCents, fmtQty, isHidden } from "@/lib/privacy";
-import PriceChart, { ASSET_RANGES, POLL_MS, RANGE_LABEL, RangeTabs, fmtTime, type ChartData, type Range } from "./PriceChart";
+import PriceChart, { ASSET_RANGES, ChartModeToggle, POLL_MS, PositionNote, RANGE_LABEL, RangeTabs, fmtTime, useChartMode, type ChartData, type Range } from "./PriceChart";
 
 export interface LiveHolding {
   id: number;
@@ -41,20 +41,21 @@ export default function AssetDetail({
   const [range, setRange] = useState<Range>("1D");
   const [data, setData] = useState<ChartData | null>(null);
   const [scrub, setScrub] = useState<{ t: number; p: number } | null>(null);
+  const [mode, setMode] = useChartMode();
   const isOption = holding.kind === "option";
 
   useEffect(() => {
     if (isOption) return;
     let alive = true;
     const load = () =>
-      api.get<ChartData>(`/api/chart/${holding.kind}/${encodeURIComponent(holding.symbol)}?range=${range}`)
+      api.get<ChartData>(`/api/chart/${holding.kind}/${encodeURIComponent(holding.symbol)}?range=${range}${mode === "candles" ? "&candles=1" : ""}`)
         .then((d) => { if (alive) setData(d); }).catch(() => {});
-    setData(null);
+    setData((d) => (d && mode === "candles" && !d.candles ? d : null)); // keep the line up while candles load
     load();
     const ms = POLL_MS[range];
     const t = ms ? setInterval(load, ms) : undefined;
     return () => { alive = false; if (t) clearInterval(t); };
-  }, [holding.kind, holding.symbol, range, isOption]);
+  }, [holding.kind, holding.symbol, range, isOption, mode]);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -138,10 +139,12 @@ export default function AssetDetail({
             </div>
           ) : (
             <>
-              <PriceChart data={data} range={range} height={240} onScrub={setScrub} />
-              <div className="px-2 mt-2 border-t border-edge/60 pt-2">
-                <RangeTabs value={range} onChange={setRange} ranges={ASSET_RANGES} />
+              <PriceChart data={data} range={range} height={240} onScrub={setScrub} mode={mode} label={`${holding.symbol} price, ${RANGE_LABEL[range].toLowerCase()}`} />
+              <div className="pl-2 pr-1 mt-2 border-t border-edge/60 pt-1 flex items-center gap-1">
+                <div className="flex-1 min-w-0"><RangeTabs value={range} onChange={setRange} ranges={ASSET_RANGES} /></div>
+                <ChartModeToggle mode={mode} onChange={setMode} />
               </div>
+              <PositionNote data={data} price={data?.points?.length ? data.points[data.points.length - 1].p : holding.price ?? null} />
             </>
           )}
         </div>

@@ -139,7 +139,7 @@ export default function StressTest() {
                         <span className="text-dim uppercase tracking-wider">{label}</span>
                         <span className="text-amber font-bold tabular-nums">−{v}%</span>
                       </div>
-                      <input type="range" min={0} max={90} step={5} value={v}
+                      <input type="range" aria-label={`${label} drop, percent`} min={0} max={90} step={5} value={v}
                              onChange={(e) => set(parseFloat(e.target.value))} className="w-full h-1 accent-up cursor-pointer" />
                     </div>
                   ),

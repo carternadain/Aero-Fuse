@@ -16,6 +16,7 @@ active: contextvars.ContextVar[bool] = contextvars.ContextVar("demo", default=Fa
 # hand out the database. Prefix match on the path.
 BLOCKED = (
     "/api/export", "/api/backups", "/api/evaluate", "/api/push",
+    "/api/auth/passkeys", "/api/auth/passkey/register",  # sign-in keys belong to the owner
 )
 BLOCKED_WRITES = ("/api/watchlist",)  # these lists live in shared JSON files, not the DB
 

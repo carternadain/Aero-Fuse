@@ -54,6 +54,7 @@ import brief
 import cashflow
 import market_data
 import news
+import passkeys
 import nw_history
 import nw_backfill
 import risk
@@ -96,9 +97,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # ── Watchlist ─────────────────────────────────────────────
 
 def load_watchlist() -> list[str]:
-    if WATCHLIST_FILE.exists():
-        return json.loads(WATCHLIST_FILE.read_text())
-    return DEFAULT_WATCHLIST[:]
+    return _load_list(WATCHLIST_FILE, DEFAULT_WATCHLIST)  # falls back if the file is corrupt
 
 
 def save_watchlist(symbols: list[str]):
@@ -456,6 +455,7 @@ def cache_warmer_loop(label: str, every: int, factor: float, jobs: list):
 async def lifespan(app: FastAPI):
     db.init_db()
     taxes.init()
+    passkeys.init()
     if not auth.enabled():
         print("[auth] " + "!" * 60)
         print("[auth] APP_PASSWORD_HASH not set — LOGIN DISABLED. Fine on localhost,")
@@ -489,7 +489,8 @@ app.add_middleware(
 )
 
 # Routes reachable without a session: the login flow itself. /webhook has its own secret.
-AUTH_OPEN = {"/api/auth/login", "/api/auth/logout", "/api/auth/check"}
+AUTH_OPEN = {"/api/auth/login", "/api/auth/logout", "/api/auth/check",
+             "/api/auth/passkey/status", "/api/auth/passkey/login/options", "/api/auth/passkey/login/verify"}
 
 
 @app.middleware("http")
@@ -535,6 +536,95 @@ def auth_login(body: LoginIn, request: Request, response: Response):
         httponly=True, secure=auth.cookie_secure(), samesite="lax", path="/",
     )
     return {"ok": True, "auth": True}
+
+
+# ── Passkeys (Face ID / Touch ID sign-in) ─────────────────
+# Sign-in routes are open (they are how you get a session). Adding, listing and removing
+# passkeys need the owner's session: the middleware lets a demo session through to /api/*,
+# so these check the session kind themselves and demo.py blocks them as well.
+
+def _owner_only(request: Request):
+    if auth.enabled() and auth.token_kind(request.cookies.get(auth.COOKIE_NAME)) != "owner":
+        raise HTTPException(403, "Only the owner can manage passkeys")
+
+
+def _passkey_call(fn, *args):
+    try:
+        return fn(*args)
+    except passkeys.PasskeyError as e:
+        raise HTTPException(400, str(e))
+
+
+class PasskeyIn(BaseModel):
+    credential: dict
+    name: str = ""
+
+
+@app.get("/api/auth/passkey/status")
+def passkey_status(request: Request):
+    """Whether to offer "Sign in with Face ID" on this site. Says nothing else."""
+    if not passkeys.available():
+        return {"available": False, "registered": False}
+    host = passkeys.host_of(request.headers)
+    return {"available": True, "registered": bool(host) and passkeys.registered(host)}
+
+
+@app.post("/api/auth/passkey/login/options")
+def passkey_login_options(request: Request):
+    if not passkeys.available():
+        raise HTTPException(400, "Passkeys are off")
+    ip = auth.client_ip(request.headers, request.client.host if request.client else "?")
+    if auth.locked_out(ip):
+        raise HTTPException(429, "Too many attempts — wait 15 minutes")
+    return _passkey_call(passkeys.login_options, request.headers)
+
+
+@app.post("/api/auth/passkey/login/verify")
+def passkey_login_verify(body: PasskeyIn, request: Request, response: Response):
+    if not passkeys.available():
+        raise HTTPException(400, "Passkeys are off")
+    ip = auth.client_ip(request.headers, request.client.host if request.client else "?")
+    if auth.locked_out(ip):
+        raise HTTPException(429, "Too many attempts — wait 15 minutes")
+    if not _passkey_call(passkeys.login_verify, request.headers, body.credential):
+        auth.record_failure(ip)
+        raise HTTPException(401, "That passkey didn't work")
+    auth.clear_failures(ip)
+    response.set_cookie(
+        auth.COOKIE_NAME, auth.issue_token(), max_age=auth.SESSION_TTL,
+        httponly=True, secure=auth.cookie_secure(), samesite="lax", path="/",
+    )
+    return {"ok": True, "auth": True}
+
+
+@app.post("/api/auth/passkey/register/options")
+def passkey_register_options(request: Request):
+    _owner_only(request)
+    if not passkeys.available():
+        raise HTTPException(400, "Passkeys need login switched on (APP_PASSWORD_HASH) and the webauthn package")
+    return _passkey_call(passkeys.register_options, request.headers)
+
+
+@app.post("/api/auth/passkey/register/verify")
+def passkey_register_verify(body: PasskeyIn, request: Request):
+    _owner_only(request)
+    if not passkeys.available():
+        raise HTTPException(400, "Passkeys are off")
+    return _passkey_call(passkeys.register_verify, request.headers, body.credential, body.name)
+
+
+@app.get("/api/auth/passkeys")
+def passkey_list(request: Request):
+    _owner_only(request)
+    return {"available": passkeys.available(), "passkeys": passkeys.list_public() if passkeys.available() else []}
+
+
+@app.delete("/api/auth/passkeys/{pk_id}")
+def passkey_delete(pk_id: int, request: Request):
+    _owner_only(request)
+    if not passkeys.delete(pk_id):
+        raise HTTPException(404, "Passkey not found")
+    return {"ok": True, "passkeys": passkeys.list_public()}
 
 
 @app.post("/api/auth/logout")
@@ -940,10 +1030,22 @@ CHART_RANGES = tuple(charts.RANGES)
 
 
 @app.get("/api/chart/{kind}/{symbol}")
-def get_asset_chart(kind: str, symbol: str, range: str = "1D"):
+def get_asset_chart(kind: str, symbol: str, range: str = "1D", candles: bool = False):
+    """Price line for one asset. `candles=1` adds open/high/low/close bars. When you hold it,
+    the reply also carries your average cost and the buys recorded inside the range."""
     if kind not in ("crypto", "stock", "option") or range not in CHART_RANGES:
         raise HTTPException(400, f"kind crypto|stock|option, range one of {CHART_RANGES}")
-    return charts.asset_chart(kind, symbol.upper(), range)
+    sym = symbol.upper()
+    lots = [h for h in db.list_holdings() if h["kind"] == kind and h["symbol"].upper() == sym]
+    return charts.asset_chart(kind, sym, range, candles=candles, lots=lots,
+                              buys=autoinvest.buys(kind, sym) if lots else None)
+
+
+@app.get("/api/benchmark")
+def get_benchmark(days: int = Query(365, ge=7, le=1830)):
+    """S&P 500 (SPY) daily closes for the last `days` days. The net worth chart indexes it to
+    its own first point, so the two lines share one scale."""
+    return {"symbol": "SPY", "name": "S&P 500", "points": charts.benchmark(days)}
 
 
 @app.get("/api/portfolio/chart")
@@ -1869,7 +1971,7 @@ def get_prices():
 
 @app.post("/webhook")
 async def tradingview_webhook(request: Request, token: str | None = Query(None)):
-    """TradingView alert webhook. Message body should be the JSON template from SETUP.md.
+    """TradingView alert webhook. Message body should be the JSON template from RUNBOOK.md §6.
 
     With WEBHOOK_SECRET set, the alert must carry it — either as ?token=... on the
     webhook URL or as a "secret" field in the JSON message.

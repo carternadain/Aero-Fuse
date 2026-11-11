@@ -33,10 +33,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Apply the saved gain/loss palette before first paint (no flash). */}
+        {/* Apply the saved gain/loss palette and appearance before first paint (no flash),
+            and follow the device when appearance is "Match device". See lib/theme.ts. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var p=localStorage.getItem("palette");if(p)document.documentElement.dataset.palette=p}catch(e){}`,
+            __html: `try{var d=document.documentElement,p=localStorage.getItem("palette");if(p)d.dataset.palette=p;`
+              + `var m=matchMedia("(prefers-color-scheme: light)"),a=function(){var t=localStorage.getItem("theme");`
+              + `if(t!=="light"&&t!=="auto")t="dark";var r=t==="auto"?(m.matches?"light":"dark"):t;d.dataset.theme=r;d.dataset.themePref=t;`
+              + `var c=document.querySelector('meta[name="theme-color"]');if(c)c.setAttribute("content",r==="light"?"#f5f1e9":"#221f1a");`
+              + `window.dispatchEvent(new Event("themechange"))};a();m.addEventListener("change",a);`
+              + `document.addEventListener("DOMContentLoaded",a)}catch(e){}`,
           }}
         />
       </head>

@@ -41,3 +41,37 @@ export function fmtCents(n: number): string {
   const s = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${n < 0 ? "−" : ""}$${s}`;
 }
+
+// ── Cover the screen when you leave the app ──────────────────────────────────
+// Phones keep a snapshot of the last frame for the app switcher. While the page is hidden,
+// <html data-away> blurs everything (see globals.css) so balances aren't in that snapshot.
+// Best effort: the browser decides when the snapshot is taken.
+const AWAY_KEY = "cover-away";
+
+export function getCoverAway(): boolean {
+  try { return localStorage.getItem(AWAY_KEY) !== "0"; } catch { return true; }
+}
+
+export function setCoverAway(v: boolean): void {
+  try { localStorage.setItem(AWAY_KEY, v ? "1" : "0"); } catch { /* private mode */ }
+  if (!v) delete document.documentElement.dataset.away;
+}
+
+/** Call once on mount. Returns the cleanup. */
+export function registerCoverAway(): () => void {
+  const el = document.documentElement;
+  const sync = () => {
+    if (document.visibilityState === "hidden" && getCoverAway()) el.dataset.away = "1";
+    else delete el.dataset.away;
+  };
+  const hide = () => { if (getCoverAway()) el.dataset.away = "1"; };
+  document.addEventListener("visibilitychange", sync);
+  window.addEventListener("pagehide", hide);
+  window.addEventListener("pageshow", sync);
+  return () => {
+    document.removeEventListener("visibilitychange", sync);
+    window.removeEventListener("pagehide", hide);
+    window.removeEventListener("pageshow", sync);
+    delete el.dataset.away;
+  };
+}

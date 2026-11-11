@@ -95,6 +95,10 @@ export default function PortfolioHeatmap() {
       <div ref={box} className="relative m-2" style={{ height: H }}>
         {!holdings ? (
           <Skeleton className="absolute inset-0" />
+        ) : W > 0 && rects.length === 0 ? (
+          <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-dim">
+            {holdings.length ? "Prices aren't available right now, so there's nothing to map yet." : "Add holdings in Wealth to see them mapped here."}
+          </p>
         ) : (
           rects.map((r) => {
             const big = r.w > 70 && r.h > 44, mid = r.w > 42 && r.h > 26;

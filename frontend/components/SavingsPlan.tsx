@@ -311,7 +311,12 @@ export default function SavingsPlan() {
       </div>
 
       <div className="mt-3 border-t border-edge">
-        {failed && !plan && <p className="p-4 text-[13px] text-dim">Couldn&apos;t load your savings plan.</p>}
+        {failed && !plan && (
+          <div className="p-4">
+            <p className="text-[13px] text-dim">Couldn&apos;t load your savings plan.</p>
+            <button className="btn min-h-10 mt-2" onClick={refresh}>Try again</button>
+          </div>
+        )}
         {plan?.contributions.length === 0 && (
           <div className="p-4 space-y-3">
             <p className="text-[13px] text-dim leading-snug">Add what you put away each paycheck or month: 401(k), Roth, brokerage, savings.</p>

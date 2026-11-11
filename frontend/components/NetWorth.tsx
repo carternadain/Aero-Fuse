@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronRight, Plus, TrendingUp, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import Skeleton from "./Skeleton";
 import { fmtQty, isHidden, MASK } from "@/lib/privacy";
 import { askConfirm, askText } from "./DialogHost";
 import SwipeRow, { deferDelete } from "./SwipeRow";
@@ -79,6 +80,7 @@ export default function NetWorth() {
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [hold, setHold] = useState<HoldingsResponse>({ holdings: [], value: 0, change_1d: 0, change_1d_pct: null });
   const [adding, setAdding] = useState(false);
+  const [loaded, setLoaded] = useState(false); // first fetch answered — until then "no accounts" isn't known
   const [mode, setMode] = useState<"holding" | "account">("holding");
   const [f, setF] = useState({ name: "", kind: "asset", category: "cash", balance: "" });
   const [hf, setHf] = useState({ symbol: "", kind: "crypto", qty: "", cost_basis: "", label: "",
@@ -97,6 +99,7 @@ export default function NetWorth() {
       setTotals(acc.totals);
       setHistory(hist);
       setHold(h);
+      setLoaded(true);
     } catch { /* backend banner covers it */ }
   };
 
@@ -201,7 +204,7 @@ export default function NetWorth() {
           <button className="btn !py-1" onClick={snapshot} title="Record today's net worth on the chart">
             <Camera size={12} />Snap
           </button>
-          <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)}>
+          <button className="btn btn-primary !py-1 !px-2" onClick={() => setAdding(!adding)} aria-label="Add a holding or account" aria-expanded={adding}>
             <Plus size={12} strokeWidth={3} />
           </button>
         </div>
@@ -209,7 +212,7 @@ export default function NetWorth() {
 
       <div className="flex items-baseline justify-between px-3 py-2.5 border-b border-edge/60">
         <span className="text-[11px] text-dim">Assets <span className="text-faint">· before debts</span></span>
-        <span className="text-[15px] font-bold tabular-nums text-txt">{fmtUsd(totals.assets)}</span>
+        <span className="text-[15px] font-bold tabular-nums text-txt">{loaded ? fmtUsd(totals.assets) : "—"}</span>
       </div>
 
       {adding && (
@@ -302,7 +305,12 @@ export default function NetWorth() {
 
       {/* Holdings + accounts */}
       <div className="border-t border-edge">
-        {accounts.length === 0 && hold.holdings.length === 0 && (
+        {!loaded && (
+          <div className="p-3 space-y-2" role="status" aria-label="Loading accounts">
+            <Skeleton className="h-12 rounded-xl" /><Skeleton className="h-12 rounded-xl" /><Skeleton className="h-12 rounded-xl" />
+          </div>
+        )}
+        {loaded && accounts.length === 0 && hold.holdings.length === 0 && (
           <p className="p-4 text-xs text-dim">
             Tap + to add live holdings (BTC, SOL, RDW…) or manual accounts (bank, 401k, cards).
           </p>
@@ -314,7 +322,7 @@ export default function NetWorth() {
             <div key={label}>
               <button
                 onClick={() => setOpenGroups({ ...openGroups, [label]: !open })}
-                className="w-full flex items-center gap-2 px-3 py-2 border-t border-edge bg-panel2/50 hover:bg-panel2 text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 min-h-10 border-t border-edge bg-panel2/50 hover:bg-panel2 text-left"
               >
                 {open ? <ChevronDown size={13} className="text-dim" /> : <ChevronRight size={13} className="text-dim" />}
                 <span className="text-xs font-bold text-txt">{label}</span>

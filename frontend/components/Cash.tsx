@@ -61,7 +61,7 @@ export default function Cash() {
         <button className="btn !min-h-10" onClick={load}>Retry</button>
       </div>
     ) : (
-      <div className="max-w-xl space-y-5" aria-busy="true" aria-label="Loading cash">
+      <div className="max-w-xl space-y-5" role="status" aria-busy="true" aria-label="Loading cash">
         <div className="space-y-2.5 pt-1"><Skeleton className="h-3 w-20 rounded" /><Skeleton className="h-9 w-48 rounded-lg" /><Skeleton className="h-3 w-64 rounded" /></div>
         <div className="grid grid-cols-3 gap-2"><Skeleton className="h-11 rounded-[10px]" /><Skeleton className="h-11 rounded-[10px]" /><Skeleton className="h-11 rounded-[10px]" /></div>
         <Skeleton className="h-40 rounded-2xl" />

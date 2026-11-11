@@ -41,7 +41,7 @@ interface BudgetSummary {
   recent_income: { name: string; amount: number; date: string }[];
 }
 
-const PIE_COLORS = ["#e3a83c", "#56b8a4", "#6cb4ff", "#e98cb4", "#b08bd9", "#e8895a", "#7fb069", "#d97ba8", "#9b9285"];
+const PIE_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `var(--color-cat-${n})`); // theme tokens, see globals.css
 const FIRST_ROWS = 25;
 
 const isMoved = (t: Tx) => !!t.budget_month && t.budget_month !== t.date.slice(0, 7);
@@ -494,9 +494,9 @@ export default function BudgetTracker() {
 
       {/* Transactions */}
       <div className="flex items-center justify-between gap-2 pl-3 pr-1 min-h-11 border-t border-edge">
-        <h3 className="text-[13px] font-semibold text-txt">
+        <h2 className="text-[13px] font-semibold text-txt">
           Transactions {sum && <span className="text-faint font-normal tabular-nums">{txs.length}</span>}
-        </h3>
+        </h2>
         {txs.length > 0 && (
           <button className="min-h-10 px-3 text-[13px] font-semibold text-up rounded focus-visible:outline-2 focus-visible:outline-up"
                   aria-expanded={manage} onClick={() => { setManage(!manage); setEditId(null); }}>

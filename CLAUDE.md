@@ -28,8 +28,10 @@ directory). `dataviz` is built in.
 ## UI conventions
 
 - Use the theme tokens from `globals.css` (`bg`, `panel`, `panel2`, `edge`, `edge2`, `txt`,
-  `dim`, `faint`, `up`, `down`, `on-up`, `warn`, `amber`, `cyan`) — never hard-code hex colors in components.
+  `dim`, `faint`, `up`, `down`, `on-up`, `warn`, `amber`, `cyan`, `cat-1`…`cat-14` for categorical series) — never hard-code hex colors in components.
   Gain/loss colors come from `up`/`down` so the palette picker keeps working.
+- There are two themes, dark (default) and light (`:root[data-theme="light"]` in `globals.css`, chosen in
+  Settings › Appearance). A new token needs a value in both, and UI changes are checked in both.
 - Numbers use `tabular-nums` (mono face, aligned digits).
 - The app is used on a phone: every screen must work at ~375px wide with no horizontal
   page scroll; tap targets at least 40px.

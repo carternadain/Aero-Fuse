@@ -9,7 +9,7 @@
   --color-edge2: #564e44;
   --color-txt: #fbf7f0;
   --color-dim: #c4baab;
-  --color-faint: #8d8475;
+  --color-faint: #a89f8f; /* AA (4.5:1+) on bg, panel and panel2 */
   /* Gains / losses. Default palette is "Calm" (blue / soft orange) — see palettes below */
   --color-up: #6cb4ff;
   --color-down: #f4a261;
@@ -17,6 +17,24 @@
   --color-on-up: #0b1626;
   --color-amber: #ffc24d;
   --color-cyan: #9ccfe6;
+  /* Categorical series (spending pie, risk buckets). Not good/bad, just different. */
+  --color-cat-1: #e3a83c;
+  --color-cat-2: #56b8a4;
+  --color-cat-3: #6cb4ff;
+  --color-cat-4: #e98cb4;
+  --color-cat-5: #b08bd9;
+  --color-cat-6: #e8895a;
+  --color-cat-7: #7fb069;
+  --color-cat-8: #d97ba8;
+  --color-cat-9: #9b9285;
+  --color-cat-10: #9ccfe6;
+  --color-cat-11: #6c9cff;
+  --color-cat-12: #8fb8ff;
+  --color-cat-13: #d46a9f;
+  --color-cat-14: #f4a261;
+  /* Shadow colors: soft on light, deep on dark */
+  --color-shade: rgb(0 0 0 / 0.35);
+  --color-shade-float: rgb(0 0 0 / 0.45);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter), system-ui, sans-serif;
@@ -64,13 +82,16 @@ body {
 input, select, textarea {
   color-scheme: dark;
 }
+:root[data-theme="light"] input, :root[data-theme="light"] select, :root[data-theme="light"] textarea {
+  color-scheme: light;
+}
 
 .panel {
   background: var(--color-panel);
   border: 1px solid var(--color-edge);
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 0 var(--color-shade);
 }
 
 .panel-head {
@@ -169,8 +190,8 @@ input, select, textarea {
   color: var(--color-on-up);
 }
 .btn-primary:hover {
-  background: color-mix(in srgb, var(--color-up) 85%, white);
-  border-color: color-mix(in srgb, var(--color-up) 85%, white);
+  background: color-mix(in srgb, var(--color-up) 85%, var(--color-txt));
+  border-color: color-mix(in srgb, var(--color-up) 85%, var(--color-txt));
   color: var(--color-on-up);
 }
 
@@ -215,6 +236,79 @@ input, select, textarea {
   --color-warn: #c4baab;
   --color-on-up: #1a1814;
   --color-cyan: #d9d2c6;
+}
+
+/* ── Light theme (Settings › Appearance). Warm paper to match the warm charcoal. Every text
+   token is 4.5:1 or better on bg, panel and panel2. Declared after the dark palettes so the
+   light versions of Classic and Mono win. ── */
+:root[data-theme="light"] {
+  --color-bg: #f5f1e9;
+  --color-panel: #fffdf9;
+  --color-panel2: #eee8dc;
+  --color-edge: #e2dacc;
+  --color-edge2: #cfc5b4;
+  --color-txt: #1f1b16;
+  --color-dim: #574e42;
+  --color-faint: #6b6254;
+  --color-up: #1763c2;
+  --color-down: #a84f0c;
+  --color-warn: #8a5a08;
+  --color-on-up: #ffffff;
+  --color-amber: #8a5a00;
+  --color-cyan: #16657f;
+  --color-cat-1: #a8730c;
+  --color-cat-2: #1f8a76;
+  --color-cat-3: #2b7fd6;
+  --color-cat-4: #c94f86;
+  --color-cat-5: #8457b8;
+  --color-cat-6: #c4592a;
+  --color-cat-7: #4f8a3a;
+  --color-cat-8: #b04d80;
+  --color-cat-9: #7a7166;
+  --color-cat-10: #3d8fb0;
+  --color-cat-11: #3a6fe0;
+  --color-cat-12: #5b8fe8;
+  --color-cat-13: #a8437a;
+  --color-cat-14: #c9702a;
+  --color-shade: rgb(70 50 20 / 0.08);
+  --color-shade-float: rgb(70 50 20 / 0.18);
+}
+:root[data-theme="light"][data-palette="classic"] {
+  --color-up: #0a7445;
+  --color-down: #c42b22;
+  --color-warn: #a8500c;
+  --color-on-up: #ffffff;
+  --color-cyan: #0d6e5f;
+}
+:root[data-theme="light"][data-palette="mono"] {
+  --color-up: #1f1b16;
+  --color-down: #6b6254;
+  --color-warn: #574e42;
+  --color-on-up: #fffdf9;
+  --color-cyan: #3d372f;
+}
+
+/* Installed on iOS the status-bar text is always white (black-translucent), so the notch strip
+   stays dark in the light theme. The inset is 0 everywhere else, so this draws nothing there. */
+:root[data-theme="light"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: env(safe-area-inset-top);
+  background: #221f1a;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Away from the app (lib/privacy.ts): blur everything so the app-switcher snapshot shows no balances */
+:root[data-away] body > * {
+  filter: blur(22px) saturate(0.6);
+}
+
+/* Switching theme: one soft cross-fade of the whole page (View Transitions), nothing if motion is reduced */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.28s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
 
 /* Palette preview dots in Settings: each shows its own palette, whatever is active */
@@ -383,7 +477,7 @@ input, select, textarea {
 
 /* Greeting card: 1px gradient border from the three tokens (masked ::before), badge, spring entrance */
 .holiday-card {
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.38), 0 0 24px color-mix(in srgb, var(--color-hol-1) 14%, transparent);
+  box-shadow: 0 10px 28px var(--color-shade-float), 0 0 24px color-mix(in srgb, var(--color-hol-1) 14%, transparent);
   animation: holiday-card-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
 }
 .holiday-card[data-state="out"] { animation: holiday-card-out 0.32s ease-in forwards; }

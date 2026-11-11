@@ -29,6 +29,7 @@ interface Card {
   live: LiveHolding[];
   manual: Account | null;
   total: number;
+  unpriced: number; // live holdings with no price right now (feed down or rate-limited)
   todayUsd: number | null;
 }
 
@@ -81,11 +82,12 @@ export default function HomePortfolio({ only = null, onClearFilter }: { only?: S
       rows.sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
       const total = rows.reduce((t, h) => t + (h.value ?? 0), 0);
       const today = rows.reduce((t, h) => (h.value != null && h.change_1d != null ? t + h.value - h.value / (1 + h.change_1d / 100) : t), 0);
-      cards.push({ key: `l:${name}`, name, section: sectionForLabel(name), live: rows, manual: null, total, todayUsd: today });
+      cards.push({ key: `l:${name}`, name, section: sectionForLabel(name), live: rows, manual: null, total, todayUsd: today,
+                   unpriced: rows.filter((h) => h.value == null).length });
     }
     for (const a of accounts) {
       cards.push({ key: `a:${a.id}`, name: a.name, section: sectionForAccount(a), live: [], manual: a,
-                   total: a.kind === "liability" ? -a.balance : a.balance, todayUsd: null });
+                   total: a.kind === "liability" ? -a.balance : a.balance, todayUsd: null, unpriced: 0 });
     }
     cards.sort((x, y) => SECTION_META[x.section].order - SECTION_META[y.section].order || Math.abs(y.total) - Math.abs(x.total));
     const liveTotal = holdings.reduce((t, h) => t + (h.value ?? 0), 0);
@@ -139,12 +141,13 @@ export default function HomePortfolio({ only = null, onClearFilter }: { only?: S
         const Icon = SECTION_META[s].icon;
         const sc = cards.filter((c) => c.section === s);
         const sTotal = sc.reduce((t, c) => t + c.total, 0);
+        const sBlind = sc.some((c) => c.unpriced > 0); // a total that leaves holdings out isn't the total
         return (
           <div key={s}>
             <div className="flex items-baseline gap-2 mb-2 px-1">
               <Icon size={15} className="text-amber self-center" />
               <h3 className="text-[15px] font-extrabold text-txt">{SECTION_META[s].title}</h3>
-              <span className="ml-auto text-[13px] font-bold tabular-nums text-dim">{fmtCents(sTotal)}</span>
+              <span className="ml-auto text-[13px] font-bold tabular-nums text-dim">{sBlind && sTotal === 0 ? "—" : fmtCents(sTotal)}{sBlind && sTotal !== 0 ? "+" : ""}</span>
             </div>
             <div className="space-y-2">
               {sc.map((c) => {
@@ -156,12 +159,15 @@ export default function HomePortfolio({ only = null, onClearFilter }: { only?: S
                       <div className="min-w-0 flex-1">
                         <div className="text-[14px] font-bold text-txt truncate">{c.name}</div>
                         <div className="text-[11px] text-faint">
-                          {c.live.length ? `${c.live.length} holdings · live`
+                          {c.unpriced > 0 ? (c.unpriced === c.live.length ? "Prices unavailable right now" : `${c.unpriced} of ${c.live.length} holdings have no price right now`)
+                            : c.live.length ? `${c.live.length} holdings · live`
                             : `entered by hand · updated ${new Date(c.manual!.updated_at).toLocaleDateString([], { month: "short", day: "numeric" })}`}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-[15px] font-bold tabular-nums ${c.total < 0 ? "text-down" : "text-txt"}`}>{fmtCents(c.total)}</div>
+                        <div className={`text-[15px] font-bold tabular-nums ${c.total < 0 ? "text-down" : "text-txt"}`}>
+                          {c.unpriced > 0 && c.unpriced === c.live.length ? <span className="text-faint" aria-label="No value available">—</span> : fmtCents(c.total)}
+                        </div>
                         {c.todayUsd != null && c.todayUsd !== 0 && (
                           <div className={`text-[11px] tabular-nums ${c.todayUsd >= 0 ? "text-up" : "text-down"}`}>
                             {c.todayUsd >= 0 ? "▲" : "▼"} {isHidden() ? "" : fmtCents(Math.abs(c.todayUsd))}

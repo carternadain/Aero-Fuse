@@ -7,3 +7,4 @@ yfinance>=0.2.40
 lxml>=5.0
 pywebpush>=2.0
 pypdf>=4.0
+webauthn>=2.0

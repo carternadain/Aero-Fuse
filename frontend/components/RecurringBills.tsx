@@ -140,7 +140,12 @@ export default function RecurringBills() {
         <span className="panel-title"><CalendarClock size={14} />Bills &amp; subscriptions</span>
       </div>
 
-      {failed && !data && <p className="p-3 text-[11px] text-dim">Couldn&apos;t load your bills. Try again in a moment.</p>}
+      {failed && !data && (
+        <div className="p-3">
+          <p className="text-[13px] text-dim">Couldn&apos;t load your bills.</p>
+          <button className="btn min-h-10 mt-2" onClick={() => { setFailed(false); refresh(); }}>Try again</button>
+        </div>
+      )}
 
       {data && visible.length === 0 && hidden.length === 0 && (
         <p className="p-4 text-[12px] text-dim text-center">
@@ -181,7 +186,7 @@ export default function RecurringBills() {
 
           <div className="border-b border-edge">
             <div className="flex items-baseline justify-between px-3 pt-3 pb-1">
-              <h3 className="text-[10px] text-dim uppercase tracking-widest">Next 30 days</h3>
+              <h2 className="text-[10px] text-dim uppercase tracking-widest">Next 30 days</h2>
               {(t?.upcoming_count ?? 0) > 0 && (
                 <span className="text-[10px] text-dim tabular-nums">{t?.upcoming_count} bills · {fmtUsd(t?.upcoming_total ?? 0)}</span>
               )}
@@ -189,7 +194,7 @@ export default function RecurringBills() {
             {soon.length === 0 ? (
               <p className="px-3 pb-3 text-[11px] text-dim">Nothing due in the next 30 days.</p>
             ) : (
-              <div className="max-h-64 overflow-y-auto pb-1">
+              <div className="max-h-64 overflow-y-auto pb-1" tabIndex={0} role="region" aria-label="Bills due in the next 30 days">
                 {Object.entries(byDate).map(([date, list]) => (
                   <div key={date} className="flex gap-3 px-3 py-1.5 border-t border-edge first:border-t-0">
                     <div className="w-14 shrink-0 text-center rounded bg-panel2 border border-edge py-1 self-start">
@@ -215,12 +220,12 @@ export default function RecurringBills() {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {bills.length > 0 && <h3 className="px-3 pt-3 pb-1 text-[10px] text-dim uppercase tracking-widest">All bills</h3>}
+            {bills.length > 0 && <h2 className="px-3 pt-3 pb-1 text-[10px] text-dim uppercase tracking-widest">All bills</h2>}
             {bills.map(row)}
             {paydays.length > 0 && (
-              <h3 className="px-3 pt-3 pb-1 text-[10px] text-dim uppercase tracking-widest border-t border-edge">
+              <h2 className="px-3 pt-3 pb-1 text-[10px] text-dim uppercase tracking-widest border-t border-edge">
                 Regular income{t && t.income_monthly > 0 ? ` · about ${fmtUsd(t.income_monthly)}/mo` : ""}
-              </h3>
+              </h2>
             )}
             {paydays.map(row)}
           </div>

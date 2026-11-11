@@ -62,6 +62,12 @@ export default function LiqHeatmap() {
       .catch(() => setD((cur) => cur ?? ({ error: "Couldn't load the heatmap, retrying shortly" } as Liq)))
       .finally(() => setLoading(false));
   };
+  const [themeTick, setThemeTick] = useState(0); // the canvas reads theme tokens, so redraw when the theme flips
+  useEffect(() => {
+    const on = () => setThemeTick((n) => n + 1);
+    window.addEventListener("themechange", on);
+    return () => window.removeEventListener("themechange", on);
+  }, []);
   useEffect(() => {
     try { const m = localStorage.getItem("liq-map"); if (m && MAPS[m]) setMap(m); const t = localStorage.getItem("liq-thr"); if (t) setThr(+t); } catch { /* */ }
   }, []);
@@ -169,7 +175,7 @@ export default function LiqHeatmap() {
       const w = ctx.measureText(s).width;
       ctx.fillText(s, Math.min(W - w, Math.max(0, i * cw + cw / 2 - w / 2)), H + 5);
     }
-  }, [d, size, colors, thr, range]);
+  }, [d, size, colors, thr, range, themeTick]);
 
   const onMove = (e: React.PointerEvent) => {
     if (!d || !box.current) return;
