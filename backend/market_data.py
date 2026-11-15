@@ -131,62 +131,57 @@ def _coinbase_daily(symbol: str | None) -> list[tuple[float, float]]:
         return []
 
 
-def crypto_history(coin_id: str, symbol: str | None = None) -> list[float]:
-    """~1y of daily closes for one coin (for scoring). Cached 6h per coin."""
-    key = f"cg_hist:{coin_id}"
+_cg_cooldown_until = 0.0  # CoinGecko said 429: skip it until this time and use the fallbacks
+
+
+def _cg_get(path: str, params: dict, timeout: float = 15):
+    """GET a CoinGecko endpoint, or None while rate-limited or on any failure.
+
+    The free tier allows only a handful of calls a minute. After one 429 every caller
+    backs off for a minute instead of each coin in a loop earning its own 429.
+    """
+    global _cg_cooldown_until
+    if time.time() < _cg_cooldown_until:
+        return None
+    try:
+        r = requests.get(f"{CG_BASE}{path}", params=params, headers=UA, timeout=timeout)
+        if r.status_code == 429:
+            _cg_cooldown_until = time.time() + 60
+            print(f"[market_data] coingecko rate limited on {path}; using fallbacks for 60s")
+            return None
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"[market_data] coingecko {path} error: {e}")
+        return None
+
+
+def _crypto_daily(coin_id: str, symbol: str | None = None) -> list[tuple[float, float]]:
+    """~1y of daily (unix_s, close) for one coin. One fetch feeds scoring and the chart. Cached 6h."""
+    key = f"cg_daily:{coin_id}"
     cached = _get(key, 6 * 3600)
     if cached is not None:
         return cached  # type: ignore[return-value]
-    try:
-        r = requests.get(
-            f"{CG_BASE}/coins/{coin_id}/market_chart",
-            params={"vs_currency": "usd", "days": 365, "interval": "daily"},
-            headers=UA,
-            timeout=15,
-        )
-        r.raise_for_status()
-        closes = [p[1] for p in r.json().get("prices", [])]
-    except Exception as e:
-        print(f"[market_data] crypto_history {coin_id} error: {e}")
-        closes = []
-    if not closes:  # CoinGecko's free tier rate-limits history: try Coinbase, then last good
-        closes = [c for _, c in _coinbase_daily(symbol)] or (_get(f"{key}:stale", 86400) or [])
-    if closes:
-        _set(key, closes)
-        _set(f"{key}:stale", closes)
-    return closes  # an empty result is NOT cached, so the next request retries
+    raw = _cg_get(f"/coins/{coin_id}/market_chart", {"vs_currency": "usd", "days": 365, "interval": "daily"})
+    pts = [(ms / 1000, float(p)) for ms, p in (raw or {}).get("prices", []) if p]
+    if not pts:  # rate-limited or unknown to CoinGecko: try Coinbase, then last good
+        pts = _coinbase_daily(symbol) or (_get(f"{key}:stale", 86400) or [])
+    if pts:
+        _set(key, pts)
+        _set(f"{key}:stale", pts)
+    return pts  # an empty result is NOT cached, so the next request retries
+
+
+def crypto_history(coin_id: str, symbol: str | None = None) -> list[float]:
+    """~1y of daily closes for one coin (for scoring)."""
+    return [c for _, c in _crypto_daily(coin_id, symbol)]
 
 
 def crypto_history_dated(coin_id: str, symbol: str | None = None) -> list[dict]:
-    """~1y of daily {date, price} for charting. Cached 6h per coin."""
-    key = f"cg_histd:{coin_id}"
-    cached = _get(key, 6 * 3600)
-    if cached is not None:
-        return cached  # type: ignore[return-value]
-    points: list[dict] = []
-    try:
-        from datetime import datetime, timezone
-        r = requests.get(
-            f"{CG_BASE}/coins/{coin_id}/market_chart",
-            params={"vs_currency": "usd", "days": 365, "interval": "daily"},
-            headers=UA,
-            timeout=15,
-        )
-        r.raise_for_status()
-        for ts_ms, price in r.json().get("prices", []):
-            d = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-            points.append({"date": d, "price": round(price, 6)})
-    except Exception as e:
-        print(f"[market_data] crypto_history_dated {coin_id} error: {e}")
-        points = []
-    if not points:
-        from datetime import datetime, timezone
-        points = [{"date": datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%d"), "price": round(c, 6)}
-                  for t, c in _coinbase_daily(symbol)] or (_get(f"{key}:stale", 86400) or [])
-    if points:
-        _set(key, points)
-        _set(f"{key}:stale", points)
-    return points
+    """~1y of daily {date, price} for charting."""
+    from datetime import datetime, timezone
+    return [{"date": datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%d"), "price": round(c, 6)}
+            for t, c in _crypto_daily(coin_id, symbol)]
 
 
 def stock_history_dated(ticker: str) -> list[dict]:

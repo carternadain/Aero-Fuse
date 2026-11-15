@@ -70,11 +70,35 @@ def _coinbase(sym: str, gran: int, span: int) -> Series:
     return sorted(pts.items())
 
 
-def _yahoo(sym: str, period: str, interval: str) -> Series:
+INTRADAY = {"1m", "5m", "15m", "60m"}
+# Intraday period -> the daily period shown instead for assets priced once a day.
+DAILY_PERIOD = {"1d": "1mo", "5d": "1mo", "1mo": "1mo"}
+# Symbols Yahoo has no intraday bars for (mutual funds such as VTTSX publish one NAV a day).
+# Asking for them fails inside yfinance on a missing "tradingPeriods" field, so remember and skip.
+_daily_only: set[str] = set()
+
+
+def _yahoo_hist(sym: str, period: str, interval: str):
+    """Yahoo history frame, falling back to daily bars when the asset has no intraday data."""
     yf = market_data._yf()
     if yf is None:
+        return None
+    if interval in INTRADAY and sym not in _daily_only:
+        try:
+            # An empty frame is normal (a stock before the open), so only an error marks the symbol.
+            return yf.Ticker(sym).history(period=period, interval=interval, prepost=False)
+        except Exception as e:
+            print(f"[charts] {sym} has no {interval} bars ({e!r}); using daily from now on")
+            _daily_only.add(sym)
+    if interval in INTRADAY:
+        period, interval = DAILY_PERIOD.get(period, period), "1d"
+    return yf.Ticker(sym).history(period=period, interval=interval, prepost=False)
+
+
+def _yahoo(sym: str, period: str, interval: str) -> Series:
+    hist = _yahoo_hist(sym, period, interval)
+    if hist is None or not len(hist):
         return []
-    hist = yf.Ticker(sym).history(period=period, interval=interval, prepost=False)
     return [(ts.timestamp(), float(p)) for ts, p in hist["Close"].dropna().items()]
 
 
@@ -131,10 +155,9 @@ def _coinbase_ohlc(sym: str, gran: int, span: int) -> OHLC:
 
 
 def _yahoo_ohlc(sym: str, period: str, interval: str) -> OHLC:
-    yf = market_data._yf()
-    if yf is None:
+    hist = _yahoo_hist(sym, period, interval)
+    if hist is None or not len(hist):
         return []
-    hist = yf.Ticker(sym).history(period=period, interval=interval, prepost=False)
     hist = hist.dropna(subset=["Open", "High", "Low", "Close"])
     return [(ts.timestamp(), float(r["Open"]), float(r["High"]), float(r["Low"]), float(r["Close"]))
             for ts, r in hist.iterrows()]
@@ -163,7 +186,7 @@ def ohlc(kind: str, sym: str, rng: str) -> OHLC:
         return hit  # type: ignore[return-value]
     try:
         bars = _coinbase_ohlc(sym, gran, span) if kind == "crypto" else _yahoo_ohlc(sym, period, interval)
-        if rng == "LIVE":
+        if rng == "LIVE" and sym not in _daily_only:
             cutoff = time.time() - span
             bars = [b for b in bars if b[0] >= cutoff]
     except Exception as e:
@@ -188,7 +211,7 @@ def series(kind: str, sym: str, rng: str) -> Series:
         s = _coinbase(sym, gran, span) if kind == "crypto" else _yahoo(sym, period, interval)
         if kind == "crypto" and not s and gran >= 86_400:  # not on Coinbase: daily bars elsewhere
             s = crypto_daily_fallback(sym, span // 86_400)
-        if rng == "LIVE":  # Yahoo returns the whole session at 1m; keep the last hour
+        if rng == "LIVE" and sym not in _daily_only:  # Yahoo returns the whole session at 1m; keep the last hour
             cutoff = time.time() - span
             s = [pt for pt in s if pt[0] >= cutoff]
     except Exception as e:
