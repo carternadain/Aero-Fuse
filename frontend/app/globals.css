@@ -423,6 +423,9 @@ input, select, textarea {
 /* Brief glow when a live price ticks up / down */
 .flash-up { animation: flash-up 0.9s ease-out; }
 .flash-down { animation: flash-down 0.9s ease-out; }
+/* Sheets rise from the bottom edge on phones and settle in place on desktop */
+.sheet-rise { animation: sheet-rise 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+@keyframes sheet-rise { from { opacity: 0; transform: translateY(18px); } }
 @keyframes flash-up { from { background-color: color-mix(in srgb, var(--color-up) 32%, transparent); } }
 @keyframes flash-down { from { background-color: color-mix(in srgb, var(--color-down) 32%, transparent); } }
 
@@ -434,7 +437,7 @@ input, select, textarea {
 @media (min-width: 1024px) { .wp-push, .wp-pop { animation-name: tab-enter; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton, .tab-enter, .flash-up, .flash-down, .wp-push, .wp-pop { animation: none !important; }
+  .skeleton, .tab-enter, .flash-up, .flash-down, .wp-push, .wp-pop, .sheet-rise { animation: none !important; }
 }
 
 /* InfoTip: bottom sheet on phones, fade-in dialog on desktop */

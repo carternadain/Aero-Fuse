@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bitcoin, Briefcase, ChevronDown, Landmark, PiggyBank, Wallet, type LucideIcon } from "lucide-react";
+import { Pencil, Bitcoin, Briefcase, ChevronDown, Landmark, PiggyBank, Wallet, type LucideIcon } from "lucide-react";
 import { api, fmtPrice } from "@/lib/api";
 import { fmtCents, fmtQty, isHidden } from "@/lib/privacy";
 import Sparkline from "./Sparkline";
 import Skeleton from "./Skeleton";
+import { openHoldings } from "@/lib/bus";
 import AssetDetail, { type LiveHolding } from "./AssetDetail";
 
 import { accountAnchor, sectionForAccount, sectionForLabel, useLive, type Account, type Section } from "@/lib/live";
@@ -132,9 +133,16 @@ export default function HomePortfolio({ only = null, onClearFilter }: { only?: S
           YOUR ACCOUNTS
           {only && <button className="ml-1 min-h-10 px-1 normal-case tracking-normal text-up rounded focus-visible:outline-2 focus-visible:outline-up" onClick={onClearFilter}>· {SECTION_META[only].title} only · show all</button>}
         </span>
-        <button onClick={cyclePill} className="min-h-10 text-[11px] font-semibold text-dim hover:text-txt px-3 rounded-md border border-edge2 focus-visible:outline-2 focus-visible:outline-up">
-          Showing: <span className="text-txt">{pill === "price" ? "Price" : pill === "change" ? "Today %" : "Equity"}</span>
-        </button>
+        <span className="flex items-center gap-2">
+          {holdings.length > 0 && (
+            <button onClick={() => openHoldings()} className="min-h-10 flex items-center gap-1.5 text-[11px] font-semibold text-dim hover:text-txt px-3 rounded-md border border-edge2 focus-visible:outline-2 focus-visible:outline-up">
+              <Pencil size={12} aria-hidden />Update
+            </button>
+          )}
+          <button onClick={cyclePill} className="min-h-10 text-[11px] font-semibold text-dim hover:text-txt px-3 rounded-md border border-edge2 focus-visible:outline-2 focus-visible:outline-up">
+            Showing: <span className="text-txt">{pill === "price" ? "Price" : pill === "change" ? "Today %" : "Equity"}</span>
+          </button>
+        </span>
       </div>
 
       {sections.map((s) => {

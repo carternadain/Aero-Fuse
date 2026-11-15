@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Bell, Bot, Download, Layers, LayoutGrid, CornerDownLeft, Eye, FileBarChart, Hash, Search, Settings as Gear, Star, Wallet, X, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
-import { haptic, navigate, on, openAlerts, openReport, openSettings, openTicker, type Kind } from "@/lib/bus";
+import { haptic, navigate, on, openAlerts, openHoldings, openReport, openSettings, openTicker, type Kind } from "@/lib/bus";
 import { accountAnchor } from "@/lib/live";
 import { setHidden, usePrivacy } from "@/lib/privacy";
 import { useStars } from "@/lib/stars";
@@ -162,6 +162,7 @@ export default function CommandPalette() {
           setBotTools(!botTools);
           if (botTools && window.location.hash.startsWith("#trading")) navigate({ tab: "home" });
         } },
+      { id: "x:holdings", group: "Actions", label: "Update holdings", icon: Wallet, keywords: "edit shares quantity bought sold buy sell paste positions brokerage cost basis", run: () => openHoldings() },
       { id: "x:settings", group: "Actions", label: "Settings", icon: Gear, keywords: "preferences options colors palette theme holiday view simple pro log out sign out logout",
         run: () => openSettings() },
       { id: "x:home", group: "Actions", label: "Edit Home", icon: LayoutGrid, keywords: "home screen cards customize show hide layout settings",
