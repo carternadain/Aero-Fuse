@@ -47,7 +47,7 @@ html {
 body {
   font-family: var(--font-sans);
   overscroll-behavior-y: none;
-  background: var(--color-bg);
+  background: transparent; /* html paints the color; the ambient glow (body::after) sits between them */
   color: var(--color-txt);
   font-size: 13.5px;
   -webkit-font-smoothing: antialiased;
@@ -87,11 +87,17 @@ input, select, textarea {
 }
 
 .panel {
-  background: var(--color-panel);
+  /* Lit from above: a faint sheen at the top edge, then flat */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-panel) 96%, var(--color-txt)) 0, var(--color-panel) 72px);
   border: 1px solid var(--color-edge);
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 1px 0 var(--color-shade);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-txt) 6%, transparent),
+    0 1px 0 var(--color-shade), 0 16px 36px -22px var(--color-shade-float);
+}
+:root[data-theme="light"] .panel {
+  background: var(--color-panel);
+  box-shadow: 0 1px 2px var(--color-shade), 0 16px 36px -22px var(--color-shade-float);
 }
 
 .panel-head {
@@ -180,12 +186,15 @@ input, select, textarea {
   color: var(--color-txt);
   transition: all 0.15s;
 }
+.btn:active { transform: scale(0.97); }
 .btn:hover {
   border-color: var(--color-up);
   color: var(--color-up);
 }
 .btn-primary {
-  background: var(--color-up);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-up) 90%, var(--color-txt)), var(--color-up));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 8px 20px -10px var(--color-up);
   border-color: var(--color-up);
   color: var(--color-on-up);
 }
@@ -396,7 +405,7 @@ input, select, textarea {
 /* ── Motion ─────────────────────────────────────────────── */
 /* Shimmer placeholder while data loads */
 .skeleton {
-  border-radius: 8px;
+  border-radius: 12px;
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--color-panel2) 70%, transparent) 30%,
     color-mix(in srgb, var(--color-edge2) 60%, transparent) 50%,
@@ -437,7 +446,9 @@ input, select, textarea {
 @media (min-width: 1024px) { .wp-push, .wp-pop { animation-name: tab-enter; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton, .tab-enter, .flash-up, .flash-down, .wp-push, .wp-pop, .sheet-rise { animation: none !important; }
+  .skeleton, .tab-enter, .tab-enter > *, .flash-up, .flash-down, .wp-push, .wp-pop, .sheet-rise { animation: none !important; }
+  body::after { animation: none !important; }
+  .btn:active { transform: none; }
 }
 
 /* InfoTip: bottom sheet on phones, fade-in dialog on desktop */
@@ -564,4 +575,66 @@ input, select, textarea {
 @media (prefers-reduced-motion: reduce) {
   .login-aurora span, .login-rise, .login-mark, .login-shake, .login-shake-b, .login-pop { animation: none !important; }
   .login-line path { animation: none; stroke-dashoffset: 0; }
+}
+
+/* ── Depth and glow ─────────────────────────────────────── */
+/* Ambient light behind every screen, in the accent colors, so panels read as floating on
+   something. Fixed and behind everything: it never moves with the page or takes a tap. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -20vh -20vw;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(48vmax 48vmax at 8% 4%, color-mix(in srgb, var(--color-up) 26%, transparent), transparent 70%),
+    radial-gradient(40vmax 40vmax at 96% 18%, color-mix(in srgb, var(--color-amber) 13%, transparent), transparent 70%),
+    radial-gradient(50vmax 50vmax at 72% 104%, color-mix(in srgb, var(--color-cyan) 15%, transparent), transparent 70%);
+  animation: ambient-drift 38s ease-in-out infinite alternate;
+}
+:root[data-theme="light"] body::after { opacity: 0.5; }
+body:has(main.login)::after { display: none; } /* the sign-in screen brings its own */
+@keyframes ambient-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(3vw, -4vh, 0) scale(1.08); }
+}
+
+/* Sections of a tab arrive one after another instead of all at once */
+.tab-enter > * { animation: tab-enter 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.tab-enter > *:nth-child(2) { animation-delay: 40ms; }
+.tab-enter > *:nth-child(3) { animation-delay: 80ms; }
+.tab-enter > *:nth-child(4) { animation-delay: 120ms; }
+.tab-enter > *:nth-child(n + 5) { animation-delay: 160ms; }
+
+/* The net worth card: the one thing on Home that should catch the eye first */
+.hero-card { position: relative; isolation: isolate; }
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-up) 20%, transparent), transparent 60%),
+    radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--color-cyan) 10%, transparent), transparent 60%);
+}
+:root[data-theme="light"] .hero-card::before { opacity: 0.55; }
+.hero-number {
+  background: linear-gradient(180deg, var(--color-txt) 30%, color-mix(in srgb, var(--color-txt) 72%, var(--color-up)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-card .recharts-area-curve { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-up) 55%, transparent)); }
+:root[data-palette="mono"] .hero-card .recharts-area-curve { filter: none; }
+
+/* Phone tab bar: the current tab glows a little */
+.bottom-nav [aria-current="page"] > span:first-child { box-shadow: 0 0 20px -4px color-mix(in srgb, var(--color-up) 70%, transparent); }
+
+/* Greeting: the last word picks up the accent, like the sign-in screen */
+.greet-accent {
+  background: linear-gradient(100deg, var(--color-txt) 0%, color-mix(in srgb, var(--color-up) 80%, var(--color-txt)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

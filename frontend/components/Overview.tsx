@@ -172,8 +172,9 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
   return (
     <div className="space-y-4">
       <div className="pt-1">
-        <h2 className="font-display text-[28px] sm:text-[40px] leading-none text-txt">
-          {holiday ? <span className="holiday-greeting">{greeting()}</span> : greeting()}<em className="text-amber">.</em>
+        <h2 className="font-display text-[32px] sm:text-[44px] leading-[1.05] text-txt">
+          {holiday ? <span className="holiday-greeting">{greeting()}</span>
+            : <>{greeting().split(" ")[0]} <span className="greet-accent">{greeting().split(" ").slice(1).join(" ")}</span></>}<em className="text-amber">.</em>
         </h2>
         <p className="text-xs text-dim mt-1.5">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · here&apos;s where things stand.

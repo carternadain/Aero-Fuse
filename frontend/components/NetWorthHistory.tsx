@@ -247,7 +247,7 @@ export default function NetWorthHistory() {
   );
 
   return (
-    <section className="panel">
+    <section className="panel hero-card">
       <div className="p-4">
         {loading ? (
           <div className="space-y-3">
@@ -267,7 +267,7 @@ export default function NetWorthHistory() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-[11px] text-dim">Net worth</div>
-                  <div className="font-display text-[42px] sm:text-[48px] leading-none text-txt [font-variant-numeric:tabular-nums]">
+                  <div className="hero-number font-display text-[44px] sm:text-[56px] leading-[1.05] text-txt [font-variant-numeric:tabular-nums]">
                     {heroVal != null ? <AnimatedNumber value={heroVal} format={fmtCents} instant={scrub != null} />
                       : <Skeleton className="h-[42px] w-56 mt-1" />}
                   </div>

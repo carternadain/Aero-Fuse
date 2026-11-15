@@ -36,6 +36,7 @@ export default function HoldingsEditor() {
   const [err, setErr] = useState<string | null>(null);
   const opener = useRef<Element | null>(null);
   const closeBtn = useRef<HTMLButtonElement>(null);
+  const escape = useRef<() => void>(() => {});
 
   useEffect(() => on<null>("app:holdings", () => { opener.current = document.activeElement; setOpen(true); }), []);
 
@@ -45,7 +46,10 @@ export default function HoldingsEditor() {
     api.get<{ holdings: Holding[] }>("/api/holdings").then((r) => setRows(r.holdings)).catch(() => setErr("Couldn't load your holdings. Close this and try again."));
     document.body.style.overflow = "hidden";
     const t = setTimeout(() => closeBtn.current?.focus(), 40);
-    return () => { clearTimeout(t); document.body.style.overflow = ""; (opener.current as HTMLElement | null)?.focus?.(); };
+    // On the window, not the sheet: focus can land on the page after a row's trade form closes.
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector('[role="alertdialog"]')) escape.current(); };
+    window.addEventListener("keydown", esc);
+    return () => { clearTimeout(t); window.removeEventListener("keydown", esc); document.body.style.overflow = ""; (opener.current as HTMLElement | null)?.focus?.(); };
   }, [open]);
 
   const base = (h: Holding): Draft => ({ qty: trim(h.qty), cost: h.cost_basis != null ? trim(h.cost_basis, 4) : "" });
@@ -80,6 +84,7 @@ export default function HoldingsEditor() {
     if ((changes.length || pasteCount) && !(await askConfirm("Close without saving your changes?", false))) return;
     setOpen(false);
   };
+  escape.current = close;
 
   const applyTrade = (h: Holding) => {
     if (!trade) return;
@@ -128,7 +133,6 @@ export default function HoldingsEditor() {
     <div className="fixed inset-0 z-[86] bg-black/60 flex items-end sm:items-center justify-center"
          onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div role="dialog" aria-modal="true" aria-labelledby="hold-title"
-           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }}
            className="sheet-rise w-full sm:max-w-2xl h-[92dvh] sm:h-[min(760px,86dvh)] flex flex-col bg-panel border border-edge2 rounded-t-3xl sm:rounded-3xl shadow-[0_18px_50px_var(--color-shade-float)] overflow-hidden">
         <div className="flex items-center gap-2 pl-4 pr-1.5 min-h-14 border-b border-edge">
           <h2 id="hold-title" className="flex-1 font-display text-[19px] text-txt">Update holdings</h2>
@@ -147,7 +151,7 @@ export default function HoldingsEditor() {
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
           {err && <p role="alert" className="text-[13px] text-down px-1">{err}</p>}
           {rows == null && !err && <div className="space-y-2" aria-busy="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-20" />)}</div>}
 
