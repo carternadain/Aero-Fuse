@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+@theme static {
   /* Bright warm charcoal — lifted panels, high contrast, punchy accents */
   --color-bg: #221f1a;
   --color-panel: #2e2a25;
