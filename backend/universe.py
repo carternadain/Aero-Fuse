@@ -106,6 +106,9 @@ COINS: list[tuple[str, str, str, str | None]] = [
     ("LTC", "Litecoin", "litecoin", "LTC-USD"),
     ("ONDO", "Ondo", "ondo-finance", "ONDO-USD"),
     ("HYPE", "Hyperliquid", "hyperliquid", None),
+    # Lighter: the perp DEX token. Yahoo's "LIT" is a lithium ETF, so it must never be priced as a stock.
+    # The CoinGecko slug is unverified (price hosts are blocked where this was written).
+    ("LIT", "Lighter", "lighter", None),
     ("TAO", "Bittensor", "bittensor", "TAO22974-USD"),
     ("RENDER", "Render", "render-token", "RENDER-USD"),
     ("AAVE", "Aave", "aave", "AAVE-USD"),

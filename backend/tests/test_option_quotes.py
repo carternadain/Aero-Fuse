@@ -76,3 +76,14 @@ def test_keeps_the_last_mark_when_nothing_answers(monkeypatch):
 def test_unknown_contract_has_no_price(monkeypatch):
     monkeypatch.setattr(market_data, "_yf", lambda: fake_yf({"last_price": None, "previous_close": None}, [], []))
     assert market_data.live_quote(OCC, "option") == {"price": None, "change_1d": None}
+
+
+def test_a_coin_is_never_priced_as_the_stock_with_the_same_ticker(monkeypatch):
+    """LIT is Lighter for a crypto holding; Yahoo's LIT is a lithium ETF."""
+    class Down:
+        ok = False
+
+    monkeypatch.setattr(market_data.requests, "get", lambda *a, **k: Down())
+    monkeypatch.setattr(market_data, "stock_quote", lambda t: {"price": 52.0})
+    assert market_data.live_quote("LIT", "crypto") == {"price": None, "change_1d": None}
+    assert market_data.spot_price("LIT") == 52.0  # signals keep the stock fallback
