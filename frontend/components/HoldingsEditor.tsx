@@ -19,7 +19,7 @@ interface Holding {
 interface Draft { qty: string; cost: string }
 interface Trade { id: number; side: "buy" | "sell"; shares: string; price: string }
 
-const CRYPTO = new Set(["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "LINK", "DOT", "LTC", "BNB", "MATIC", "ATOM", "NEAR", "SUI", "UNI"]);
+const CRYPTO = new Set(["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "LINK", "DOT", "LTC", "BNB", "MATIC", "ATOM", "NEAR", "SUI", "UNI", "LIT", "ONDO", "HYPE", "XLM", "USDC", "RENDER", "RSC", "GUSD", "SHIB", "PEPE", "ARB", "OP", "AAVE", "TON", "TRX", "BCH", "HBAR"]);
 const toNum = (s: string) => { const n = parseFloat(s.replace(/[$,\s]/g, "")); return isFinite(n) ? n : NaN; };
 const trim = (n: number, dp = 6) => String(+n.toFixed(dp));
 const unit = (h: Holding) => (h.kind === "option" ? "Contracts" : h.kind === "crypto" ? "Units" : "Shares");

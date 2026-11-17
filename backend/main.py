@@ -748,6 +748,22 @@ class ContributionPatch(BaseModel):
 class SettingsIn(BaseModel):
     monthly_expenses: float | None = None
     birth_year: int | None = None
+    rebalance_targets: dict[str, float] | None = None
+
+
+REBALANCE_GROUPS = ("investing", "retirement", "crypto", "cash")
+
+
+def _rebalance_targets() -> dict[str, float] | None:
+    """The saved target mix (percent per group), or None when none is set."""
+    raw = db.get_setting("rebalance_targets")
+    if not raw:
+        return None
+    try:
+        t = json.loads(raw)
+        return {g: float(t.get(g, 0)) for g in REBALANCE_GROUPS}
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 # Age is stored as a birth year so it stays right as the years pass.
@@ -1334,7 +1350,8 @@ def get_settings():
     est = db.get_setting("monthly_expenses")
     by = int(db.get_setting("birth_year") or DEFAULT_BIRTH_YEAR)
     return {"monthly_expenses": float(est) if est else None,
-            "birth_year": by, "age": date.today().year - by}
+            "birth_year": by, "age": date.today().year - by,
+            "rebalance_targets": _rebalance_targets()}
 
 
 @app.put("/api/settings")
@@ -1349,6 +1366,15 @@ def put_settings(body: SettingsIn):
         by = body.birth_year
         ok = by is not None and 1900 < by <= date.today().year
         db.set_setting("birth_year", str(by) if ok else None)
+    if "rebalance_targets" in sent:
+        t = body.rebalance_targets
+        if not t:
+            db.set_setting("rebalance_targets", None)
+        else:
+            clean = {g: float(t.get(g, 0)) for g in REBALANCE_GROUPS}
+            if any(not (0 <= v <= 100) for v in clean.values()) or abs(sum(clean.values()) - 100) > 0.01:
+                raise HTTPException(422, "Targets must be between 0 and 100 and add up to 100.")
+            db.set_setting("rebalance_targets", json.dumps(clean))
     return get_settings()
 
 

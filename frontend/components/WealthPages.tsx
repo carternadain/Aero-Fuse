@@ -24,6 +24,7 @@ import BudgetTracker from "./BudgetTracker";
 import RecurringBills from "./RecurringBills";
 import MonthlyBudget from "./MonthlyBudget";
 import IncomeTracker from "./IncomeTracker";
+import Rebalance from "./Rebalance";
 import RiskRating from "./RiskRating";
 import SavingsPlan from "./SavingsPlan";
 import AutoInvest from "./AutoInvest";
@@ -62,7 +63,7 @@ const GROUPS: WealthPage[][] = [
 /** Which Wealth page owns each in-page anchor (null = the net worth hero on the list itself). */
 export const WEALTH_ANCHOR: Record<string, WealthPage | null> = {
   "sec-nwhistory": null,
-  "sec-wealth": "accounts", "sec-autoinvest": "accounts", "sec-risk": "accounts", "sec-nwcal": "accounts",
+  "sec-wealth": "accounts", "sec-autoinvest": "accounts", "sec-rebalance": "accounts", "sec-risk": "accounts", "sec-nwcal": "accounts",
   "sec-cash": "cash",
   "sec-cashflow": "budget", "sec-spending": "budget", "sec-budget": "budget",
   "sec-bills": "bills",
@@ -141,6 +142,7 @@ function PageBody({ page }: { page: WealthPage }) {
           <Panes items={[
             { id: "sec-wealth", label: "Accounts", node: <NetWorth /> },
             { id: "sec-autoinvest", label: "Auto-invest", node: <AutoInvest /> },
+            { id: "sec-rebalance", label: "Rebalance", node: <Rebalance /> },
             { id: "sec-risk", label: "Risk", node: <RiskRating /> },
             { id: "sec-nwcal", label: "Calendar", pro: true, node: <NetWorthCalendar /> },
           ]} />
