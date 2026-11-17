@@ -9,6 +9,8 @@ the whole screen.
 from __future__ import annotations
 
 import contextvars
+import math
+import re
 import time
 from contextlib import contextmanager
 
@@ -488,6 +490,42 @@ def _coingecko_quote(sym: str) -> tuple[float | None, float | None]:
     return None, None
 
 
+_OCC = re.compile(r"([A-Z.]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})")
+
+
+def _pos(x) -> float | None:
+    """A usable price: a finite number above zero, else None."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) and v > 0 else None
+
+
+def _option_chain_quote(yf, occ: str) -> float | None:
+    """Per-share premium for an OCC contract from its underlying's option chain.
+
+    The middle of bid and ask when both are quoted (the honest mark for a contract that rarely
+    trades), otherwise the last trade.
+    """
+    m = _OCC.fullmatch(occ)
+    if not m:
+        return None
+    root, yy, mm, dd, cp, _ = m.groups()
+    try:
+        chain = yf.Ticker(root).option_chain(f"20{yy}-{mm}-{dd}")
+        table = chain.calls if cp == "C" else chain.puts
+        row = table[table["contractSymbol"] == occ]
+        if row.empty:
+            return None
+        r = row.iloc[0]
+        bid, ask, last = _pos(r.get("bid")), _pos(r.get("ask")), _pos(r.get("lastPrice"))
+        return (bid + ask) / 2 if bid and ask else last
+    except Exception as e:
+        print(f"[market_data] option chain {occ} error: {e}")
+        return None
+
+
 def live_quote(symbol: str, kind: str) -> dict:
     """Live price + 24h/1D % change for a holding. Cached 3 min (kept warm in the background).
 
@@ -520,9 +558,16 @@ def live_quote(symbol: str, kind: str) -> dict:
         if yf is not None:
             try:
                 fi = yf.Ticker(sym).fast_info
-                price, prev = fi["last_price"], fi["previous_close"]
+                price, prev = _pos(fi["last_price"]), _pos(fi["previous_close"])
             except Exception as e:
                 print(f"[market_data] live_quote option {sym} error: {e}")
+            if price is None:  # a contract that hasn't traded lately has no price history: read the chain
+                price, prev = _option_chain_quote(yf, sym), None
+        if price is None:  # keep the last mark we saw instead of dropping the position from the totals
+            last = _get(f"{key}:last", 7 * 86400)
+            if last is not None:
+                _set(key, last)  # don't re-ask the feed on every request while it has nothing
+                return last  # type: ignore[return-value]
     else:
         yf = _yf()
         if yf is not None:
@@ -542,6 +587,8 @@ def live_quote(symbol: str, kind: str) -> dict:
     }
     if price is not None:
         _set(key, out)
+        if kind == "option":
+            _set(f"{key}:last", {**out, "change_1d": None})
     return out
 
 
