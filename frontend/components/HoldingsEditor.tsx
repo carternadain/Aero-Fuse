@@ -19,7 +19,7 @@ interface Holding {
 interface Draft { qty: string; cost: string }
 interface Trade { id: number; side: "buy" | "sell"; shares: string; price: string }
 
-const CRYPTO = new Set(["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "LINK", "DOT", "LTC", "BNB", "MATIC", "ATOM", "NEAR", "SUI", "UNI"]);
+const CRYPTO = new Set(["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "LINK", "DOT", "LTC", "BNB", "MATIC", "ATOM", "NEAR", "SUI", "UNI", "LIT", "ONDO", "HYPE", "XLM", "USDC", "RENDER", "RSC", "GUSD", "SHIB", "PEPE", "ARB", "OP", "AAVE", "TON", "TRX", "BCH", "HBAR"]);
 const toNum = (s: string) => { const n = parseFloat(s.replace(/[$,\s]/g, "")); return isFinite(n) ? n : NaN; };
 const trim = (n: number, dp = 6) => String(+n.toFixed(dp));
 const unit = (h: Holding) => (h.kind === "option" ? "Contracts" : h.kind === "crypto" ? "Units" : "Shares");
@@ -32,6 +32,8 @@ export default function HoldingsEditor() {
   const [trade, setTrade] = useState<Trade | null>(null);
   const [text, setText] = useState("");
   const [label, setLabel] = useState("");
+  const [add, setAdd] = useState<{ symbol: string; qty: string; cost: string } | null>(null);
+  const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const opener = useRef<Element | null>(null);
@@ -42,7 +44,7 @@ export default function HoldingsEditor() {
 
   useEffect(() => {
     if (!open) return;
-    setRows(null); setDraft({}); setTrade(null); setText(""); setErr(null); setTab("edit");
+    setRows(null); setDraft({}); setTrade(null); setAdd(null); setText(""); setErr(null); setTab("edit");
     api.get<{ holdings: Holding[] }>("/api/holdings").then((r) => setRows(r.holdings)).catch(() => setErr("Couldn't load your holdings. Close this and try again."));
     document.body.style.overflow = "hidden";
     const t = setTimeout(() => closeBtn.current?.focus(), 40);
@@ -126,6 +128,20 @@ export default function HoldingsEditor() {
     else done(todo.length);
   };
 
+  const addSym = add?.symbol.trim().toUpperCase() ?? "";
+  const addHeld = addSym !== "" && (rows ?? []).some((h) => h.kind !== "option" && h.symbol.toUpperCase() === addSym);
+  const addOk = /^[A-Z][A-Z0-9.\-]{0,9}$/.test(addSym) && !addHeld && toNum(add?.qty ?? "") > 0 && (!add?.cost.trim() || toNum(add.cost) > 0);
+  const addOne = async () => {
+    if (!add || !addOk || adding) return;
+    setAdding(true); setErr(null);
+    try {
+      await api.post("/api/holdings", { symbol: addSym, kind: CRYPTO.has(addSym) ? "crypto" : "stock", qty: toNum(add.qty), cost_basis: add.cost.trim() ? toNum(add.cost) : null, label });
+      const r = await api.get<{ holdings: Holding[] }>("/api/holdings");
+      setRows(r.holdings); setAdd(null); accountsChanged(); refreshLive(); haptic(); toast(`Added ${addSym}.`);
+    } catch { setErr(`Couldn't add ${addSym}. Check the symbol and try again.`); }
+    setAdding(false);
+  };
+
   const groups = new Map<string, Holding[]>();
   for (const h of rows ?? []) groups.set(h.label || "Other holdings", [...(groups.get(h.label || "Other holdings") ?? []), h]);
 
@@ -156,7 +172,7 @@ export default function HoldingsEditor() {
           {rows == null && !err && <div className="space-y-2" aria-busy="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-20" />)}</div>}
 
           {tab === "edit" && rows != null && (rows.length === 0
-            ? <p className="text-[14px] text-dim px-1 py-6 text-center">No holdings yet. Paste a list from your brokerage to add them all at once.</p>
+            ? <p className="text-[14px] text-dim px-1 py-6 text-center">No holdings yet. Add one below, or paste a list from your brokerage to add them all at once.</p>
             : [...groups.entries()].map(([name, list]) => (
               <section key={name} aria-label={name} className="rounded-2xl border border-edge overflow-hidden">
                 <h3 className="px-3 py-2 bg-panel2 text-[12px] font-bold text-dim">{name}</h3>
@@ -214,6 +230,40 @@ export default function HoldingsEditor() {
                 </ul>
               </section>
             )))}
+
+          {tab === "edit" && rows != null && (add == null
+            ? <button type="button" className="btn w-full !min-h-11 !text-[13.5px]" onClick={() => setAdd({ symbol: "", qty: "", cost: "" })}><Plus size={15} aria-hidden />Add a holding</button>
+            : (
+              <form aria-label="Add a holding" className="rounded-2xl border border-edge2 bg-bg/60 p-3 space-y-2.5" onSubmit={(e) => { e.preventDefault(); addOne(); }}>
+                <div className="flex items-end gap-2">
+                  <label className="flex-1 min-w-0">
+                    <span className="block mb-1 text-[11.5px] text-dim">Symbol</span>
+                    <input autoFocus className="field" value={add.symbol} placeholder="AAPL" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                           aria-invalid={addHeld} onChange={(e) => setAdd({ ...add, symbol: e.target.value.toUpperCase() })} />
+                  </label>
+                  <label className="flex-1 min-w-0">
+                    <span className="block mb-1 text-[11.5px] text-dim">Amount</span>
+                    <input className="field tabular-nums" inputMode="decimal" value={add.qty} onChange={(e) => setAdd({ ...add, qty: e.target.value })} />
+                  </label>
+                  <label className="flex-1 min-w-0">
+                    <span className="block mb-1 text-[11.5px] text-dim">Avg cost</span>
+                    <input className="field tabular-nums" inputMode="decimal" value={add.cost} placeholder="optional" onChange={(e) => setAdd({ ...add, cost: e.target.value })} />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="block mb-1 text-[11.5px] text-dim">Held at</span>
+                  <input className="field" list="hold-labels-add" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Fidelity (optional)" />
+                  <datalist id="hold-labels-add">{labels.map((l) => <option key={l} value={l} />)}</datalist>
+                </label>
+                {addHeld && <p className="text-[12.5px] text-warn">You already hold {addSym}. Change its amount above instead.</p>}
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="btn !min-h-10" onClick={() => setAdd(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary !min-h-10" disabled={!addOk || adding}>
+                    {adding && <Loader2 size={14} className="animate-spin" aria-hidden />}Add
+                  </button>
+                </div>
+              </form>
+            ))}
 
           {tab === "paste" && rows != null && (
             <div className="space-y-3">

@@ -92,10 +92,6 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
   const showHeat = on("heatmap");
   const showAlloc = on("allocation");
   const moneyItems: Pane[] = [];
-  if (on("chart")) moneyItems.push({
-    id: "sec-networth", label: "Net worth", span: "lg:col-span-12",
-    node: <NetWorthHistory />,
-  });
   if (showHeat) moneyItems.push({
     id: "sec-heatmap", label: "Today's map", span: showAlloc ? "lg:col-span-7" : "lg:col-span-12",
     node: <PortfolioHeatmap />,
@@ -182,13 +178,17 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
         <SinceLastVisit />
       </div>
 
+      {/* The number first: net worth leads Home, prompts and the brief follow it */}
+      {on("chart") && <div id="sec-networth" className="scroll-mt-28"><NetWorthHistory /></div>}
+
+      {/* On a phone the pie sits right under the chart instead of behind a tab */}
+      <Panes grid items={moneyItems} />
+
       <ReportBanner />
 
       <CashInvestPrompts />
 
       {on("brief") && <TodayBrief />}
-
-      <Panes grid items={moneyItems} />
 
       {on("cards") && <AccountCards />}
 
