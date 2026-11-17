@@ -182,13 +182,14 @@ export default function Overview({ onNavigate }: { onNavigate: (t: TabKey) => vo
         <SinceLastVisit />
       </div>
 
+      {/* The number first: net worth leads Home, prompts and the brief follow it */}
+      <Panes grid items={moneyItems} />
+
       <ReportBanner />
 
       <CashInvestPrompts />
 
       {on("brief") && <TodayBrief />}
-
-      <Panes grid items={moneyItems} />
 
       {on("cards") && <AccountCards />}
 

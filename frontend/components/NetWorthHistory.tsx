@@ -247,7 +247,7 @@ export default function NetWorthHistory() {
   );
 
   return (
-    <section className="panel hero-card">
+    <section className="panel hero-card" data-trend={typeof chg === "number" && chg < 0 ? "down" : "up"}>
       <div className="p-4">
         {loading ? (
           <div className="space-y-3">

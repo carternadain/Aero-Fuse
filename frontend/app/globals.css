@@ -443,6 +443,16 @@ body:has(main.login)::after { display: none; } /* the sign-in screen brings its 
     radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-up) 20%, transparent), transparent 60%),
     radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--color-cyan) 10%, transparent), transparent 60%);
 }
+/* A falling range washes the card in the loss color instead, so the mood is readable before the number is */
+.hero-card[data-trend="down"]::before {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-down) 18%, transparent), transparent 60%),
+    radial-gradient(90% 70% at 100% 0%, color-mix(in srgb, var(--color-amber) 8%, transparent), transparent 60%);
+}
+.hero-card[data-trend="down"] .hero-number {
+  background-image: linear-gradient(180deg, var(--color-txt) 30%, color-mix(in srgb, var(--color-txt) 72%, var(--color-down)));
+}
+.hero-card[data-trend="down"] .recharts-area-curve { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-down) 55%, transparent)); }
 :root[data-theme="light"] .hero-card::before { opacity: 0.55; }
 .hero-number {
   background: linear-gradient(180deg, var(--color-txt) 30%, color-mix(in srgb, var(--color-txt) 72%, var(--color-up)));
