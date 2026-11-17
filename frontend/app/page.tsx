@@ -44,6 +44,7 @@ import OptionsPlan from "@/components/OptionsPlan";
 import SwingIdeas from "@/components/SwingIdeas";
 import Overview from "@/components/Overview";
 import DialogHost from "@/components/DialogHost";
+import HoldingsEditor from "@/components/HoldingsEditor";
 import Celebrate from "@/components/Celebrate";
 import HolidayFx from "@/components/HolidayFx";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -265,6 +266,7 @@ export default function Dashboard() {
       <Header />
       <TabNav active={tab} onChange={setTab} />
       <DialogHost />
+      <HoldingsEditor />
       <Celebrate />
       <HolidayFx />
       <PullToRefresh />

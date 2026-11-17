@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
+import { onAccountsChanged, openHoldings } from "@/lib/bus";
+import { Pencil,
   Banknote, Bitcoin, Camera, Car, CreditCard, Home, Landmark, Package, PiggyBank,
   ChevronDown, ChevronRight, Plus, TrendingUp, X, type LucideIcon,
 } from "lucide-react";
@@ -106,7 +107,8 @@ export default function NetWorth() {
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 60000); // holdings re-mark to live prices every minute
-    return () => clearInterval(t);
+    const off = onAccountsChanged(refresh);
+    return () => { clearInterval(t); off(); };
   }, []);
 
   const addHolding = async () => {
@@ -199,7 +201,9 @@ export default function NetWorth() {
   return (
     <section className="panel flex flex-col">
       <div className="panel-head">
-        <span className="text-[12px] text-dim">Tap a row to edit</span>
+        {hold.holdings.length > 0
+          ? <button className="btn !py-1" onClick={() => openHoldings()}><Pencil size={12} />Update holdings</button>
+          : <span className="text-[12px] text-dim">Tap a row to edit</span>}
         <div className="flex items-center gap-2">
           <button className="btn !py-1" onClick={snapshot} title="Record today's net worth on the chart">
             <Camera size={12} />Snap

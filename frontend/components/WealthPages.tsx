@@ -256,7 +256,7 @@ export default function WealthPages({ page, onOpen, onClose }: {
         {showing && m && (
           <section key={showing} aria-label={m.title} className="wp-push min-w-0">
             <div className="lg:hidden sticky z-30 -mx-3 sm:-mx-4 px-2 top-[var(--header-h,49px)] sm:top-[calc(var(--header-h,49px)+41px)]
-                            bg-bg/85 backdrop-blur-xl border-b border-transparent data-[s=true]:border-edge transition-colors"
+                            bg-bg/60 backdrop-blur-xl border-b border-transparent data-[s=true]:border-edge transition-colors"
                  data-s={scrolled}>
               <div className="h-11 grid grid-cols-[1fr_auto_1fr] items-center">
                 <button onClick={() => { haptic(); onClose(); }}

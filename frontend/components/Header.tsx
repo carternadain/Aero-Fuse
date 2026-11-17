@@ -51,7 +51,7 @@ export default function Header() {
   }, []);
 
   return (
-    <header ref={ref} className="flex items-center gap-3 sm:gap-4 lg:gap-6 px-4 py-2 sm:py-3 safe-top border-b border-edge bg-panel sticky top-0 z-40">
+    <header ref={ref} className="flex items-center gap-3 sm:gap-4 lg:gap-6 px-4 py-2 sm:py-3 safe-top border-b border-edge bg-panel/80 backdrop-blur-xl sticky top-0 z-40">
       <h1 className="flex items-center gap-2.5 shrink-0 h-10 font-display text-[20px] sm:text-[22px] leading-none text-txt whitespace-nowrap">
         <AeroMark size={22} />
         Aero

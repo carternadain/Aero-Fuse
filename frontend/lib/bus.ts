@@ -34,6 +34,12 @@ export const openReport = (month?: string) => emit("app:report", month ?? null);
 export const budgetChanged = () => emit("app:budget", null);
 export const onBudgetChanged = (fn: () => void) => on<null>("app:budget", fn);
 
+/** Account balances or holdings changed outside the Accounts panel: it should reload. */
+export const accountsChanged = () => emit("app:accounts", null);
+export const onAccountsChanged = (fn: () => void) => on<null>("app:accounts", fn);
+/** Open the sheet for updating every holding at once. */
+export const openHoldings = () => emit("app:holdings", null);
+
 /** Light tap on Android (iOS Safari doesn't expose vibration). */
 export function haptic(ms = 8) {
   try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
