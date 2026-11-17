@@ -504,29 +504,44 @@ input, select, textarea {
 }
 
 /* ── Sign-in screen (app/login/page.tsx) ────────────────── */
-/* Ambient color: three blurred fields in theme tokens. They drift a few percent over ~20s,
-   so the page feels alive without anything to follow with the eye. */
+/* Every color below is a theme token, so the palette picker and light mode carry through. */
+
+/* Ambient color: three blurred fields that drift a few percent over ~20s. */
 .login-aurora { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .login-aurora span {
   position: absolute;
   width: 62vmax; height: 62vmax;
   border-radius: 50%;
   filter: blur(90px);
-  opacity: 0.20;
+  opacity: 0.22;
   will-change: transform;
 }
 .login-aurora span:nth-child(1) { background: var(--color-up); top: -30vmax; left: -22vmax; animation: login-drift-a 22s ease-in-out infinite alternate; }
 .login-aurora span:nth-child(2) { background: var(--color-amber); bottom: -36vmax; right: -24vmax; opacity: 0.14; animation: login-drift-b 26s ease-in-out infinite alternate; }
-.login-aurora span:nth-child(3) { background: var(--color-cyan); top: 30%; left: 55%; width: 40vmax; height: 40vmax; opacity: 0.10; animation: login-drift-a 30s ease-in-out infinite alternate-reverse; }
+.login-aurora span:nth-child(3) { background: var(--color-cyan); top: 30%; left: 55%; width: 40vmax; height: 40vmax; opacity: 0.11; animation: login-drift-a 30s ease-in-out infinite alternate-reverse; }
 :root[data-theme="light"] .login-aurora span { opacity: 0.16; }
 :root[data-theme="light"] .login-aurora span:nth-child(2) { opacity: 0.12; }
 :root[data-theme="light"] .login-aurora span:nth-child(3) { opacity: 0.10; }
 @keyframes login-drift-a { to { transform: translate3d(6vmax, 4vmax, 0) scale(1.08); } }
 @keyframes login-drift-b { to { transform: translate3d(-5vmax, -6vmax, 0) scale(1.1); } }
 
-/* A rising line along the bottom edge, drawn once on load */
-.login-line { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 15vh; pointer-events: none; opacity: 0.3; }
-.login-line path {
+/* A dot grid that fades out toward the edges */
+.login-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--color-txt) 14%, transparent) 1px, transparent 1.4px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 10%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 10%, transparent 75%);
+  opacity: 0.6;
+}
+
+/* Rising lines (page bottom and the desktop preview), drawn once on load */
+.login-line { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 12vh; pointer-events: none; opacity: 0.4; }
+@media (min-width: 1024px) { .login-line { height: 22vh; opacity: 0.55; } }
+.login-stop-a { stop-color: var(--color-up); stop-opacity: 0.28; }
+.login-stop-b { stop-color: var(--color-up); stop-opacity: 0; }
+.login-area { opacity: 0; animation: login-fade 1.4s ease 0.9s forwards; }
+.login-stroke {
   fill: none;
   stroke: var(--color-up);
   stroke-width: 2;
@@ -534,13 +549,141 @@ input, select, textarea {
   vector-effect: non-scaling-stroke;
   stroke-dasharray: 2000;
   stroke-dashoffset: 2000;
-  animation: login-draw 2.2s cubic-bezier(0.3, 0.6, 0.2, 1) 0.25s forwards;
+  animation: login-draw 2.4s cubic-bezier(0.3, 0.6, 0.2, 1) 0.25s forwards;
 }
+.login-stroke-short { stroke-width: 2.5; animation-delay: 0.45s; }
+.login-dot { fill: var(--color-up); opacity: 0; animation: login-fade 0.3s ease 2s forwards, login-ping 2.4s ease-out 2.3s infinite; }
 @keyframes login-draw { to { stroke-dashoffset: 0; } }
+@keyframes login-fade { to { opacity: 1; } }
+@keyframes login-ping {
+  0% { filter: drop-shadow(0 0 0 var(--color-up)); }
+  50% { filter: drop-shadow(0 0 6px var(--color-up)); }
+  100% { filter: drop-shadow(0 0 0 var(--color-up)); }
+}
+
+/* Greeting: the text warms into the accent color toward the end */
+.login-hello {
+  background: linear-gradient(100deg, var(--color-txt) 35%, color-mix(in srgb, var(--color-up) 70%, var(--color-txt)) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  padding-bottom: 0.06em; /* keep descenders inside the clipped box */
+}
+.login-mark { box-shadow: 0 14px 40px var(--color-shade-float), 0 0 0 6px color-mix(in srgb, var(--color-up) 8%, transparent); }
+.login-live {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--color-up);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-up) 55%, transparent);
+  animation: login-live 2.4s ease-out infinite;
+}
+@keyframes login-live { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* Desktop preview: two stacked glass cards with no data on them */
+.login-preview { position: relative; animation: login-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s backwards; }
+.login-preview-back {
+  position: absolute; inset: 18px -18px -18px 18px;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--color-edge2) 50%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 40%, transparent);
+  transform: rotate(3deg);
+}
+.login-preview-card {
+  position: relative;
+  border-radius: 24px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--color-edge2) 70%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 70%, transparent);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px var(--color-shade-float);
+  transform: rotate(-2deg);
+}
+.login-chip { background: color-mix(in srgb, var(--color-up) 22%, transparent); }
+
+/* Sign-in card: a slowly turning gradient edge, glass inside, light under the pointer */
+@property --login-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.login-card {
+  --mx: 50%; --my: 0%;
+  position: relative;
+  border-radius: 28px;
+  padding: 1px;
+  background: conic-gradient(from var(--login-angle),
+    color-mix(in srgb, var(--color-edge2) 70%, transparent),
+    color-mix(in srgb, var(--color-up) 75%, transparent) 12%,
+    color-mix(in srgb, var(--color-edge2) 70%, transparent) 30%,
+    color-mix(in srgb, var(--color-edge2) 70%, transparent) 55%,
+    color-mix(in srgb, var(--color-cyan) 60%, transparent) 67%,
+    color-mix(in srgb, var(--color-edge2) 70%, transparent) 80%);
+  box-shadow: 0 28px 70px var(--color-shade-float), 0 0 60px color-mix(in srgb, var(--color-up) 7%, transparent);
+  animation: login-spin 9s linear infinite;
+}
+.login-card.login-rise { animation: login-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards, login-spin 9s linear infinite; }
+.login-card.login-shake { animation: login-shake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97), login-spin 9s linear infinite; }
+.login-card.login-shake-b { animation: login-shake-b 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97), login-spin 9s linear infinite; }
+@keyframes login-spin { to { --login-angle: 360deg; } }
+.login-card-inner {
+  position: relative;
+  border-radius: 27px;
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  overflow: hidden;
+}
+.login-card-inner::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(320px circle at var(--mx) var(--my), color-mix(in srgb, var(--color-up) 9%, transparent), transparent 70%);
+}
+.login-card-inner > * { position: relative; }
+
+/* Password field */
+.login-field {
+  border-radius: 16px;
+  border: 1px solid var(--color-edge2);
+  background: var(--color-bg);
+  transition: border-color 0.15s ease, box-shadow 0.2s ease;
+}
+.login-field:hover { border-color: color-mix(in srgb, var(--color-edge2) 50%, var(--color-dim)); }
+.login-field:focus-within {
+  border-color: var(--color-up);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-up) 22%, transparent);
+}
+.login-field:has(input[aria-invalid="true"]) { border-color: var(--color-down); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-down) 18%, transparent); }
+.login-field input { background: transparent; border: 0; box-shadow: none; }
+.login-field input:-webkit-autofill { -webkit-text-fill-color: var(--color-txt); -webkit-box-shadow: 0 0 0 100px var(--color-bg) inset; caret-color: var(--color-txt); }
+
+/* Buttons */
+.login-btn {
+  position: relative; overflow: hidden;
+  width: 100%; min-height: 52px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 16px;
+  font-size: 15px; font-weight: 600;
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.2s ease, opacity 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.login-btn:focus-visible { outline: 2px solid var(--color-cyan); outline-offset: 3px; }
+.login-btn:active:not(:disabled) { transform: scale(0.98); }
+.login-btn:disabled { cursor: default; }
+.login-btn-primary {
+  color: var(--color-on-up);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-up) 88%, var(--color-txt)), var(--color-up));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--color-up) 30%, transparent), inset 0 1px 0 color-mix(in srgb, var(--color-txt) 30%, transparent);
+}
+.login-btn-primary:hover:not(:disabled) { box-shadow: 0 14px 34px color-mix(in srgb, var(--color-up) 42%, transparent), inset 0 1px 0 color-mix(in srgb, var(--color-txt) 30%, transparent); }
+.login-btn-primary:disabled { opacity: 0.5; box-shadow: none; }
+/* a light sweep across the primary button on hover */
+.login-btn-primary::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--color-txt) 35%, transparent) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+@media (hover: hover) { .login-btn-primary:hover:not(:disabled)::after { transform: translateX(120%); transition: transform 0.7s ease; } }
+.login-btn-quiet { color: var(--color-txt); background: var(--color-panel2); border: 1px solid var(--color-edge2); }
+.login-btn-quiet:hover:not(:disabled) { border-color: var(--color-up); }
+.login-btn-quiet:disabled { opacity: 0.6; }
+.login-arrow { transition: transform 0.2s ease; }
+.login-btn:hover:not(:disabled) .login-arrow { transform: translateX(3px); }
 
 /* Staggered entrance; `backwards` so nothing keeps a transform afterwards */
 .login-rise { animation: login-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
-@keyframes login-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes login-rise { from { opacity: 0; transform: translateY(12px); } }
 .login-mark { animation: login-mark 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards; }
 @keyframes login-mark { from { opacity: 0; transform: scale(0.82); } }
 
@@ -558,7 +701,23 @@ input, select, textarea {
 .login-pop { animation: login-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.4) backwards; }
 @keyframes login-pop { from { opacity: 0; transform: scale(0.4); } }
 
+/* Signed in: fade to the app background with the mark in the middle */
+.login-exit {
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; place-items: center;
+  background: var(--color-bg);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.35s ease 0.2s, visibility 0s linear 0.55s;
+}
+.login-exit.is-on { opacity: 1; visibility: visible; transition: opacity 0.35s ease 0.2s, visibility 0s; }
+.login-exit-mark { transform: scale(0.85); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) 0.25s, opacity 0.3s ease 0.25s; box-shadow: 0 14px 40px var(--color-shade-float); }
+.login-exit.is-on .login-exit-mark { transform: none; opacity: 1; }
+
 @media (prefers-reduced-motion: reduce) {
-  .login-aurora span, .login-rise, .login-mark, .login-shake, .login-shake-b, .login-pop { animation: none !important; }
-  .login-line path { animation: none; stroke-dashoffset: 0; }
+  .login-aurora span, .login-rise, .login-mark, .login-shake, .login-shake-b, .login-pop,
+  .login-card, .login-card.login-rise, .login-card.login-shake, .login-card.login-shake-b,
+  .login-preview, .login-live, .login-dot, .login-area { animation: none !important; }
+  .login-stroke { animation: none; stroke-dashoffset: 0; }
+  .login-area, .login-dot { opacity: 1; }
+  .login-btn, .login-arrow, .login-exit, .login-exit-mark, .login-btn-primary::after { transition: none !important; }
 }
