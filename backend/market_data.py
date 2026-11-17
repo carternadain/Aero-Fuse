@@ -437,13 +437,13 @@ def stock_earnings(ticker: str) -> dict | None:
     return out
 
 
-def spot_price(symbol: str) -> float | None:
+def spot_price(symbol: str, stock_fallback: bool = True) -> float | None:
     """Best-effort current price for any signal symbol (crypto via Coinbase, else stock).
 
     Cached 60s. Tries Coinbase spot on the base ticker first (handles SOLUSD/SOL/BTCUSDT),
     then falls back to a Yahoo stock quote.
     """
-    key = f"spot:{symbol}"
+    key = f"spot:{symbol}:{int(stock_fallback)}"
     cached = _get(key, 60)
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -462,7 +462,7 @@ def spot_price(symbol: str) -> float | None:
     except Exception:
         price = None
 
-    if price is None:  # stock fallback
+    if price is None and stock_fallback:
         q = stock_quote(symbol.upper())
         price = q.get("price")
 
@@ -551,7 +551,9 @@ def live_quote(symbol: str, kind: str) -> dict:
         if price is None:  # not on Coinbase (e.g. NIGHT): CoinGecko by id, then generic spot
             price, prev = _coingecko_quote(sym)
         if price is None:
-            price = spot_price(sym)
+            # Coinbase spot only: a coin that shares a ticker with a stock or ETF (LIT, UNI) must show
+            # no price instead of the wrong one.
+            price = spot_price(sym, stock_fallback=False)
     elif kind == "option":
         # OCC symbol (e.g. AMZN271217C00260000) — per-share premium; caller applies the x100.
         yf = _yf()
